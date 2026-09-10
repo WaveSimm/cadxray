@@ -93,7 +93,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `reload_handlers` | 애드온 코드 다시 읽기 (개발용) |
 | `import_step` | STEP/IGES 가져오기 + 생긴 부품 요약 |
 | `find_holes` | 구멍 직경·중심·깊이·관통 여부, 같은 직경끼리 패턴·피치 |
-| `check_interference` | 부품 쌍 최소 거리·간섭 부피 |
+| `check_interference` | 부품 쌍 최소 거리·간섭 부피. 기본은 문제 쌍만 담고, 바운딩박스가 떨어진 쌍은 계산 없이 건너뜀 |
 | `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
@@ -126,7 +126,9 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `find_holes` | **벤더 STEP** 58면(BSpline 49) / 46면(원통 28) | 1.6 / 5.6 KB | **422 / 44 ms** |
 | `check_interference` | 부품 4개 = 6쌍 | 1.4 KB | 31 ms |
 | `check_interference` | 벤더 STEP 2개 (겹침 → `common()` 호출) | 0.8 KB | 838 ms |
-| `get_mass_properties` | 구멍 뚫린 판 / 벤더 STEP | 0.7 KB | 2 / 135 ms |
+| `check_interference` | **벤더 어셈블리 80부품 = 3,160쌍** (bbox로 2,989쌍 건너뜀) | 2.2 KB | **6.5 s** |
+| `find_holes` | 어셈블리 부품 100면 (구멍 20 + 필렛 7) | 5 KB | 112 ms |
+| `get_mass_properties` | 구멍 뚫린 판 / 벤더 STEP / 어셈블리 80부품 | 0.7 KB | 2 / 135 / 2068 ms |
 
 응답 하드캡은 100 KB입니다(스크린샷 제외). 넘으면 핸들러가 목록을 먼저 줄이고 `warnings`에 알립니다.
 

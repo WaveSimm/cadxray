@@ -242,6 +242,8 @@
 - 같은 축선·같은 반지름이라도 **축 방향으로 떨어진** 면은 다른 구멍이다. `[벤더 STEP 실측]` ±X 벽의 1 mm 자리파기 2개가 40 mm 관통 하나로 묶였다 → 면별 축 구간을 구해 겹치는 것끼리만 묶는다.
 - `Solid.Mass == Solid.Volume` (밀도 1). `PrincipalProperties` 키: `Moments`, `RadiusOfGyration`, `FirstAxisOfInertia`, `SecondAxisOfInertia`, `ThirdAxisOfInertia`, `SymmetryAxis`, `SymmetryPoint`. `MatrixOfInertia`는 `Base.Matrix`(`A11`~`A33`), 전역 원점 기준.
 - `a.distToShape(b)[0]`: 겹치면 `0.0`, 떨어져 있으면 거리. `a.common(b).Volume`: 10×10×10 두 상자를 5 겹치면 `500.0`.
+- **속도 실측** `[1.1.3, 80부품 3,149면 어셈블리]`: `distToShape`는 100면급 부품 쌍에서 **중앙값 36 ms, 최대 171 ms** → 3,160쌍 전부면 약 130 s. 바운딩박스가 떨어진 쌍은 `distToShape` 없이 축별 간격(실거리의 하한)으로 끝낸다 → 대부분의 쌍이 0 ms. `App::Part.Shape`는 자식 전체의 compound라 `Solids`가 80개로 나온다(질량 합산에 그대로 쓸 수 있음).
+- 응답 크기: 쌍 300개를 전부 담으면 88 KB(브릿지 하드캡 안이지만 Claude Code 표시 한도 초과) → 기본은 문제 쌍만 담는다.
 - `shape.isInside(point, tol, checkFace)`: 구멍 중심축 위 점 → False, 재료 안 → True. 관통 판정 휴리스틱에 쓴다.
 - **STEP 이름의 한글** `[라이브 1.1.3, 벤더 파일]`: FreeCAD가 ISO 10303-21 이스케이프를 풀지 않는다. `\X2\c6d4d30c\X0\`(UTF-16BE 16진수)가 Label에 그대로 남는다 → `util.decode_step_text`로 응답에서만 푼다. 실측: `20250624_\X2\c6d4d30c\X0\ …` → `20250624_월파 브라켓(수정본)`.
 - **메시(STL)**: `Mesh.insert(path, docName)`으로 `Mesh::Feature`가 생기지만 `Shape`가 없어 위 API를 전혀 쓸 수 없다. `Part.Shape().makeShapeFromMesh((verts, facets), tol)`로 삼각면 컴파운드를 만들 수는 있으나 docstring이 "rather small meshes only"라고 경고하고, 원통면이 없으므로 `find_holes`는 불가. M6 범위 밖.

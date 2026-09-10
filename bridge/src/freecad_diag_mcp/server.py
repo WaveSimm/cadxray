@@ -288,12 +288,14 @@ def check_interference(
     clearance: float = 0.0,
     volume_tolerance: float = 1e-6,
     max_pairs: int = 50,
+    include_ok: bool = False,
 ) -> str:
     """부품 쌍마다 최소 거리와 **간섭 부피(mm³)**를 잰다.
 
     names에 객체 2개 이상, 또는 App::Part 하나(안의 부품을 전부 쌍으로 푼다).
     status: interference(겹침) / clearance_violation(거리 < clearance) / ok.
-    큰 어셈블리는 쌍 수가 폭발하므로 max_pairs로 제한된다.
+    기본으로 문제 있는 쌍만 pairs에 담는다(ok는 summary 숫자로만). 전부 보려면 include_ok=True.
+    큰 어셈블리는 쌍 수가 폭발하므로(80부품 = 3,160쌍) max_pairs로 제한된다. 쌍당 1~20 ms.
     """
     return client.call(
         "check_interference",
@@ -303,8 +305,9 @@ def check_interference(
             "clearance": clearance,
             "volume_tolerance": volume_tolerance,
             "max_pairs": max_pairs,
+            "include_ok": include_ok,
         },
-        timeout=130,
+        timeout=310,
     )
 
 
