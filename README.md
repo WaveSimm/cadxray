@@ -13,10 +13,14 @@ FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다
 필요한 것: FreeCAD 1.0 이상, [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), Python 3.10 이상, git.
 
 ```bash
-git clone <이 저장소> freecad-diag-mcp
+git clone https://github.com/WaveSimm/freecad-diag-mcp.git
 cd freecad-diag-mcp
 python scripts/install_addon.py
 ```
+
+> 이 저장소는 비공개입니다. 다른 컴퓨터에서 clone하려면 그 컴퓨터에서 `gh auth login`으로 같은 GitHub 계정에 먼저 로그인합니다.
+
+이 프로젝트는 [theosib/FreeCAD-MCP-Server](https://github.com/theosib/FreeCAD-MCP-Server)의 진단 툴 설계와 [neka-nat/freecad-mcp](https://github.com/neka-nat/freecad-mcp)의 애드온 서버 패턴을 참고해 한국어 환경에 맞춰 다시 만든 것입니다.
 
 `install_addon.py`가 OS별 FreeCAD Mod 폴더를 찾아 애드온을 **심링크**로 연결합니다(권한이 없으면 복사). 경로를 직접 주려면 `--dest "<Mod 폴더>"`, 후보만 보려면 `--list`.
 
