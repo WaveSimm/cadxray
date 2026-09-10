@@ -1398,6 +1398,9 @@ def build_features(body=None, doc=None, features=None, params=None, create_body=
                         f.Reversed = True
                     if spec.get("midplane"):
                         f.Midplane = True
+                    if spec.get("taper") is not None:
+                        # 구배(draft) 각도. 양수가 바깥으로 벌어지는지 안으로 좁아지는지는 결과 부피로 확인한다
+                        _num_or_expr(f, "TaperAngle", spec["taper"])
                 else:
                     type_id = "PartDesign::Groove" if op == "groove" else "PartDesign::Revolution"
                     f = _add_feature(d, body_obj, type_id, name, sk)

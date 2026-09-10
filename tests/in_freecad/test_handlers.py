@@ -524,6 +524,14 @@ def test_rebuild_tools():
     cs = r["data"]["created"] if r["ok"] else []
     check("꺾은선 근사 Pad + X 방향 윗면 모서리 2개만 챔퍼", r["ok"] and r["data"]["stopped_at"] is None and cs[0].get("dof") == 0
           and len(cs[1].get("edges") or []) == 2 and cs[1]["status"] == "Valid", str([(c["name"], c.get("dof"), c["status"], c.get("edges")) for c in cs] if r["ok"] else r))
+    # 구배 Pad: TaperAngle 음수 = 위로 갈수록 좁아짐 (20×20 바닥, 높이 10, −5° → 윗면 18.25×18.25, 원뿔대 부피)
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt8", features=[
+        {"op": "pad", "name": "Draft", "plane": "XY", "position": 0.0, "length": 10.0, "taper": -5.0,
+         "profile": {"rect": {"center": [0, 0], "width": 20, "height": 20}}}])
+    top = 20 - 2 * 10 * math.tan(math.radians(5))
+    frustum = 10 / 3.0 * (400 + top * top + math.sqrt(400 * top * top))
+    check("taper −5° Pad → 원뿔대 부피 (안으로 좁아짐)", r["ok"] and r["data"]["stopped_at"] is None and abs(r["data"]["volume"] - frustum) < 0.5,
+          str((r["data"].get("volume"), round(frustum, 2)) if r["ok"] else r))
 
 
 # --- 실행 -----------------------------------------------------------------------

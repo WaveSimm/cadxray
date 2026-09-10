@@ -329,3 +329,9 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 몸통 원통에 붙은 팔은 XZ 프로파일을 Y로 돌출한 뒤 X축 둘레 회전 절삭(r > R 영역, 360°)으로 바깥을 원통에 맞추면 된다.
 - PartDesign Fillet R2를 팔 모서리 12개에 한 번에 걸면 `BRep_API: command not done`. 실패한 Fillet은 Body.Tip이 그것을 가리키므로 지운 뒤 `Tip = Base`로 되돌려야 한다.
 - `common()` fallback도 겹친 면에서 조각만 돌려줄 수 있다(handle clamp: Va 10790에 교집합 7) → 작은 쪽 부피의 절반을 넘을 때만 믿고, 아니면 `method: "volume_only"`.
+
+### 샘플 6·7(foot·handle)에서 확인한 것 `[라이브 1.1.3, 2026-09-10]`
+- `PartDesign::Pad.TaperAngle`: **음수가 위로 갈수록 좁아지는(안쪽) 구배**. foot의 5° 구배 외벽은 바닥 사각형 + TaperAngle −5 로 한 번에 나온다(부피 120,114.8 vs 원뿔대 공식 120,109). `build_features`의 pad에 `taper` 필드.
+- `PartDesign::Revolution`도 Groove와 같이 첫 구성선을 `ReferenceAxis=(sketch, ["Axis0"])`로. XZ 평면에서 X 방향 축은 `axis: {"y": z값}`(로컬 y = 전역 Z). handle(플랜지·챔퍼·바 반단면 8점) → 회전체 + 위아래 평면 포켓 + 탱 Pad + R5 필렛 + 피벗 6피처로 **identical(6e-6 %)** — 첫 시도.
+- foot의 노치 플레어는 진짜 BSpline이지만 `classify_faces`가 `best_axis_fit`(잔차 0.0036)으로 원뿔 힌트를 줬고, `tolerance=0.005`로 다시 부르면 cone(반각 44.9°, 반지름 15.8~18.6)으로 판정한다. 원통(R15, 0.8 mm) + 45° 원뿔 회전 절삭으로 근사하면 부피 차 0.003 %, 노치 부근 국소 차 ~18 mm³.
+- 5° 구배 벽의 노치처럼 **축이 살짝 기운(2.4°) 원뿔 판정**은 축 정렬 회전 절삭으로 근사할 수밖에 없다. 기운 축은 `axis: {x|y}` 구성선으로 표현할 수 없다(향후: 스케치 회전 지원 여부 검토).

@@ -185,3 +185,47 @@ handle = run("handle_tools", "Part__Feature025",
     ])
 
 _result.update({"endcap": endcap, "handle": handle})
+
+
+# ================================================================ 샘플 6·7 (2026-09-10 추가)
+# foot   : 5° 구배 외벽 트레이 — 바닥 사각형 Pad(taper −5) + 사각 공동 Pocket + 로드 노치(R15 원통 0.8 + 45° 원뿔 플레어) 회전 절삭.
+#          3피처, match (부피 차 0.003 %). 플레어는 진짜 자유곡면이라 classify_faces(tolerance=0.005)의 원뿔 판정으로 근사
+# handle : 회전체 바(플랜지 R11·45° 챔퍼·R10) → 위아래 평면 포켓 → 납작한 탱(R7.5 끝) Pad → R5 필렛 → 피벗.  6피처, identical
+F = {"of": "Part__Feature015", "doc": SRC_DOC}
+FAY, FAZ = 10.052724, 32.679659                     # 로드 축 (X 방향)
+FX0, FX1, FY0, FY1 = -38.523175, 26.686128, -53.259606, 73.365054   # 바닥 사각형 (classify_faces의 구배면 normal·position에서)
+foot = run("foot_tools", "Part__Feature015",
+    {"z0": 12.679659, "height": 15.0, "draft": -5.0, "cavity_depth": 10.0},
+    [
+        {"op": "pad", "name": "PadShell", "plane": "XY", "position": "Params.z0", "length": "Params.height", "taper": "Params.draft",
+         "profile": {"rect": {"center": [(FX0 + FX1) / 2, (FY0 + FY1) / 2], "width": FX1 - FX0, "height": FY1 - FY0}}},
+        {"op": "pocket", "name": "PocketCavity", "plane": "XY", "position": "Params.z0 + Params.height", "length": "Params.cavity_depth",
+         "profile": {"rect": {"center": [(-34.210845 + 22.373798) / 2, (-45.947276 + 66.052724) / 2], "width": 22.373798 + 34.210845, "height": 66.052724 + 45.947276}}},
+        {"op": "groove", "name": "GrooveNotch", "plane": "XY", "position": FAZ, "axis": {"y": FAY}, "angle": 360.0,
+         "profile": {"polygon": [[-34.210845, FAY], [-34.210845, FAY + 15.0], [-35.010845, FAY + 15.0], [-39.5, FAY + 19.489155], [-39.5, FAY]]}},
+    ])
+
+BAY, BAZ = 10.052724, 32.545                        # 바 축 (X 방향)
+BX0, BX1 = 344.789155, 394.789155                   # 플랜지 뒷면 ~ 끝
+half = [[BX0, BAZ], [BX0, BAZ + 11.0], [BX0 + 1.5, BAZ + 11.0], [BX0 + 2.5, BAZ + 10.0], [BX1 - 2.5, BAZ + 10.0], [BX1 - 1.5, BAZ + 11.0], [BX1, BAZ + 11.0], [BX1, BAZ]]
+tang = [{"type": "line", "start": [BX0, BAZ - 7.5], "end": [332.789155, BAZ - 7.5]},
+        {"type": "arc", "center": [332.789155, BAZ], "radius": 7.5, "start": [332.789155, BAZ - 7.5], "end": [332.789155, BAZ + 7.5], "ccw": False},
+        {"type": "line", "start": [332.789155, BAZ + 7.5], "end": [BX0, BAZ + 7.5]},
+        {"type": "line", "start": [BX0, BAZ + 7.5], "end": [BX0, BAZ - 7.5]}]
+handle_bar = run("handle_bar_tools", "Part__Feature053",
+    {"axis_y": BAY, "tang_y0": 6.352724, "tang_t": 7.4, "pivot_d": 3.4, "fillet_r": 5.0},
+    [
+        # XZ 평면(y = 축 y)의 위쪽 반단면을 X 방향 축(로컬 y = z값) 둘레로 360°
+        {"op": "revolution", "name": "RevBar", "plane": "XZ", "position": "Params.axis_y", "axis": {"y": BAZ}, "angle": 360.0, "profile": {"polygon": half}},
+        {"op": "pocket", "name": "FlatTop", "plane": "XY", "position": BAZ + 7.5, "through": True, "reversed": True,
+         "profile": {"rect": {"center": [(BX0 + BX1) / 2, BAY], "width": BX1 - BX0 + 2.0, "height": 30.0}}},
+        {"op": "pocket", "name": "FlatBottom", "plane": "XY", "position": BAZ - 7.5, "through": True,
+         "profile": {"rect": {"center": [(BX0 + BX1) / 2, BAY], "width": BX1 - BX0 + 2.0, "height": 30.0}}},
+        {"op": "pad", "name": "PadTang", "plane": "XZ", "position": "Params.tang_y0", "reversed": True, "length": "Params.tang_t", "profile": {"elements": tang}},
+        {"op": "fillet", "name": "FilletTang", "size": "Params.fillet_r",
+         "edges": {"curve": "Line", "direction": [0, 0, 1], "bbox": {"min": [BX0 - 0.01, None, None], "max": [BX0 + 0.01, None, None]}}},
+        {"op": "pocket", "name": "PocketPivot", "plane": "XZ", "position": "Params.axis_y", "through": True, "midplane": True,
+         "profile": {"circles": [{"center": [332.789155, BAZ], "diameter": 3.4, "expr": "Params.pivot_d", "name": "pivot_d"}]}},
+    ])
+
+_result.update({"foot": foot, "handle_bar": handle_bar})
