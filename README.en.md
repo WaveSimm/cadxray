@@ -19,7 +19,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 14개)`; addon messages are in Korean for now). Done.
+The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 18개)`; addon messages are in Korean for now). Done.
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
@@ -33,7 +33,7 @@ If Windows cannot find `uvx`, put its full path in `"command"` (`(Get-Command uv
 
 Also installable from FreeCAD's **Addon Manager** (add this repo as a custom repository). Developers: `git clone … && cd cadxray/bridge && uv run cadxray install --dev` (symlink, edits apply immediately).
 
-## Tools (14)
+## Tools (18)
 
 | Tool | What it does |
 |---|---|
@@ -51,6 +51,10 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `find_holes` | hole diameter/center/depth/through, with counterbore, countersink, chamfer and drill-point attached; fillets and slot ends separated by arc angle; bolt patterns with pitch; ISO metric **thread hints** (tap drill / clearance) |
 | `check_interference` | min distance and interference volume per pair; bbox prefilter (80 parts = 3,160 pairs in 6.5 s); only problem pairs returned by default |
 | `get_mass_properties` | volume, area, center of mass, inertia; mass if you pass a density |
+| `classify_faces` | **STEP → parametric, step 1**: what each face really is (plane / cylinder / cone / sphere / free_form) — BSpline faces are sampled and fitted, so "fake free-form" faces are resolved; main axis, band levels, radii, rebuild verdict |
+| `section_profile` | cross-section at a height as sketch-ready lines/arcs/circles in sketch-local 2D; holes, counterbores and chamfers filled in 3D first so only the outline remains; BSpline curves re-identified |
+| `build_features` | stacks sketch + Pad / Pocket / Groove / Revolution / Fillet / Chamfer on a Body, one feature at a time with recompute and validation; `profile.section` traces the original directly (no coordinates through the LLM); Block / point-anchored arcs / axis construction line rules built in; `params` go to a Spreadsheet |
+| `compare_shapes` | volume / area / bbox difference plus fuzzy-difference pieces with bounding boxes — tells you *where* the rebuild is wrong |
 
 Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_ms"}`. List-type responses take `max_*` limits; summaries and `invalid_objects` are always computed over the whole document even when the list is truncated. Hard cap 100 KB (screenshots excepted).
 
@@ -59,7 +63,7 @@ Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_
 - 109 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (0.8 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
-- STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 %. `examples/rebuild_bracket_from_step.py`
+- STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.
 - STEP assembly → one PartDesign Body per part + grounded Assembly joints: `examples/step_assembly_to_bodies.py`
 
 ## Known limits

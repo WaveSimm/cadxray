@@ -393,6 +393,80 @@ STEP/IGES처럼 히스토리 없는 파일을 문서에 넣고, 생긴 객체를
 
 STEP 분석 워크플로(CLAUDE.md에 추가): `import_step` → `get_document_graph`(부품 계층) → `analyze_shape(bop_check=True)`로 유효성 → 목적에 따라 `find_holes` / `check_interference` / `get_mass_properties` → 수정이 필요하면 `PartDesign::Body`를 만들고 `BaseFeature`에 넣은 뒤 `execute_code`로 Pocket·Hole을 쌓는다.
 
+### 7.16 `classify_faces` (M7)
+면마다 **정체**(plane / cylinder / cone / sphere / torus / free_form)를 판정한다. 해석면은 `Surface` 속성을 그대로 읽고, BSpline·Bezier 등은 면 위에 표본점·법선을 찍어 평면→원통·원뿔→구 순으로 맞춰 본다(잔차 ≤ `tolerance`면 채택). STEP의 "가짜 자유곡면"(사실은 원통·평면)을 가려내는 것이 목적.
+- 입력: `name, doc=None, samples=5 (면당 samples² 표본), tolerance=1e-3, max_faces=200, include_analytic=True (False면 해석면은 집계만)`
+- 출력:
+  ```json
+  {"object": "2B2", "faces_total": 44,
+   "faces": [{"i": 3, "surface": "BSplineSurface", "identity": "cylinder", "method": "fit", "residual": 2e-6,
+              "radius": 35.0, "axis": [0,0,1], "axis_letter": "Z", "center": [38.18, 45.05, 0.0], "concave": true, "arc_deg": 118.2, "area": 210.3, "bbox": {...}},
+             {"i": 7, "surface": "Plane", "identity": "plane", "method": "analytic", "normal": [0,0,1], "position": 53.68, "area": 812.0},
+             {"i": 9, "surface": "BSplineSurface", "identity": "cone", "axis": [..], "apex": [..], "semi_angle_deg": 45.0, "radius_range": [1.7, 3.25], "concave": true},
+             {"i": 12, "surface": "BSplineSurface", "identity": "free_form", "residual": 0.83, "curvature": {"max": 0.12, "min": -0.03}}],
+   "summary": {"by_surface": {"Plane": 20, "BSplineSurface": 24}, "by_identity": {"plane": 24, "cylinder": 16, "cone": 2, "free_form": 2},
+               "bspline_faces": 24, "bspline_resolved": 22, "free_form_faces": 2, "free_form_area_pct": 1.2, "area_total": 5120.4},
+   "rebuild": {"verdict": "prismatic | mixed | free_form", "main_axis": [0,0,1], "main_axis_letter": "Z",
+               "levels": [{"position": 53.68, "area": 812.0, "faces": [7, 8]}, {"position": 69.68, "area": 790.1, "faces": [11]}],
+               "radii": [{"radius": 35.0, "concave": false, "faces": 2}, {"radius": 1.7, "concave": true, "faces": 4}],
+               "notes": ["BSpline 면 24개 중 22개가 원통·평면으로 판별됨(가짜 자유곡면)", "..."]}}
+  ```
+- 판정 `[확인됨: api-notes 13장]`: `face.ParameterRange` 격자에서 `face.isPartOfDomain(u,v)`인 점만 `face.valueAt/normalAt`. 법선이 전부 같고 점이 한 평면 위 → plane. 법선 공분산의 최소 고유값 ≈ 0이면 축이 있다(원통·원뿔 모두 법선이 축과 일정한 각): 축에 수직인 평면에 투영해 법선 직선들의 최소제곱 교점 = 축 위치, 축 좌표 t에 대한 반지름 r(t)가 상수면 cylinder, 선형이면 cone(반각 = atan|dr/dt|, 꼭짓점 = r=0인 t). 그 밖에 법선 직선들이 한 점에 모이면 sphere. 전부 실패하면 free_form(곡률 통계 첨부). 오목/볼록은 표본 중앙의 법선이 축을 향하는지로.
+- `rebuild.main_axis`: 그 축에 수직인 평면 면적 + 평행한 원통·원뿔 면적이 가장 큰 축(X/Y/Z와 원통 축 후보 중). `levels`는 주축에 수직인 평면을 높이별로 묶은 것 — `section_profile`에서 단면을 뜰 높이의 후보다. `verdict`: 자유곡면 면적 < 0.5 %이고 주축 정렬 면적 > 90 % → prismatic, 자유곡면 < 20 % → mixed(하이브리드: BaseFeature + 피처), 그 밖에 free_form.
+
+### 7.17 `section_profile` (M7)
+축 방향 위치의 **단면 윤곽**을 스케치에 바로 옮길 수 있는 선분·호·원 목록으로 준다. `build_features`의 `profile.section`이 내부에서 이것을 부른다.
+- 입력: `name, doc=None, axis="Z" | [x,y,z], position=None, fill_holes=True, max_fill_radius=10.0, tolerance=1e-5, samples=24, max_elements=300`
+- `position=None`이면 단면을 뜨지 않고 후보 높이만 준다: 축에 수직인 평면의 위치(`levels`)와 정점 좌표 히스토그램(`vertex_positions`).
+- 출력:
+  ```json
+  {"object": "2B2", "axis": [0,0,1], "position": 55.0,
+   "sketch_plane": {"plane": "XY_Plane", "attachment_offset_z": 55.0, "local_x": "X", "local_y": "Y"},
+   "wires": [{"closed": true, "outer": true, "area": 1234.5, "bbox_2d": [[x0,y0],[x1,y1]], "elements_total": 14,
+              "elements": [{"type": "line", "start": [x,y], "end": [x,y]},
+                           {"type": "arc", "center": [x,y], "radius": 35.0, "start": [x,y], "end": [x,y], "mid": [x,y], "ccw": true, "angle_deg": 118.2},
+                           {"type": "circle", "center": [x,y], "radius": 1.7}],
+              "unsupported": 0, "max_endpoint_deviation": 9e-6}],
+   "filled_holes": 3, "elements_total": 14}
+  ```
+- 좌표는 스케치 로컬 2D `[확인됨: api-notes 7.5]`: XY 평면 (X, Y), XZ 평면 (X, Z)·오프셋 −y, YZ 평면 (Y, Z). 축이 ±X/±Y/±Z가 아니면 `sketch_plane`은 null이고 임의 프레임(`frame`)만 준다.
+- `fill_holes` `[확인됨: api-notes 7.5·13]`: 2D 면 불리언은 피한다. 오목 원통·원뿔 그룹(호 합 ≥ 350°, 최대 반지름 ≤ `max_fill_radius`) 자리를 3D에서 원기둥(반지름 +0.05, 축 방향은 면 범위 그대로)으로 `fuse`한 사본을 `removeSplitter()`한 뒤 `slice`한다 → 구멍·카운터보어·챔퍼 자리가 없는 바깥 윤곽만 나온다. 포켓처럼 안쪽 윤곽이 필요하면 `fill_holes=False`.
+- `build_features`의 `profile.section`에서만 쓰는 추가 인자 `[확인됨: api-notes 13]`: `exclude: [{"center": [x, y], "radius": r}]`(단면 평면 둘레에서 원기둥을 3D로 뺀 뒤 자른다 — 회전 절삭이 깎은 귀 영역), `clip: {"min": [x|null, y|null], "max": [...]}`(범위 밖을 상자로 `cut`한다; `common`은 겹친 면에서 빈 결과를 주므로 쓰지 않는다).
+- 요소 판정: `Line`/`Circle`은 그대로, `BSplineCurve` 등은 `edge.discretize(Number=samples)` 표본으로 직선(최대 편차 ≤ `tolerance`) → 원(대수적 원 맞춤 잔차 ≤ `tolerance`) 순으로 맞춘다. BSpline 솔리드의 `slice`는 직선도 `BSplineCurve`(차수 1)로 돌려주므로 필수 `[라이브 1.1.3]`. 못 맞춘 요소는 `type: "bspline"`에 표본점을 넣고 `unsupported`에 센다.
+- 진행 방향은 `wire.OrderedEdges`를 끝점 매칭으로 정렬한 것. 호의 `ccw`는 호 중간점이 시작→끝 반시계 방향 안에 있는지로 정하므로 180° 넘는 호도 맞다.
+
+### 7.18 `build_features` (M7)
+스케치 + 피처 목록을 Body에 **순서대로 쌓고** 하나 끝날 때마다 재계산·검증한다. 트레이스 규칙(Block, 틈은 Radius+Coincident, 구성선 축)은 내장.
+- 입력: `body, doc=None, features=[...], params=None, create_body=True, stop_on_error=True`
+  - `params`: `{"height": 16.0, ...}` → Spreadsheet `Params`에 별칭으로 기록(있으면 값만 갱신). 피처의 수치 필드(`position`, `length`, `size`, `angle`, 원의 `diameter`)는 숫자 또는 수식 문자열(`"Params.height"`)을 받는다.
+  - 피처 공통: `{"op": ..., "name": "PadBand1"}`. 스케치 기반 op는 `"plane": "XY"|"XZ"|"YZ"`, `"position"`: 그 평면의 전역 좌표(XY→z, XZ→y, YZ→x; 오프셋 부호는 내부에서 맞춘다), `"profile"`.
+  - `profile`(하나 선택): `{"section": {"of": "2B2", "doc": "Unnamed", "position": 55.0, "fill_holes": true, "exclude": [...], "clip": {...}}}`(축은 plane에서 정해진다) / `{"elements": [...]}`(7.17 형식, 와이어 하나) / `{"wires": [[...], [...]]}` / `{"circles": [{"center": [x,y], "diameter": 3.4, "expr": "Params.hole_d", "name": "hole_d"}]}` / `{"polygon": [[x,y], ...]}` / `{"polygons": [[[x,y], ...], ...]}` / `{"rect": {"center": [x,y], "width": w, "height": h}}`
+  - `pad`: `length` | `type`("UpToLast" 등), `reversed`, `midplane` · `pocket`: `length` | `through: true`(ThroughAll) | `type`, `reversed` · `groove`/`revolution`: `axis: {"x": v} | {"y": v}`(스케치 로컬 좌표의 구성선), `angle`(기본 360) · `fillet`/`chamfer`: `size`, `edges`: `["Edge3", ...]` 또는 필터 `{"curve": "Circle", "radius": 1.7, "radius_tol": 0.01, "radius_min": .., "radius_max": .., "center": [x|null, y|null, z|null], "center_tol": 0.01, "length": .., "bbox": {...}}` — 직전 피처(Body Tip)의 모서리에서 고른다.
+- 출력:
+  ```json
+  {"body": "Body", "params_written": ["height", ...],
+   "created": [{"op": "pad", "name": "PadBand1", "sketch": "SketchBand1", "elements": 14, "solve_status": 0, "fully_constrained": true, "volume_after": 8123.4, "status": "Valid"},
+               {"op": "chamfer", "name": "ChamferHoles", "edges": ["Edge12", "Edge15"], "volume_after": 8100.1, "status": "Valid"}],
+   "volume": 8100.1, "valid": true, "invalid": [], "stopped_at": null}
+  ```
+- API `[확인됨: api-notes 7·7.5·13]`: 스케치는 `AttachmentSupport=[(Origin 평면, "")]`, `MapMode="FlatFace"`, 오프셋은 `AttachmentOffset.Base.z`(수식이면 `setExpression(".AttachmentOffset.Base.z", ...)`). 호는 `Part.ArcOfCircle(Part.Circle(c, Z, r), a0, a1)` CCW만, 각도는 끝점에서 다시 계산. **트레이스 고정 규칙**: 선분·원은 Block, 호는 이음매마다 원래 정점에 Block한 구성점을 두고 양 끝 Coincident + Radius(호 5 − 1 − 2 − 2 = 0 DoF; 틈은 솔버가 닫는다). 지름 수식이 있는 원은 Block 대신 구성점(Block) + 중심 Coincident + 이름 붙인 `Diameter` 제약에 수식. Groove/Revolution 축은 첫 구성선 → `ReferenceAxis=(sketch, ["Axis0"])`. Fillet/Chamfer는 `Base=(tip, ["EdgeN", ...])`. 피처마다 `doc.recompute()` 후 `Invalid`면 `stop_on_error`에 따라 중단하고 `stopped_at`·상태 문자열을 돌려준다.
+- 이 툴은 문서를 저장하지 않는다. 만든 스케치는 `Visibility=False`.
+
+### 7.19 `compare_shapes` (M7)
+두 형상이 **얼마나, 어디가** 다른지. 재구성 검증용.
+- 입력: `a, b, doc=None, doc_b=None, fuzzy=1e-4, min_piece_volume=1e-3, max_pieces=10`
+- 출력:
+  ```json
+  {"a": {"object": "2B2", "document": "Unnamed", "volume": 8123.4, "area": 5120.4, "faces": 44},
+   "b": {...},
+   "volume_diff": -0.03, "volume_diff_pct": 0.0004, "area_diff": 0.2, "bbox_max_diff": 0.0,
+   "missing_in_b": [{"volume": 0.02, "bbox": {...}, "center": [..]}], "extra_in_b": [],
+   "missing_total": 0.02, "extra_total": 0.0, "verdict": "identical | match | different"}
+  ```
+- API `[확인됨: api-notes 7.5]`: 면이 겹치는 쌍은 정확한 불리언이 실패하므로 `a.cut(b, fuzzy)`·`b.cut(a, fuzzy)`로 차집합을 뜨고, 두께 0인 조각(bbox 한 변 < 1e-6)과 `min_piece_volume` 미만 조각은 버린다. `verdict`: (missing+extra)/volume_a < 0.001 % → identical, < 0.1 % → match, 그 밖에 different. bbox 중심이 0.01 이상 어긋나면 "Body.Placement 확인" 경고.
+
+STEP → 파라메트릭 워크플로(CLAUDE.md에 추가): `classify_faces`(정체·주축·레벨·verdict) → `section_profile(position=None)`으로 띠 후보 확인 → 띠마다 `build_features`의 `profile.section`으로 Pad(아래→위, 겹치게) → 홈·립은 `groove`(구성선 축, 폴리곤) → 구멍은 `find_holes` 결과로 `pocket`+`circles`(+`chamfer`) → `compare_shapes`로 차집합 조각의 bbox를 보고 틀린 곳만 고친다. 자유곡면이 많으면(verdict free_form) BaseFeature 하이브리드로.
+
 ---
 
 ## 8. Claude Code 연결
@@ -455,6 +529,14 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 3. `check_interference`
 4. **완료 기준**: 테스트 STEP(10장 `T6_step`)에서 구멍 4개의 직경·위치가 실제 값과 0.01 mm 이내로 맞고, 의도적으로 겹쳐 놓은 두 부품이 `interference`로 보고되며, 벤더 어셈블리 STEP(수백 면)에서 `find_holes`가 10초 안에 끝난다.
 
+### M7 — STEP → 파라메트릭 재구성 보조 (M6 이후, 2026-09-10 추가)
+손으로 세 번 반복한 절차(면 조사 → 띠 높이 → 단면 트레이스 → 회전 절삭·구멍 → 퍼지 차집합 검증)에서 기계적인 부분을 툴로 만든다. 완전 자동 피처 인식은 비목표 — 어떤 피처로 볼지는 Claude가 정하고, 툴은 측정·트레이스·생성·검증만 한다.
+1. `classify_faces` — BSpline 면 정체 판별(평면/원통/원뿔/구), 주축·레벨·verdict
+2. `section_profile` — 단면 윤곽을 스케치 요소로, 구멍 자리 3D 메우기, BSpline 곡선 정체 판별
+3. `build_features` — 스케치+Pad/Pocket/Groove/Revolution/Fillet/Chamfer를 순서대로 쌓고 피처마다 검증. Block·틈 닫기·구성선 축 규칙 내장. `profile.section`으로 좌표를 토큰에 실어 나르지 않는다
+4. `compare_shapes` — 부피·면적·bbox 차 + 퍼지 차집합 조각의 bbox
+5. **완료 기준**: `T7_rebuild`(전부 BSpline 면으로 바뀐 프리즘 부품)에서 `classify_faces`가 모든 면을 plane/cylinder로 판별하고 verdict가 prismatic, `section_profile`이 닫힌 윤곽을 Line/Arc만으로 주며, `build_features` 4단계로 재구성한 Body가 `compare_shapes`에서 identical(< 0.001 %). 벤더 부품 2B2를 새 툴만으로 다시 만들어 이전 손 작업과 같은 0.0004 % 이내.
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -468,6 +550,7 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 | `T4_open_wire` | 한 점이 안 맞물린 사각형 + Pad | Pad Invalid, open_vertices 1개, status에 원인 문자열 |
 | `T5_large` | 300개 이상 객체(배열/복제) | truncated 동작, 응답 < 20 KB, 응답 시간 < 5초 |
 | `T6_step` | T1을 STEP으로 내보낸 뒤 다시 가져온 것 + Ø6.6 구멍 4개 판 + 일부러 겹치게 놓은 블록 2개 (fixtures가 `Import.export`로 생성) | 히스토리 없음(스케치 0), `find_holes`가 구멍 4개·Ø6.6, `check_interference`가 블록 쌍을 `interference`로 보고 |
+| `T7_rebuild` | 단차 판(60×40×10, 위 절반 4 mm 단차) + Ø6.6 관통 2개 + Ø10×3 카운터보어 + 0.5 챔퍼를 `Part::Feature` "Plate"로, 같은 형상을 `transformGeometry`로 전부 BSpline 면으로 바꾼 "PlateB" (M7) | `classify_faces(PlateB)`: 면 전부 plane/cylinder, verdict prismatic, levels [0, 6, 10]. `section_profile(z=3)`: 닫힌 선분 4개(구멍 메움). `build_features` Pad·Pad·Pocket·Pocket·Chamfer → `compare_shapes(Plate, Body)` identical |
 
 ### CLAUDE.md에 넣을 진단 워크플로 (이 MCP를 사용하는 AI용)
 1. `ping` → 연결·버전 확인

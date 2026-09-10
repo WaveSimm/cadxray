@@ -33,7 +33,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 14개)`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 18개)`). 끝입니다.
 
 이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
 
@@ -74,7 +74,7 @@ claude mcp add --scope user cadxray -- uv --directory "<이 폴더의 절대경�
 
 | 클라이언트 | 등록 방법 | 확인 |
 |---|---|---|
-| **Claude Code CLI** (터미널에서 `claude`) | 1장의 둘째 줄 (`claude mcp add --scope user …`) | `/mcp` 에 `cadxray · connected · 14 tools` |
+| **Claude Code CLI** (터미널에서 `claude`) | 1장의 둘째 줄 (`claude mcp add --scope user …`) | `/mcp` 에 `cadxray · connected · 18 tools` |
 | **Claude Code 데스크톱 앱** | 위와 **같은 등록**을 그대로 씁니다 (설정을 공유). 추가 작업 없음 | 앱의 MCP 목록에 `cadxray` |
 | **Claude Desktop 채팅 앱** | 아래 설정 파일에 넣기 | 대화창 도구(🔧) 목록에 `cadxray` |
 
@@ -110,6 +110,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | "이 STEP 파일 마운팅 홀 몇 개고 피치 얼마야?" | `import_step` → `find_holes` → 직경·개수·중심·피치 |
 | "브라켓이랑 센서 겹치는지 봐줘" | `check_interference` → 겹치는 부피(mm³) |
 | "이거 알루미늄이면 몇 g이야?" | `get_mass_properties(density=2.7)` |
+| "이 STEP 부품 파라메트릭으로 다시 만들어줘" (찰흙으로) | `classify_faces`(면 정체·주축·띠 높이) → `section_profile`(띠 경계) → `build_features`(Pad·Groove·Pocket·Chamfer를 순서대로) → `compare_shapes`(원본과 차집합으로 검증) |
 
 ### 툴 목록
 
@@ -129,6 +130,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `find_holes` | 구멍 직경·중심·깊이·관통 여부, 카운터보어·카운터싱크·챔퍼·드릴 끝을 구멍에 붙여서, 같은 직경끼리 패턴·피치. 지름을 ISO 미터나사 표와 대조해 `thread_hint`(M3 탭 드릴 / M6 관통 …)를 **추정**으로 붙임 |
 | `check_interference` | 부품 쌍 최소 거리·간섭 부피. 기본은 문제 쌍만 담고, 바운딩박스가 떨어진 쌍은 계산 없이 건너뜀 |
 | `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
+| `classify_faces` | **STEP → 파라메트릭 1단계.** 면마다 정체(평면/원통/원뿔/구/자유곡면). BSpline 면도 표본을 찍어 맞춰 보므로 "가짜 자유곡면"이 걸러짐. 주축·띠 높이(`levels`)·반지름 목록·재구성 판정(`verdict`) |
+| `section_profile` | 높이의 단면 윤곽을 스케치용 선분·호·원으로(스케치 로컬 2D). 구멍·카운터보어·챔퍼 자리는 3D에서 메운 뒤 잘라 바깥 윤곽만. BSpline 곡선도 직선·원으로 다시 판별 |
+| `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓고 피처마다 검증**. `profile.section`이면 원본을 직접 트레이스해 좌표가 대화를 오가지 않음. Block·구성점 고정·구성선 축 규칙 내장, `params`는 Spreadsheet로 |
+| `compare_shapes` | 부피·면적·bbox 차 + 퍼지 차집합 조각의 bbox — **어디가 틀렸는지** 바로 짚음 |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
@@ -136,6 +141,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 - `examples/rebuild_bracket_from_step.py` — STEP으로 받은 판+각기둥 브라켓을 면 측정값만으로 파라메트릭 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)로 재구성. 원본과 **차집합 0.0 mm³**
 - `examples/step_assembly_to_bodies.py` — STEP 어셈블리(80부품)를 부품별 Body + 접지 조인트 Assembly로 변환. 5.7초
 - 벤더 부품(클램프 조 44면, BSpline 전이면·더브테일 홈·립 챔퍼 포함)도 같은 방법으로 부피 차 0.0004 %까지 재구성했습니다. 그 과정에서 확인한 함정(트레이스 기하는 Block으로, 2D 불리언 회피, 1e-5 틈 닫기, 회전 절삭의 과절삭 복원)은 `docs/api-notes.md` 7.5절에 있습니다
+- `examples/rebuild_2b2_with_tools.py` — 같은 클램프 조를 **M7 툴 네 개만으로** 다시 만든 기록. 손으로 쓰던 200줄이 피처 12개 목록 하나가 됐고, 스케치 12개 전부 DoF 0, `compare_shapes` 판정 identical(부피 차 0.0004 %). BSpline 전이면 8개는 `classify_faces`가 원뿔(축·꼭짓점·반각 59.63°)로 판별했습니다. 그때 확인한 것(법선 부호 뒤집힘, `common()`의 겹친 면, 구성점으로 호 고정, 반지름 반올림의 대가)은 13절
 
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 
@@ -166,6 +172,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `check_interference` | **벤더 어셈블리 80부품 = 3,160쌍** (bbox로 2,989쌍 건너뜀) | 2.2 KB | **6.5 s** |
 | `find_holes` | 어셈블리 부품 100면 (구멍 20 + 필렛 7) | 5 KB | 112 ms |
 | `get_mass_properties` | 구멍 뚫린 판 / 벤더 STEP / 어셈블리 80부품 | 0.7 KB | 2 / 135 / 2068 ms |
+| `classify_faces` | 전부 BSpline인 판 14면 / **벤더 클램프 조 44면**(BSpline 8) | 5.4 / 12 KB | 25 / 73 ms |
+| `section_profile` | 후보 높이만 / z=3 단면(구멍 메움) | 0.7 / 1.0 KB | 25 / 65 ms |
+| `build_features` | 판 5피처 / **클램프 조 12피처**(단면 트레이스 5회 포함) | 1.2 / 2.5 KB | 180 ms / **2.0 s** |
+| `compare_shapes` | 판 vs 재구성 / 클램프 조 vs 재구성 | 0.8 KB | 26 / 780 ms |
 
 응답 하드캡은 100 KB입니다(스크린샷 제외). 넘으면 핸들러가 목록을 먼저 줄이고 `warnings`에 알립니다.
 

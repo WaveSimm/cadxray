@@ -329,6 +329,113 @@ def get_mass_properties(
 
 
 @mcp.tool()
+def classify_faces(
+    name: str,
+    doc: str | None = None,
+    samples: int = 5,
+    tolerance: float = 1e-3,
+    max_faces: int = 200,
+    include_analytic: bool = True,
+) -> str:
+    """면마다 **정체**(plane/cylinder/cone/sphere/torus/free_form)를 판정한다. STEP을 파라메트릭으로 다시 만들기 전 첫 호출.
+
+    BSpline 면도 표본을 찍어 원통·원뿔·평면인지 맞춰 본다(가짜 자유곡면 판별). rebuild에
+    verdict(prismatic/mixed/free_form), main_axis, levels(주축에 수직인 평면 높이 = 띠 경계),
+    radii(주축 방향 원통 반지름)가 온다. levels 사이 높이로 section_profile을 부른다.
+    free_form 면적이 크면 BaseFeature 하이브리드로 간다.
+    """
+    return client.call(
+        "classify_faces",
+        {"name": name, "doc": doc, "samples": samples, "tolerance": tolerance,
+         "max_faces": max_faces, "include_analytic": include_analytic},
+        timeout=130,
+    )
+
+
+@mcp.tool()
+def section_profile(
+    name: str,
+    doc: str | None = None,
+    axis: str = "Z",
+    position: float | None = None,
+    fill_holes: bool = True,
+    max_fill_radius: float = 10.0,
+    tolerance: float = 1e-5,
+    samples: int = 24,
+    max_elements: int = 300,
+) -> str:
+    """축 방향 위치의 **단면 윤곽**을 스케치용 선분·호·원 목록으로 준다.
+
+    position=None이면 후보 높이(levels, vertex_positions)만 준다 — 띠의 중간 높이를 고른 뒤 다시 부른다.
+    fill_holes=True(기본)는 구멍·카운터보어·챔퍼 자리를 3D에서 메운 뒤 자르므로 바깥 윤곽만 나온다.
+    포켓 안쪽 윤곽이 필요하면 False. 좌표는 sketch_plane의 로컬 2D(XY: X,Y / XZ: X,Z / YZ: Y,Z).
+    build_features의 profile.section을 쓰면 이 좌표를 다시 보낼 필요가 없다.
+    """
+    return client.call(
+        "section_profile",
+        {"name": name, "doc": doc, "axis": axis, "position": position, "fill_holes": fill_holes,
+         "max_fill_radius": max_fill_radius, "tolerance": tolerance, "samples": samples,
+         "max_elements": max_elements},
+        timeout=130,
+    )
+
+
+@mcp.tool()
+def build_features(
+    body: str,
+    features: list[dict],
+    doc: str | None = None,
+    params: dict | None = None,
+    create_body: bool = True,
+    stop_on_error: bool = True,
+) -> str:
+    """스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓는다**. 피처마다 재계산·검증.
+
+    각 피처: {"op": "pad", "name": "PadBand1", "plane": "XY", "position": 53.68 (그 평면의 전역 좌표: XY→z, XZ→y, YZ→x),
+             "profile": {...}, "length": 8.0 | "Params.h"}
+    profile: {"section": {"of": "2B2", "doc": "Unnamed", "position": 55.0, "fill_holes": true}}  ← 좌표를 안 보내도 된다
+             | {"elements": [...]} (section_profile 출력) | {"wires": [[...], ...]}
+             | {"circles": [{"center": [y, z], "diameter": 3.4, "expr": "Params.hole_d", "name": "hole_d"}]}
+             | {"polygon": [[x, y], ...]} | {"rect": {"center": [x, y], "width": w, "height": h}}
+    pocket: "through": true 또는 "length"; "reversed": true 로 방향 반전(YZ 평면은 −X로 판다).
+    groove/revolution: "axis": {"x": v} 또는 {"y": v} (스케치 로컬), "angle": 360. 프로파일은 축 한쪽에만.
+    fillet/chamfer: "size", "edges": ["Edge3", ...] 또는 {"curve": "Circle", "radius": 1.7, "center": [x, null, null]}.
+    params={"h": 16}는 Spreadsheet 'Params' 별칭으로 기록되어 수식에서 Params.h로 쓴다.
+    떨어진 Pad는 한 Body에 못 넣는다 → 겹치게 순서대로. 실패하면 stopped_at과 status에 원인.
+    """
+    return client.call(
+        "build_features",
+        {"body": body, "doc": doc, "features": features, "params": params,
+         "create_body": create_body, "stop_on_error": stop_on_error},
+        timeout=310,
+    )
+
+
+@mcp.tool()
+def compare_shapes(
+    a: str,
+    b: str,
+    doc: str | None = None,
+    doc_b: str | None = None,
+    fuzzy: float = 1e-4,
+    min_piece_volume: float = 1e-3,
+    max_pieces: int = 10,
+) -> str:
+    """두 형상이 **얼마나, 어디가** 다른지. 재구성 검증의 마지막 호출.
+
+    부피·면적·bbox 차와 퍼지 차집합 조각(missing_in_b: 원본에만 있음 / extra_in_b: 새 모델에만 있음)의
+    bbox·중심을 준다 — 틀린 곳을 바로 짚는다. verdict: identical(< 0.001 %) / match(< 0.1 %) / different.
+    b가 다른 문서면 doc_b. bbox 중심이 어긋나면 Body.Placement 경고.
+    """
+    return client.call(
+        "compare_shapes",
+        {"a": a, "b": b, "doc": doc, "doc_b": doc_b, "fuzzy": fuzzy,
+         "min_piece_volume": min_piece_volume, "max_pieces": max_pieces},
+        timeout=130,
+    )
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

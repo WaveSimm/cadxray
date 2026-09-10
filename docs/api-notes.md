@@ -287,3 +287,29 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `shape.isInside(point, tol, checkFace)`: 구멍 중심축 위 점 → False, 재료 안 → True. 관통 판정 휴리스틱에 쓴다.
 - **STEP 이름의 한글** `[라이브 1.1.3, 벤더 파일]`: FreeCAD가 ISO 10303-21 이스케이프를 풀지 않는다. `\X2\c6d4d30c\X0\`(UTF-16BE 16진수)가 Label에 그대로 남는다 → `util.decode_step_text`로 응답에서만 푼다. 실측: `20250624_\X2\c6d4d30c\X0\ …` → `20250624_월파 브라켓(수정본)`.
 - **메시(STL)**: `Mesh.insert(path, docName)`으로 `Mesh::Feature`가 생기지만 `Shape`가 없어 위 API를 전혀 쓸 수 없다. `Part.Shape().makeShapeFromMesh((verts, facets), tol)`로 삼각면 컴파운드를 만들 수는 있으나 docstring이 "rather small meshes only"라고 경고하고, 원통면이 없으므로 `find_holes`는 불가. M6 범위 밖.
+
+## 13. STEP → 파라메트릭 재구성 툴(M7)에서 확인한 것 `[라이브 1.1.3, 2026-09-10]`
+
+### 면 정체 판별 (classify_faces)
+- 면 표본: `face.ParameterRange` 격자에서 `face.isPartOfDomain(u, v)`가 True인 점만 `face.valueAt(u, v)`·`face.normalAt(u, v)`. `Surface.isPlanar(tol)`, `Surface.curvature(u, v, "Max"|"Min"|"Gauss"|"Mean")`도 BSpline 면에서 동작한다.
+- **`normalAt`의 부호를 믿으면 안 된다.** `transformGeometry`로 만든 원뿔 BSpline 면은 같은 면 안에서도 일부 표본의 법선이 뒤집혀 나온다(z 성분 ±0.707 섞임). 그래서 축 판정은 `|n·a|`의 분산으로, 오목/볼록·법선 방향은 표본 다수결로 한다.
+- 벤더 STEP의 BSpline 전이면(2B2 더브테일·립)은 **원뿔에 6.6e-5 잔차**로 맞는다 — 법선 z 성분이 2e-4 흔들려 법선 공분산의 최소 고유값이 0이 아니므로(4e-5 vs 총 0.08) "최소 고유값 ≈ 0" 기준으로는 못 잡는다. 후보 축(Σnnᵀ·공분산 고유벡터 + X/Y/Z)마다 축 위치(법선 직선 최소제곱)와 r(t) 선형 맞춤을 다 해 보고 잔차 최소를 고른다. 2B2 결과: 축 Z, 꼭짓점 (38.176526, 45.052724, ·), 반각 59.63°, 반지름 33.758~34.862 — 손으로 읽은 값과 일치.
+- `Shape.transformGeometry(Matrix())`는 **모든 면을 BSplineSurface로 바꾼다**(항등 행렬이어도). 가짜 자유곡면 fixture(T7)를 만드는 데 쓴다. 유효성은 유지되지만 원통·원뿔의 BSpline 근사 때문에 **부피가 0.012 % 줄어든다**(18514.18 → 18512.00 mm³) — `compare_shapes`로는 identical이 아니라 match.
+- BSpline 솔리드의 `slice`는 직선도 `BSplineCurve`(Degree 1, NbPoles 2), 원은 Degree 5·134 poles로 돌려준다 → 단면 요소는 `edge.discretize(Number=n)` 표본으로 직선(최대 편차)·원(대수적 원 맞춤 잔차) 순서로 다시 판별해야 한다.
+
+### 단면 (section_profile)
+- **`common()`은 상자 면이 부품 면과 정확히 겹치면 빈 결과**를 준다(2B2 앞판 x=32.343193에 맞춘 상자: 부피 0, 1e-3 어긋나면 정상). 같은 자리에서 `cut()`은 정상 → 범위 밖을 상자로 `cut`해서 클립한다.
+- 구멍 메우기 원기둥은 **축 방향 여유를 주면 안 된다**: 부품 밖으로 0.05 튀어나온 원기둥이 단면 윤곽에 혹(관통 구멍당 9 mm³)으로 남는다. 축 방향은 면 정점 범위 그대로, 반지름만 +0.05.
+- 채우기 대상은 오목 원통·원뿔 그룹 중 **호 합 ≥ 350°**인 것만. 필렛(90°)·슬롯 끝(180°)을 메우면 윤곽이 바뀐다. BSpline으로 맞춘 면의 호 범위는 표본 격자로는 과소평가되므로(4×4 격자 → 270°) 면 경계(`OuterWire.Edges[i].discretize`)의 각도 범위로 잰다.
+
+### 스케치 트레이스 (build_features)
+- 호를 "틈이 있는 이음매만 골라 한쪽을 Radius+Coincident로 풀어 주는" 7.5절 방식은 **자유 요소가 이어지면 DoF가 남고**(2B2 아래 띠 DoF 3), 경우에 따라 과구속(-4)도 났다. 대신 **이음매마다 원래 정점에 Block한 구성점(`Part.Point`, construction=True)을 두고 호의 양 끝을 그 점에 Coincident + Radius**로 잡으면 호 5 − 1 − 2 − 2 = 0, 선분은 Block → 모든 단면 스케치 DoF 0 (2B2 12개 전부).
+- 호의 시작·끝 각도는 끝점 좌표에서 다시 계산한다. 4자리로 반올림한 `angle_deg`를 쓰면 끝점이 r·1.7e-6 어긋난다.
+- 단면 좌표를 6자리로 반올림하면 이음매마다 5e-7 틈 → DoF가 남는다. 스케치로 돌아갈 좌표는 10자리.
+- **반지름은 측정값 그대로 쓴다.** 홈 바닥 33.620391을 33.6204로 반올림해 귀(ear) 영역을 뜨면 귀의 호 면이 홈 바닥 면과 9e-6 어긋난 채 겹쳐 Pad의 fuse가 0.6 mm³(0.006 %)를 잃는다. 정확히 같은 값이면 0.0004 %.
+- Spreadsheet: `sheet.getUsedCells()` → ['A1', 'B1', …], `sheet.getCellFromAlias("h")` → 'B1', `sheet.getContents("B1")` → '16'. 빈 셀 `get()`은 "Invalid cell address or property" 예외. Sketch에는 `DoF`, `FullyConstrained`, `solve()`가 있다.
+- Groove/Revolution의 축 구성선은 **프로파일보다 먼저** 추가해야 `Axis0`이다. 빈 Body에 Groove를 넣으면 실패하지 않고 회전체를 만든다(1.1.3).
+
+### 검증 (compare_shapes)
+- 면이 겹치는 두 형상의 퍼지 차집합(`cut(b, 1e-4)`)은 **형상 전체를 조각으로 돌려주기도 한다**(챔퍼까지 만든 2B2). fuzzy를 10배씩 키우면(1e-3) 정상 조각이 나오지만 얇은 차이는 삼킨다 → 판정은 max(조각 합, |부피 차|)로. 조각이 전혀 안 잡히는데 부피가 다르면 얇은 층(near-coincident 면)이다 — 피처별 부피를 옛 결과와 비교해 찾았다.
+- 슬랩(`common(box)`)으로 z 구간별 부피를 재는 방법은 겹친 면 때문에 구간당 ~0.1 mm³ 오차가 있어 0.5 mm³ 이하 차이는 못 찾는다.

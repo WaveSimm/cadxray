@@ -39,6 +39,14 @@
 ### STEP(벤더 부품) 분석 워크플로
 `import_step` → `get_document_graph`(부품 계층; 객체 Name은 `Part__Feature…`, 원래 이름은 Label) → `analyze_shape(bop_check=True)`로 유효성 → 목적에 따라 `find_holes`(마운팅 홀 직경·피치) / `check_interference`(부품 쌍 겹침) / `get_mass_properties`(밀도를 주면 질량) → 수정이 필요하면 `PartDesign::Body`를 만들고 `BaseFeature`에 넣은 뒤 `execute_code`로 Pocket·Hole을 쌓는다. STL/OBJ(메시)는 면·솔리드가 없어 이 툴들로 분석할 수 없다 — 사용자에게 STEP을 요청한다.
 
+### STEP → 파라메트릭 재구성 워크플로 (M7)
+1. `classify_faces` → `rebuild.verdict`(prismatic / mixed / free_form), `main_axis`, `levels`(띠 경계 높이), `radii`. BSpline 면이 사실 원통·원뿔인지 여기서 갈린다. free_form 면적이 크면 BaseFeature 하이브리드(원본 위에 피처)로 간다
+2. `section_profile(position=None)` → `vertex_positions`로 띠·홈·립의 z 경계를 읽는다. 기준점(X0, Y0, Z0)은 정점에서 읽고 나머지는 설계값으로 정리한다
+3. 띠마다 `build_features`의 `profile.section`(좌표를 토큰에 싣지 않는다)으로 Pad. 아래 띠 → 가운데 → 위 띠 순으로 **겹치게**(떨어진 Pad는 한 Body에 못 넣는다). 회전 홈·립은 `groove` + `polygon`/`polygons`(축 한쪽에만), 360° 절삭이 깎아 버린 귀는 `section`의 `exclude`(원 밖)·`clip`(범위 안)으로 다시 Pad. 구멍은 `find_holes` 값으로 `pocket` + `circles`(지름은 `expr`로 Params에), 챔퍼는 `chamfer` + 모서리 필터
+4. 반지름·중심은 `classify_faces`가 준 **측정값 그대로** 쓴다(반올림하면 겹친 면이 9e-6 어긋나 fuse가 부피를 잃는다)
+5. `compare_shapes(a=원본, b=Body, doc_b=새 문서)` → `verdict`와 `missing_in_b`/`extra_in_b` 조각의 bbox로 틀린 곳만 고친다. 조각이 없는데 부피가 다르면 `created[].volume_after`를 단계별로 비교한다
+6. `build_features`가 `stopped_at`을 돌려주면 그 피처의 `status`가 원인이다. 실패한 객체는 문서에 남는다(Body.Tip이 그것을 가리키므로 지우면 Tip을 되돌린다)
+
 ### 읽을 때 주의
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
 - 제약 번호는 `id`(1-based, GUI 제약 패널과 같음)와 `index`(0-based, `sk.Constraints[index]`)가 같이 온다. 사용자에게는 `id`로 말한다
@@ -47,6 +55,9 @@
 - `tracked_recompute`에서 실패한 객체는 `Invalid`와 함께 `Touched`도 남는다. 에러 판단은 `Invalid`(= `new_errors`/`persistent`)로
 - `find_holes`의 `through`는 휴리스틱이다(구멍 양 끝 바깥이 재료 밖인지). 포켓 바닥으로 뚫린 구멍은 관통으로 보일 수 있다. `center`는 구멍 축의 중간점, `start`/`end`가 양 끝
 - `check_interference`는 `distToShape`가 0일 때만 `common()`을 부른다. 큰 어셈블리는 `names`를 좁혀서 여러 번 부른다
+- `classify_faces`의 `method: "fit"` 면은 `residual`이 있다. free_form인데 `best_axis_fit.residual`이 작으면 `tolerance`를 그 값보다 크게 주고 다시 부른다
+- `section_profile`의 좌표는 스케치 로컬 2D다(XZ 평면은 (X, Z), YZ 평면은 (Y, Z)). `sketch_plane.build_features`를 그대로 `build_features`의 `plane`/`position`에 넣는다
+- `compare_shapes`에서 `boolean_failed`가 true면 `missing/extra`는 무시하고 `volume_diff`·`area_diff`로만 판단한다
 
 ### 수정 코드 작성 시 주의
 - FreeCAD 1.1에는 `Sketch.movePoint`가 없다 → `moveGeometry` / `moveGeometries`. `ping`의 버전을 보고 결정한다

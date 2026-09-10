@@ -232,7 +232,38 @@ def T6_step():
     return doc
 
 
+# --- T7 STEP → 파라메트릭 (M7) ---------------------------------------------------
+
+
+def T7_rebuild():
+    """단차 판(60×40×10, x 30~60은 높이 6) + Ø6.6 관통 2개 + Ø10×3 카운터보어 + 아랫면 0.5 챔퍼.
+
+    "Plate"는 해석면, "PlateB"는 같은 형상을 transformGeometry로 전부 BSpline 면으로 바꾼 것
+    [라이브 1.1.3: transformGeometry는 모든 면을 BSplineSurface로 바꾼다] — STEP의 가짜 자유곡면 흉내.
+    기대값: classify_faces(PlateB) 전부 plane/cylinder/cone, verdict prismatic, levels ⊇ {0, 6, 10};
+    build_features 5단계 → compare_shapes(Plate, Rebuilt) identical.
+    """
+    doc = _fresh("T7_rebuild")
+    s = Part.makeBox(60, 40, 10)
+    s = s.cut(Part.makeBox(30, 40, 4, Vec(30, 0, 6)))
+    for x in (15, 45):
+        s = s.cut(Part.makeCylinder(3.3, 10, Vec(x, 20, 0)))
+    s = s.cut(Part.makeCylinder(5.0, 3, Vec(15, 20, 7)))
+    bottom = [
+        e for e in s.Edges
+        if type(e.Curve).__name__ == "Circle" and abs(e.Curve.Radius - 3.3) < 1e-6 and abs(e.Curve.Center.z) < 1e-6
+    ]
+    s = s.makeChamfer(0.5, bottom)
+    plate = doc.addObject("Part::Feature", "Plate")
+    plate.Shape = s
+    plate_b = doc.addObject("Part::Feature", "PlateB")
+    plate_b.Shape = s.transformGeometry(FreeCAD.Matrix())
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T7_rebuild": T7_rebuild,
     "T1_clean": T1_clean,
     "T2_underconstrained": T2_underconstrained,
     "T3_conflict": T3_conflict,

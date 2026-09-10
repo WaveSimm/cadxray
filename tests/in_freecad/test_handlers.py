@@ -13,6 +13,7 @@ GUI가 없으면(FreeCADCmd) get_screenshot은 SKIP한다. 마지막에 측정�
 
 import base64
 import json
+import math
 import os
 import sys
 import time
@@ -51,6 +52,7 @@ from CadXray.handlers import (  # noqa: E402
     document_graph,
     documents,
     execute,
+    rebuild,
     recompute,
     reload_handlers,
     screenshot,
@@ -394,6 +396,103 @@ def test_registry_and_cap():
     check("없는 툴 → 목록 안내", out["ok"] is False and "ping" in out["error"])
 
 
+def test_rebuild_tools():
+    section("M7: classify_faces / section_profile / build_features / compare_shapes")
+    r = measure("classify_faces", "BSpline 판 PlateB", rebuild.classify_faces(doc="T7_rebuild", name="PlateB"))
+    check("classify_faces ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    check("면 전부 BSpline", d["summary"]["bspline_faces"] == d["faces_total"], str(d["summary"]))
+    check("전부 plane/cylinder/cone으로 판별 (자유곡면 0)", d["summary"]["free_form_faces"] == 0
+          and set(d["summary"]["by_identity"]) <= {"plane", "cylinder", "cone"}, str(d["summary"]["by_identity"]))
+    check("verdict prismatic, 주축 Z", d["rebuild"]["verdict"] == "prismatic" and d["rebuild"]["main_axis_letter"] == "Z", str(d["rebuild"]))
+    pos = {lv["position"] for lv in d["rebuild"]["levels"]}
+    check("levels ⊇ {0, 6, 10}", {0.0, 6.0, 10.0} <= pos, str(sorted(pos)))
+    cyl = [f for f in d["faces"] if f["identity"] == "cylinder"]
+    check("Ø6.6 원통 → 반지름 3.3 ±1e-4, 오목, 축 Z", any(abs(f["radius"] - 3.3) < 1e-4 and f["concave"] and f["axis_letter"] == "Z" for f in cyl), str([(f["radius"], f["concave"]) for f in cyl]))
+    cone = [f for f in d["faces"] if f["identity"] == "cone"]
+    check("챔퍼 → cone 반각 45°", bool(cone) and all(abs(f["semi_angle_deg"] - 45) < 0.1 for f in cone), str([f.get("semi_angle_deg") for f in cone]))
+    r = rebuild.classify_faces(doc="T7_rebuild", name="Plate")
+    check("해석면은 analytic으로", r["ok"] and all(f["method"] == "analytic" for f in r["data"]["faces"]))
+
+    r = measure("section_profile", "후보 높이", rebuild.section_profile(doc="T7_rebuild", name="PlateB"))
+    check("position=None → levels", r["ok"] and r["data"]["position"] is None
+          and {0.0, 6.0, 10.0} <= {lv["position"] for lv in r["data"]["levels"]}, str(r["data"].get("levels")))
+    r = measure("section_profile", "z=3 구멍 메움", rebuild.section_profile(doc="T7_rebuild", name="PlateB", position=3.0))
+    check("section_profile ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    w0 = d["wires"][0] if d["wires"] else {}
+    check("와이어 1개, 닫힘, 선분 4개", len(d["wires"]) == 1 and w0.get("closed") and [e["type"] for e in w0["elements"]] == ["line"] * 4, str([e["type"] for e in w0.get("elements", [])]))
+    check("면적 60×40", abs((w0.get("area") or 0) - 2400) < 1e-3, str(w0.get("area")))
+    check("구멍 자리 메움 ≥ 2", d["filled_holes"] >= 2, str(d["filled_holes"]))
+    check("sketch_plane XY, 오프셋 3", d["sketch_plane"]["plane"] == "XY" and abs(d["sketch_plane"]["attachment_offset_z"] - 3) < 1e-9, str(d["sketch_plane"]))
+    r = rebuild.section_profile(doc="T7_rebuild", name="PlateB", position=3.0, fill_holes=False)
+    d = r["data"]
+    circles = [e for w in d["wires"] for e in w["elements"] if e["type"] == "circle"]
+    check("메우지 않으면 원 2개(R3.3), 바깥 윤곽이 outer", len(circles) == 2 and all(abs(c["radius"] - 3.3) < 1e-4 for c in circles) and d["wires"][0]["outer"], str(circles))
+    check("BSpline 곡선을 직선·원으로 맞춤 (unsupported 0)", sum(w["unsupported"] for w in d["wires"]) == 0)
+    r = rebuild.section_profile(doc="T7_rebuild", name="PlateB", position=8.0)
+    check("z=8 단면 30×40", r["ok"] and abs(r["data"]["wires"][0]["area"] - 1200) < 1e-3, str(r["data"]["wires"][0]["area"] if r["ok"] else r))
+    r = rebuild.section_profile(doc="T7_rebuild", name="PlateB", axis="X", position=15.0, fill_holes=False)
+    check("X축 단면 → sketch_plane YZ", r["ok"] and r["data"]["sketch_plane"]["plane"] == "YZ", str(r.get("error")))
+    r = rebuild.section_profile(doc="T7_rebuild", name="PlateB", axis="Q", position=1.0)
+    check("잘못된 axis → 에러", r["ok"] is False)
+
+    feats = [
+        {"op": "pad", "name": "PadBase", "plane": "XY", "position": 0.0,
+         "profile": {"section": {"of": "PlateB", "position": 3.0}}, "length": "Params.step_z"},
+        {"op": "pad", "name": "PadTop", "plane": "XY", "position": "Params.step_z",
+         "profile": {"section": {"of": "PlateB", "position": 8.0}}, "length": 4.0},
+        {"op": "pocket", "name": "PocketHoles", "plane": "XY", "position": 10.0, "through": True,
+         "profile": {"circles": [{"center": [15, 20], "diameter": 6.6, "expr": "Params.hole_d", "name": "hole_d"},
+                                 {"center": [45, 20], "diameter": 6.6}]}},
+        {"op": "pocket", "name": "PocketCbore", "plane": "XY", "position": 10.0, "length": 3.0,
+         "profile": {"circles": [{"center": [15, 20], "diameter": 10.0}]}},
+        {"op": "chamfer", "name": "ChamferHoles", "size": 0.5,
+         "edges": {"curve": "Circle", "radius": 3.3, "center": [None, None, 0.0]}},
+    ]
+    r = measure("build_features", "판 5피처", rebuild.build_features(doc="T7_rebuild", body="Rebuilt", params={"step_z": 6.0, "hole_d": 6.6}, features=feats))
+    check("build_features ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    check("5개 생성, stopped_at 없음, invalid 없음", len(d["created"]) == 5 and d["stopped_at"] is None and not d["invalid"], str(d["invalid"] or d["created"]))
+    sk_reports = [(c["name"], c.get("solve_status"), c.get("fully_constrained")) for c in d["created"] if "sketch" in c]
+    check("스케치 4개 solve 0·완전 구속", len(sk_reports) == 4 and all(s == 0 and fc for _, s, fc in sk_reports), str(sk_reports))
+    check("챔퍼 모서리 2개 선택", len(d["created"][4].get("edges") or []) == 2, str(d["created"][4]))
+    check("Params 기록", set(d["params_written"]) == {"step_z", "hole_d"})
+    vol_before = d["volume"]
+    r = measure("compare_shapes", "Plate vs 재구성 Body", rebuild.compare_shapes(doc="T7_rebuild", a="Plate", b="Rebuilt"))
+    check("compare_shapes ok", r["ok"], str(r.get("error")))
+    check("재구성 identical (< 0.001 %)", r["ok"] and r["data"]["verdict"] == "identical", str({k: r["data"][k] for k in ("diff_pct", "missing_in_b", "extra_in_b")} if r["ok"] else r))
+    r = rebuild.compare_shapes(doc="T7_rebuild", a="Plate", b="PlateB")
+    # transformGeometry의 BSpline 근사는 부피를 0.012 % 바꾼다 [라이브 1.1.3] → identical이 아니라 match
+    check("Plate vs PlateB match (BSpline 근사 0.012 %)", r["ok"] and r["data"]["verdict"] in ("identical", "match")
+          and abs(r["data"]["volume_diff_pct"]) < 0.05, str({k: r["data"].get(k) for k in ("verdict", "volume_diff_pct")} if r["ok"] else r))
+    r = rebuild.compare_shapes(doc="T7_rebuild", a="Plate", b="Rebuilt", doc_b="T7_rebuild")
+    check("doc_b 지정도 동작", r["ok"])
+
+    doc = FreeCAD.getDocument("T7_rebuild")
+    sheet = doc.getObject("Params")
+    sheet.set(sheet.getCellFromAlias("hole_d"), "8")
+    doc.recompute()
+    body = doc.getObject("Rebuilt")
+    check("Params.hole_d 6.6→8 이면 부피 감소 (파라메트릭)", body.Shape.isValid() and body.Shape.Volume < vol_before - 1.0, f"{vol_before} → {body.Shape.Volume}")
+
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt2", features=[
+        {"op": "pad", "name": "Bad", "plane": "XY", "position": 0.0, "profile": {"polygon": [[0, 0], [10, 0], [10, 10]]}}])
+    check("length 없는 pad → stopped_at·status", r["ok"] and r["data"]["stopped_at"] == "Bad" and "length" in r["data"]["created"][0]["status"], str(r["data"] if r["ok"] else r))
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt3", features=[
+        {"op": "pad", "name": "Block", "plane": "XY", "position": 0.0, "length": 10.0,
+         "profile": {"rect": {"center": [10, 10], "width": 20, "height": 20}}},
+        {"op": "groove", "name": "G", "plane": "XZ", "position": 10.0, "axis": {"x": 10.0},
+         "profile": {"polygon": [[12, 2], [18, 2], [18, 8], [12, 8]]}}])
+    check("groove: XZ 평면 y=10, 축 x=10, 링 절삭 π(64−4)·6", r["ok"] and r["data"]["stopped_at"] is None
+          and abs(r["data"]["volume"] - (4000 - math.pi * 60 * 6)) < 0.01, str(r["data"].get("volume") if r["ok"] else r))
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt4", features=[
+        {"op": "revolution", "name": "Rev", "plane": "XZ", "position": 0.0, "axis": {"x": 0.0},
+         "profile": {"polygon": [[5, 0], [10, 0], [10, 10], [5, 10]]}}])
+    check("revolution: 축 구성선 + 폴리곤 → 관 (부피 π(100−25)·10)", r["ok"] and r["data"]["stopped_at"] is None
+          and abs(r["data"]["volume"] - math.pi * 75 * 10) < 0.01, str(r["data"].get("volume") if r["ok"] else r))
+
+
 # --- 실행 -----------------------------------------------------------------------
 
 
@@ -411,6 +510,7 @@ def main():
         ("execute_code", test_execute_code),
         ("screenshot", test_screenshot),
         ("step_tools", test_step_tools),
+        ("rebuild_tools", test_rebuild_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)
