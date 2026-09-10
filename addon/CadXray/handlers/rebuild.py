@@ -642,14 +642,30 @@ def _hole_fill_solids(shape, max_fill_radius, margin=0.05):
         ts = [(Vec(v.Point) - foot).dot(axis) for v in f.Vertexes]
         if not ts:
             continue
-        g = groups.setdefault(_line_key(axis, foot, 0.01), {"axis": axis, "foot": foot, "r": 0.0, "lo": min(ts), "hi": max(ts), "arc": 0.0, "faces": 0})
+        g = groups.setdefault(_line_key(axis, foot, 0.01), {"axis": axis, "foot": foot, "r": 0.0, "lo": min(ts), "hi": max(ts), "angles": [], "faces": 0})
         g["r"] = max(g["r"], rmax)
         g["lo"], g["hi"] = min(g["lo"], min(ts)), max(g["hi"], max(ts))
-        g["arc"] += rec.get("arc_deg") or 0.0
+        # 각도 범위는 면마다 더하지 않고 **합집합**으로 잰다: 같은 축선에 반원 채널이 여러 토막 있으면
+        # 합은 360°를 넘지만 덮는 각도는 180°뿐이다 [라이브 1.1.3: end cap의 Ø9 케이블 홈이 원기둥으로 메워져 혹이 됨]
+        e1, e2 = _perp_frame(axis)
+        try:
+            for e in f.OuterWire.Edges:
+                for p in e.discretize(Number=36):
+                    q = Vec(p) - foot
+                    x, y = q.dot(e1), q.dot(e2)
+                    if math.hypot(x, y) > 1e-9:
+                        g["angles"].append(math.atan2(y, x) % TWO_PI)
+        except Exception:
+            pass
         g["faces"] += 1
     solids = []
     for g in groups.values():
-        if g["arc"] < 350.0:
+        angs = sorted(g["angles"])
+        if len(angs) < 2:
+            continue
+        gaps = [angs[i + 1] - angs[i] for i in range(len(angs) - 1)] + [angs[0] + TWO_PI - angs[-1]]
+        span = math.degrees(TWO_PI - max(gaps)) + 10.0  # 표본 간격 보정
+        if span < 350.0:
             continue
         # 축 방향은 정확히 면의 범위까지만: 여유를 주면 부품 바깥으로 튀어나온 원기둥이 단면에 혹으로 남는다
         # [라이브 1.1.3: 2B2에서 0.05 여유 → 관통 구멍마다 9 mm³ 혹]. 반지름 여유는 챔퍼·불리언 잔재를 덮는 용도.
@@ -1003,10 +1019,13 @@ def _profile_wires(d, plane, profile, warnings):
         if spec.get("outer_only", False):
             wires = wires[:1]
         bad = [w for w in wires if w["unsupported"]]
-        if bad:
+        if bad and not spec.get("approximate_bspline", False):
             raise _BuildError(f"단면에 직선·원으로 맞추지 못한 요소가 {sum(w['unsupported'] for w in bad)}개 있습니다. "
-                              "section_profile로 확인하고 tolerance를 조정하세요.")
-        return [w["elements"] for w in wires]
+                              "section_profile로 확인하고 tolerance를 조정하거나, 작은 블렌드면 approximate_bspline: true로 "
+                              "꺾은선 근사 후 fillet을 거세요.")
+        if bad:
+            warnings.append(f"자유곡선 요소 {sum(w['unsupported'] for w in bad)}개를 표본점 꺾은선으로 근사했습니다(approximate_bspline).")
+        return [_approximate_bsplines(w["elements"]) for w in wires]
     if "elements" in profile:
         return [list(profile["elements"])]
     if "wires" in profile:
@@ -1042,6 +1061,24 @@ def _profile_wires(d, plane, profile, warnings):
         pts = [[cx - w, cy - h], [cx + w, cy - h], [cx + w, cy + h], [cx - w, cy + h]]
         return [[{"type": "line", "start": pts[i], "end": pts[(i + 1) % 4]} for i in range(4)]]
     raise _BuildError("profile에 section / elements / wires / circles / polygon / rect 중 하나가 필요합니다.")
+
+
+def _approximate_bsplines(elements):
+    """type bspline 요소를 표본점을 잇는 선분 목록으로 바꾼다 (작은 블렌드 근사용)."""
+    out = []
+    for el in elements:
+        if el.get("type") != "bspline":
+            out.append(el)
+            continue
+        pts = [list(el["start"])] + [list(p) for p in el.get("points", [])[1:-1]] + [list(el["end"])]
+        # 표본점이 시작·끝과 겹치면 뺀다
+        clean = [pts[0]]
+        for p in pts[1:]:
+            if math.hypot(p[0] - clean[-1][0], p[1] - clean[-1][1]) > 1e-6:
+                clean.append(p)
+        for a, b in zip(clean[:-1], clean[1:]):
+            out.append({"type": "line", "start": a, "end": b, "was": "bspline"})
+    return out
 
 
 def _split_wide_arcs(elements, max_deg=150.0):
@@ -1210,6 +1247,16 @@ def _select_edges(shape, spec):
                 continue
         if length is not None and abs(e.Length - float(length)) > ltol:
             continue
+        if spec.get("direction") is not None:
+            # 직선 모서리의 방향이 주어진 벡터와 평행(부호 무관)해야 한다
+            if ctype != "Line" or len(e.Vertexes) < 2:
+                continue
+            dv = Vec(e.Vertexes[-1].Point) - Vec(e.Vertexes[0].Point)
+            want = Vec(*[float(v) for v in spec["direction"]])
+            if dv.Length < 1e-9 or want.Length < 1e-9:
+                continue
+            if abs(dv.dot(want)) / (dv.Length * want.Length) < 1.0 - 1e-4:
+                continue
         if bbox:
             bb = e.BoundBox
             lo, hi = bbox.get("min", [None] * 3), bbox.get("max", [None] * 3)
@@ -1478,9 +1525,12 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
             missing, missing_total, n_missing = _pieces(sa.cut(sb, fz) if fz else sa.cut(sb), float(min_piece_volume), int(max_pieces))
             extra, extra_total, n_extra = _pieces(sb.cut(sa, fz) if fz else sb.cut(sa), float(min_piece_volume), int(max_pieces))
             biggest = max([p["volume"] for p in missing + extra] or [0.0])
-            if biggest < 0.5 * vol_a:
+            # 일관성: (missing − extra)는 (Va − Vb)와 같아야 한다. 겹친 면에서 불리언이 큰 덩어리를 돌려주면 어긋난다
+            # [라이브 1.1.3: handle clamp — 부피 차 15 mm³인데 missing 1997]
+            consistent = abs((missing_total - extra_total) - (sa.Volume - sb.Volume)) <= 0.01 * vol_a + 1.0
+            if biggest < 0.5 * vol_a and consistent:
                 break
-            warnings.append(f"차집합(fuzzy {fz:g})이 형상 전체를 돌려줬습니다.")
+            warnings.append(f"차집합(fuzzy {fz:g})이 형상 전체 또는 일관되지 않은 조각을 돌려줬습니다.")
         else:
             boolean_failed = True
     except Exception as e:
@@ -1491,7 +1541,8 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
         missing_total = extra_total = 0.0
         try:
             vc = (sa.common(sb, fz0) if fz0 else sa.common(sb)).Volume
-            if 0.0 < vc <= min(sa.Volume, sb.Volume) + 1e-3:
+            # 교집합도 겹친 면에서 조각만 돌려줄 수 있다 → 작은 쪽 부피의 절반은 넘어야 믿는다
+            if 0.5 * min(sa.Volume, sb.Volume) < vc <= min(sa.Volume, sb.Volume) + 1e-3:
                 missing_total = round(max(sa.Volume - vc, 0.0), 6)
                 extra_total = round(max(sb.Volume - vc, 0.0), 6)
                 method = "common"

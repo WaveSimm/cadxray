@@ -117,3 +117,71 @@ part25 = run("D_tools", "Part__Feature",
     ])
 
 _result = {"spacerA": spacer, "collar": collar, "part25": part25}
+
+
+# ================================================================ 샘플 4·5 (2026-09-10 추가)
+# end cap : 하우징 엔드캡 — YZ 단면(10° 구배 옆면, 케이블 홈 3개, 립 챔퍼)을 X로 돌출 + 끝 립 3 mm + Ø22.1 구간 2개(회전 절삭 + 립 챔퍼)
+#           + 아래에서 육각 너트 자리 8개 + 위에서 Ø3.4 8개.  8피처, match (0.005 %)
+# handle clamp : collar와 같은 몸통 + 양쪽 팔(XZ 프로파일을 Y로 돌출 후 원통으로 다듬기) + 너트 채널 4 + 나사 2 + 피벗.
+#           R2 블렌드(자유곡면 13개, 4.4 %)는 Fillet이 실패해 남김 → 8피처, 부피 차 0.14 %. 하이브리드가 필요한 경우.
+
+def section_polygons(name, axis, position):
+    """단면의 안쪽 육각 와이어 꼭짓점을 그대로 폴리곤으로 (너트 자리 위치·방향을 손으로 읽지 않아도 된다)."""
+    s = rebuild.section_profile(name=name, doc=SRC_DOC, axis=axis, position=position, fill_holes=False)
+    return [[e["start"] for e in w["elements"]] for w in s["data"]["wires"] if not w["outer"] and w["elements_total"] == 6]
+
+
+E = {"of": "Part__Feature013", "doc": SRC_DOC}
+EZ0, ETOP = 18.606053, 32.606053
+EX0, EX1, EXL = -34.210845, 22.373798, -31.210845
+EAY = 10.052724                         # 중앙 케이블 홈 축 (X 방향, z = 윗면)
+hexes8 = section_polygons("Part__Feature013", "Z", 20.0)
+centers8 = [[sum(p[0] for p in h) / 6, sum(p[1] for p in h) / 6] for h in hexes8]
+endcap_feats = [
+    {"op": "pad", "name": "PadLip", "plane": "YZ", "position": "Params.x0", "profile": {"section": dict(E, position=-33.0)}, "length": "Params.lip"},
+    {"op": "pad", "name": "PadMain", "plane": "YZ", "position": EXL, "profile": {"section": dict(E, position=0.0)}, "length": "Params.length"},
+]
+for k, (xa, xb) in enumerate(((-31.210845, -22.210845), (10.373798, 19.373798)), 1):
+    # Ø22.1 구간: 윗면 평면에 놓인 X 방향 축 둘레로 사각형을 360° 회전 절삭 → 반원 홈. 립 챔퍼는 X 방향 직선 모서리만 골라서
+    endcap_feats.append({"op": "groove", "name": f"GrooveBig{k}", "plane": "XY", "position": ETOP, "axis": {"y": EAY}, "angle": 360.0,
+                         "profile": {"polygon": [[xa, EAY], [xb, EAY], [xb, EAY + 11.05], [xa, EAY + 11.05]]}})
+    endcap_feats.append({"op": "chamfer", "name": f"ChamferBig{k}", "size": "Params.lip_chamfer",
+                         "edges": {"curve": "Line", "direction": [1, 0, 0], "length": xb - xa, "length_tol": 0.05,
+                                   "bbox": {"min": [xa - 0.01, None, ETOP - 0.01], "max": [xb + 0.01, None, ETOP + 0.01]}}})
+endcap_feats += [
+    {"op": "pocket", "name": "PocketHexTraps", "plane": "XY", "position": "Params.z0", "reversed": True, "length": "Params.hex_depth", "profile": {"polygons": hexes8}},
+    {"op": "pocket", "name": "PocketHoles", "plane": "XY", "position": "Params.top", "length": "Params.hole_depth",
+     "profile": {"circles": [{"center": c, "diameter": 3.4, "expr": "Params.hole_d", "name": f"hole_d{i}"} for i, c in enumerate(centers8)]}},
+]
+endcap = run("endcap_tools", "Part__Feature013",
+             {"x0": EX0, "lip": 3.0, "length": EX1 - EXL, "z0": EZ0, "top": ETOP, "hex_depth": 6.0, "hole_d": 3.4, "hole_depth": 7.6, "lip_chamfer": 0.5},
+             endcap_feats)
+
+Hc = {"of": "Part__Feature025", "doc": SRC_DOC}
+HX0, HXB = 306.789155, 322.789155       # 몸통 x 범위 (팔은 그 뒤)
+HAY, HAZ, HRO = 10.052724, 32.606053, 12.852074
+hexes2 = section_polygons("Part__Feature025", "Y", 18.0)
+centers2 = [[sum(p[0] for p in h) / 6, sum(p[1] for p in h) / 6] for h in hexes2]
+handle = run("handle_tools", "Part__Feature025",
+    {"x0": HX0, "body_len": HXB - HX0, "y_ear1": 16.052724, "y_ear2": 4.052724, "y_bore": HAY, "hole_d": 3.4,
+     "arm_y1": 14.552724, "arm_y2": 5.552724, "arm_w": 8.36},
+    [
+        {"op": "pad", "name": "PadBody", "plane": "YZ", "position": "Params.x0", "profile": {"section": dict(Hc, position=307.0)}, "length": "Params.body_len"},
+        # 팔 단면은 R2 블렌드 영역 밖(y=16 / y=4)에서, 몸통(x<322.789)은 clip으로 빼고, 뿌리 블렌드 1개는 꺾은선 근사
+        {"op": "pad", "name": "PadArm1", "plane": "XZ", "position": "Params.arm_y1", "reversed": True, "length": "Params.arm_w",
+         "profile": {"section": dict(Hc, position=16.0, outer_only=True, clip={"min": [HXB, None]}, approximate_bspline=True)}},
+        {"op": "pad", "name": "PadArm2", "plane": "XZ", "position": "Params.arm_y2", "length": "Params.arm_w",
+         "profile": {"section": dict(Hc, position=4.0, outer_only=True, clip={"min": [HXB, None]}, approximate_bspline=True)}},
+        # 팔 바깥을 몸통 원통(R12.852)으로 다듬기: X축 둘레 회전 절삭, r > R
+        {"op": "groove", "name": "GrooveTrim", "plane": "XY", "position": HAZ, "axis": {"y": HAY}, "angle": 360.0,
+         "profile": {"polygon": [[HXB, HAY + HRO], [341.0, HAY + HRO], [341.0, HAY + 30.0], [HXB, HAY + 30.0]]}},
+        {"op": "pocket", "name": "NutChannels1", "plane": "XZ", "position": "Params.y_ear1", "through": True, "profile": {"polygons": hexes2}},
+        {"op": "pocket", "name": "NutChannels2", "plane": "XZ", "position": "Params.y_ear2", "through": True, "reversed": True, "profile": {"polygons": hexes2}},
+        {"op": "pocket", "name": "PocketScrews", "plane": "XZ", "position": "Params.y_bore", "through": True, "midplane": True,
+         "profile": {"circles": [{"center": c, "diameter": 3.4, "expr": "Params.hole_d", "name": f"screw_d{i}"} for i, c in enumerate(centers2)]}},
+        {"op": "pocket", "name": "PocketPivot", "plane": "XZ", "position": "Params.y_bore", "through": True, "midplane": True,
+         "profile": {"circles": [{"center": [332.789155, 32.545], "diameter": 3.4, "expr": "Params.hole_d", "name": "pivot_d"}]}},
+        # R2 블렌드는 PartDesign Fillet이 실패한다(BRep_API: command not done) — 원본을 BaseFeature로 두는 하이브리드가 답
+    ])
+
+_result.update({"endcap": endcap, "handle": handle})

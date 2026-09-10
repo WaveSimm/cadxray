@@ -500,6 +500,31 @@ def test_rebuild_tools():
     check("반원 프로파일 Pad: DoF 0·부피 π·25·2/2", r["ok"] and r["data"]["stopped_at"] is None and c.get("dof") == 0
           and abs(r["data"]["volume"] - math.pi * 25) < 0.01, str((c.get("status"), c.get("dof"), r["data"].get("volume")) if r["ok"] else r))
 
+    # 같은 축선의 반원 채널 두 토막은 '구멍'이 아니다 → 메우지 않고 단면에 호로 남아야 한다
+    r = rebuild.section_profile(doc="T7_rebuild", name="Channel", axis="X", position=5.0, fill_holes=True)
+    w0 = r["data"]["wires"][0] if r["ok"] and r["data"]["wires"] else {}
+    arcs = [e for e in w0.get("elements", []) if e["type"] == "arc"]
+    check("반원 채널 토막은 메우지 않음 (filled 0, 단면에 R3 호)", r["ok"] and r["data"]["filled_holes"] == 0 and len(arcs) >= 1
+          and all(abs(a["radius"] - 3.0) < 1e-6 for a in arcs), str((r["data"].get("filled_holes"), [e["type"] for e in w0.get("elements", [])]) if r["ok"] else r))
+    # 자유곡선 요소 근사 + 방향 필터 챔퍼
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt6", features=[
+        {"op": "pad", "name": "Blend", "plane": "XY", "position": 0.0, "length": 4.0,
+         "profile": {"elements": [{"type": "line", "start": [0, 0], "end": [10, 0]}, {"type": "line", "start": [10, 0], "end": [10, 8]},
+                                  {"type": "bspline", "start": [10, 8], "end": [8, 10], "points": [[10, 8], [9.6, 9.2], [8.8, 9.8], [8, 10]], "unsupported": True},
+                                  {"type": "line", "start": [8, 10], "end": [0, 10]}, {"type": "line", "start": [0, 10], "end": [0, 0]}]}},
+        {"op": "chamfer", "name": "ChX", "size": 1.0, "edges": {"curve": "Line", "direction": [1, 0, 0], "bbox": {"min": [None, None, 3.99]}}}])
+    cs = r["data"]["created"] if r["ok"] else []
+    check("bspline 요소는 build에서 거부 (approximate 없이)", r["ok"] and r["data"]["stopped_at"] == "Blend" and "bspline" in cs[0]["status"], str(cs[:1] if r["ok"] else r))
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt7", features=[
+        {"op": "pad", "name": "Blend", "plane": "XY", "position": 0.0, "length": 4.0,
+         "profile": {"elements": rebuild._approximate_bsplines([{"type": "line", "start": [0, 0], "end": [10, 0]}, {"type": "line", "start": [10, 0], "end": [10, 8]},
+                                  {"type": "bspline", "start": [10, 8], "end": [8, 10], "points": [[10, 8], [9.6, 9.2], [8.8, 9.8], [8, 10]], "unsupported": True},
+                                  {"type": "line", "start": [8, 10], "end": [0, 10]}, {"type": "line", "start": [0, 10], "end": [0, 0]}])}},
+        {"op": "chamfer", "name": "ChX", "size": 1.0, "edges": {"curve": "Line", "direction": [1, 0, 0], "bbox": {"min": [None, None, 3.99]}}}])
+    cs = r["data"]["created"] if r["ok"] else []
+    check("꺾은선 근사 Pad + X 방향 윗면 모서리 2개만 챔퍼", r["ok"] and r["data"]["stopped_at"] is None and cs[0].get("dof") == 0
+          and len(cs[1].get("edges") or []) == 2 and cs[1]["status"] == "Valid", str([(c["name"], c.get("dof"), c["status"], c.get("edges")) for c in cs] if r["ok"] else r))
+
 
 # --- 실행 -----------------------------------------------------------------------
 

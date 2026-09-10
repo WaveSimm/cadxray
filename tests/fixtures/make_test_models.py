@@ -258,6 +258,13 @@ def T7_rebuild():
     plate.Shape = s
     plate_b = doc.addObject("Part::Feature", "PlateB")
     plate_b.Shape = s.transformGeometry(FreeCAD.Matrix())
+    # 반원 케이블 홈 두 토막(X 방향, 윗면에 R3 반쯤 묻힘): 같은 축선의 오목 원통 두 개 — 호 합은 360°지만
+    # 덮는 각도는 180°라 '구멍'이 아니다. section_profile(fill_holes=True)가 이걸 메우면 안 된다.
+    ch = Part.makeBox(40, 20, 10)
+    for x0, x1 in ((0, 15), (25, 40)):
+        ch = ch.cut(Part.makeCylinder(3.0, x1 - x0, Vec(x0, 10, 10), Vec(1, 0, 0)))
+    channel = doc.addObject("Part::Feature", "Channel")
+    channel.Shape = ch
     doc.recompute()
     return doc
 
