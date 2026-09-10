@@ -9,7 +9,7 @@ import json
 import math
 import os
 
-DXF_DIR = r"E:\claudereecadMCP"
+DXF_DIR = "E:/claude/freecadMCP"
 FILES = {"MYB": "MYB-6ULX_2D.dxf", "MYS": "MYS-6ULX_2D.dxf"}
 
 
