@@ -101,6 +101,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 **STEP → 파라메트릭 재구성 예시** (`execute_code`로 실행):
 - `examples/rebuild_bracket_from_step.py` — 판+각기둥 브라켓. 면 측정값만으로 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)를 만들고 원본과 **차집합 0.0 mm³**
 - `examples/rebuild_jaw_2c2_from_step.py` — 어셈블리의 클램프 조(44면: 배럴·더브테일 홈·60° 립·카운터보어·챔퍼). 2D 윤곽은 원본 단면에서 트레이스(Block 구속), 3D 피처는 파라메트릭. 부피 차 **0.017 mm³ (0.0007 %)**. 트레이스한 기하에 Coincident를 잘못 짝지으면 솔버가 윤곽을 비트는 함정을 기록해 둠
+- `examples/rebuild_jaw_2b2_from_step.py` — 같은 계열의 큰 조(BSpline 8면, "어려움" 판정). 구멍이 단면을 전부 가려서 **3D에서 구멍을 상자로 메운 뒤** 단면을 뜨고, 불리언이 만든 1e-5 틈은 그려진 기하 기준으로 찾아 Radius+Coincident로 닫음. 부피 차 **0.034 mm³ (0.0004 %)**. 윤곽·회전 프로파일 스케치는 DoF 0, 귀 복원 스케치만 1
 
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 

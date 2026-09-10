@@ -162,6 +162,9 @@
 - XZ 평면 스케치: 로컬 x = 전역 x, 로컬 y = 전역 z, 법선 −Y → `AttachmentOffset.Base.z = −y`가 평면 y. YZ 평면: 로컬 x = 전역 y, 로컬 y = 전역 z, 법선 +X → Pocket은 −X로 파므로 뒤판에서 안쪽으로 파려면 `Reversed=True`.
 - 서로 떨어진 Pad는 한 Body에 넣을 수 없다("multiple solids") → 겹치는 순서로 쌓는다(아래 띠 → 가운데 → 위 띠).
 - **정확한 불리언은 면이 겹치는 두 형상에서 실패한다.** 원본과 재구성본처럼 면이 일치하는 쌍은 `a.cut(b)`가 null이나 전체를 돌려준다 → `a.cut(b, 1e-4)`(퍼지)로 하고, 두께 0인 조각(BoundBox 한 변이 0)은 무시한다. 잔차 판정은 부피·면적·bbox 차 + 퍼지 차집합의 실제 조각으로.
+- **2D 면 불리언은 피한다.** `Part.Face.fuse`로 단면의 구멍을 메우려 하면 면이 갈라지고(5개) 직선이 BSplineCurve로 바뀐다. 대신 **3D에서** 구멍 자리를 `Part.makeBox`로 덮어 `shape.fuse(boxes).removeSplitter()` 한 사본을 만들고 그것을 `slice`하면 바깥 윤곽 하나가 Line/Circle만으로 나온다. 귀(ear) 영역 같은 부분 윤곽도 `face.extrude(V(0,0,1)).cut(cylinder/box)` 후 다시 `slice`로 뜬다.
+- **불리언이 만든 정점은 이상적인 원에서 ~1e-5 벗어난다.** 원본 정점은 이웃 요소끼리 공유돼 있어 틈이 0으로 보이지만, 중심·반지름·각도로 다시 그린 호의 끝점은 이웃과 9e-6 어긋나고 Sketcher(허용치 1e-7)는 "Wire is not closed"를 낸다. 틈은 **그려진 기하(`sk.Geometry[i].StartPoint/EndPoint`)** 기준으로 재고, 틈이 있는 이음매에선 반지름 큰 쪽 요소를 Block 대신 `Radius` + 이웃과 `Coincident`(진행 방향으로 짝지은 PointPos)로 잡는다 → 솔버가 틈을 닫고 DoF 0. `get_sketch_diagnostics`의 `open_vertices`·`missing_point_on_point`가 이걸 바로 보여준다.
+- 회전 절삭(Groove)은 360°라 부품 윤곽 밖(앞판 앞으로 나온 귀 등)까지 깎는다. 원본의 절삭 공기가 어느 면에서 끝나는지 확인하고, 깎인 영역을 같은 z 범위의 Pad로 되돌린다(배럴 홈 → 가운데 귀, 시트 립 → 앞판 앞 띠 귀).
 - 어셈블리에서 온 STEP 부품은 좌표 끝자리가 지저분하다(예: 34.843193). 정점에서 기준점(X0,Y0,Z0)을 읽으면 나머지 치수는 깔끔한 설계값(6.25, 8.75, 1.65/tan60…)으로 떨어진다.
 
 ## 8. Base 타입 (직렬화) `[1.0.2][1.1.3]`
