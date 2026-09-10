@@ -228,6 +228,28 @@
 
 ---
 
+## 11.5 Assembly 워크벤치 스크립팅 `[라이브 1.1.3 확인, 2026-09-10]`
+
+FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 툴은 없음 — 명세 밖).
+
+- 타입: `Assembly::AssemblyObject`, `Assembly::JointGroup`, `Assembly::AssemblyLink`, `Assembly::BomObject/BomGroup`, `Assembly::ViewGroup`, `Assembly::SimulationGroup`
+- 조인트 종류 `JointObject.JointTypes` (인덱스 순): `Fixed, Revolute, Cylindrical, Slider, Ball, Distance, Parallel, Perpendicular, Angle, RackPinion, Screw, Gears, Belt`
+- 만드는 순서 (순서가 중요):
+  ```python
+  import JointObject
+  asm = doc.addObject("Assembly::AssemblyObject", "Assembly")
+  jg  = doc.addObject("Assembly::JointGroup", "Joints"); asm.addObject(jg)
+  lk  = doc.addObject("App::Link", "Link_x"); lk.LinkedObject = part; asm.addObject(lk)
+  g = doc.addObject("App::FeaturePython", "Grounded"); JointObject.GroundedJoint(g, lk); jg.addObject(g)
+  j = doc.addObject("App::FeaturePython", "Joint"); jg.addObject(j)   # ← JointGroup에 먼저 넣고
+  JointObject.Joint(j, 2)                                             #    초기화 (Cylindrical). 순서 바꾸면 assembly.Type NoneType 에러
+  j.Reference1 = (asm, ["Link_x.Face3"])                              # PropertyXLinkSub: (어셈블리, ["링크이름.면이름"]) 형태만 받는다
+  j.Reference2 = (asm, ["Link_y.Face7"])                              #   [(obj, (sub,))] 형태는 "Expect input sequence of size 2"
+  doc.recompute(); asm.solve()                                        # 0 = 성공, 링크 Placement가 움직인다
+  ```
+- **문서 간 링크는 원본 문서가 저장돼 있어야 한다** (`RuntimeError: Linked document not saved`). STEP을 연 `Unnamed` 문서의 부품을 다른 문서에서 링크하려면 먼저 저장하거나, 같은 문서 안에서 만든다.
+- `GroundedJoint`는 프로퍼티 `ObjectToGround` 하나. 어느 면이 어느 면과 맞물리는지(조인트 참조)는 자동으로 알 수 없다 — 사람이 지정하거나 `find_holes`/`analyze_shape`로 축·반지름이 맞는 원통면을 골라 준다.
+
 ## 12. STEP 가져오기·형상 분석 (M6용) `[1.0.2][1.1.3]`
 
 ### Import 모듈 (`src/Mod/Import/App/AppImportPy.cpp`)
