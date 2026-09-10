@@ -1,0 +1,328 @@
+"""애드온 핸들러 테스트. FreeCAD 안에서 돈다 (서버를 켤 필요 없음).
+
+    # Windows
+    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" tests\\in_freecad\\test_handlers.py
+    # macOS
+    /Applications/FreeCAD.app/Contents/MacOS/FreeCADCmd tests/in_freecad/test_handlers.py
+    # 실행 중인 FreeCAD GUI의 Python 콘솔에서
+    exec(open(r"E:\\claude\\freecadMCP\\tests\\in_freecad\\test_handlers.py", encoding="utf-8").read())
+
+GUI가 없으면(FreeCADCmd) get_screenshot은 SKIP한다. 마지막에 측정표(응답 크기·시간)를
+마크다운으로 출력한다 — README의 표는 여기서 나온 값이다.
+"""
+
+import base64
+import json
+import os
+import sys
+import time
+import traceback
+
+# FreeCADCmd는 스크립트가 끝나면 Python 버퍼를 비우지 않고 종료한다 → 줄마다 flush.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+except Exception:
+    pass
+
+
+def _here():
+    try:
+        return os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        pass
+    for a in reversed(sys.argv):
+        if a.endswith("test_handlers.py"):
+            return os.path.dirname(os.path.abspath(a))
+    return os.path.join(os.getcwd(), "tests", "in_freecad")
+
+
+HERE = _here()
+ROOT = os.path.dirname(os.path.dirname(HERE))
+for p in (os.path.join(ROOT, "addon"), os.path.join(ROOT, "tests", "fixtures")):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+import FreeCAD  # noqa: E402
+
+import make_test_models as fx  # noqa: E402
+from FreeCADDiag import rpc_server  # noqa: E402
+from FreeCADDiag.handlers import (  # noqa: E402
+    REGISTRY,
+    document_graph,
+    documents,
+    execute,
+    recompute,
+    reload_handlers,
+    screenshot,
+    shape_analysis,
+    sketch_diag,
+    util,
+)
+
+# --- 작은 테스트 하네스 ---------------------------------------------------------
+
+_results = []  # (status, name, detail)
+_measure = []  # (tool, case, bytes, ms)
+
+
+def check(name, cond, detail=""):
+    _results.append(("PASS" if cond else "FAIL", name, detail))
+    print(f"  [{'PASS' if cond else 'FAIL'}] {name}" + (f"  — {detail}" if detail and not cond else ""))
+    return bool(cond)
+
+
+def skip(name, why):
+    _results.append(("SKIP", name, why))
+    print(f"  [SKIP] {name}  — {why}")
+
+
+def measure(tool, case, r):
+    _measure.append((tool, case, util.json_size(r), r.get("elapsed_ms", 0)))
+    return r
+
+
+def section(title):
+    print(f"\n== {title} ==")
+
+
+def run(name, fn):
+    """예외를 FAIL로 바꾼다. 테스트 하나가 죽어도 나머지는 돈다."""
+    try:
+        fn()
+    except Exception as e:
+        _results.append(("FAIL", name, f"{type(e).__name__}: {e}"))
+        print(f"  [FAIL] {name}  — 예외\n{traceback.format_exc()}")
+
+
+# --- 테스트 ---------------------------------------------------------------------
+
+
+def test_fixtures():
+    section("테스트 모델 생성")
+    t0 = time.time()
+    summary = fx.build_all()
+    print(f"  {len(summary)}개 문서, {round((time.time() - t0) * 1000)} ms")
+    check("T1_clean invalid 없음", summary["T1_clean"]["invalid"] == [])
+    check("T3_conflict Sketch invalid", summary["T3_conflict"]["invalid"] == ["Sketch"])
+    check("T4_open_wire Pad invalid", summary["T4_open_wire"]["invalid"] == ["Pad"])
+    check("T5_large 300개 이상", summary["T5_large"]["objects"] >= 300, str(summary["T5_large"]))
+
+
+def test_ping_and_list():
+    section("ping / list_documents")
+    r = measure("ping", "-", documents.ping())
+    check("ping ok", r["ok"])
+    check("ping freecad_version", isinstance(r["data"]["freecad_version"], str), str(r["data"]))
+    check("ping gui bool", isinstance(r["data"]["gui"], bool))
+    r = measure("list_documents", "5개 문서", documents.list_documents())
+    names = {d["name"] for d in r["data"]}
+    check("list_documents에 T1~T5", {"T1_clean", "T5_large"} <= names, str(names))
+
+
+def test_document_graph():
+    section("get_document_graph")
+    r = measure("get_document_graph", "T1 (13객체)", document_graph.get_document_graph(doc="T1_clean"))
+    d = r["data"]
+    check("T1 ok", r["ok"])
+    check("T1 summary.objects == 13", d["summary"]["objects"] == 13, str(d["summary"]))
+    check("T1 invalid 없음", d["invalid_objects"] == [])
+    check("T1 bodies[0].tip == Pocket", d["bodies"] and d["bodies"][0]["tip"] == "Pocket", str(d["bodies"]))
+    sk = next((o for o in d["objects"] if o["name"] == "Sketch"), None)
+    check("T1 Sketch에 sketch 요약", sk is not None and "sketch" in sk, str(sk))
+
+    r = measure("get_document_graph", "T5 max_objects=50", document_graph.get_document_graph(doc="T5_large", max_objects=50))
+    d = r["data"]
+    size = util.json_size(r)
+    check("T5(50) truncated", r["truncated"] is True)
+    check("T5(50) 20 KB 이하", size <= 20 * 1024, f"{size} B")
+    check("T5(50) summary는 전체 기준", d["summary"]["objects"] >= 300, str(d["summary"]["objects"]))
+    check("T5(50) 5초 이내", r["elapsed_ms"] < 5000, f"{r['elapsed_ms']} ms")
+    check("T5(50) objects 50개", len(d["objects"]) == 50)
+
+    r = measure("get_document_graph", "T5 max_objects=200", document_graph.get_document_graph(doc="T5_large"))
+    check("T5(200) 하드캡 이하", util.json_size(r) <= util.HARD_CAP_BYTES, f"{util.json_size(r)} B")
+
+    r = document_graph.get_document_graph(doc="T3_conflict")
+    check("T3 invalid_objects == [Sketch]", r["data"]["invalid_objects"] == ["Sketch"], str(r["data"]["invalid_objects"]))
+    r = document_graph.get_document_graph(doc="T1_clean", type_filter="Sketcher::SketchObject")
+    check("type_filter 스케치만", all(o["type"] == "Sketcher::SketchObject" for o in r["data"]["objects"]) and len(r["data"]["objects"]) == 2)
+    r = document_graph.get_document_graph(doc="없는문서")
+    check("없는 문서 → ok False", r["ok"] is False and "없는문서" in r["error"])
+
+
+def test_inspect_object():
+    section("inspect_object")
+    r = measure("inspect_object", "Pad", document_graph.inspect_object(doc="T1_clean", name="Pad"))
+    d = r["data"]
+    check("Pad ok", r["ok"])
+    length = d["properties"].get("Length", {}).get("value")
+    check("Length가 Quantity 구조", isinstance(length, dict) and length.get("value") == 10.0, str(length))
+    check("Shape 값 생략", "생략" in str(d["properties"]["Shape"]["value"]))
+    check("shape 요약 있음", d.get("shape", {}).get("shape_type") == "Solid", str(d.get("shape")))
+    check("out에 Sketch", "Sketch" in d["out"])
+    r = document_graph.inspect_object(doc="T1_clean", name="없는객체")
+    check("없는 객체 → ok False", r["ok"] is False)
+
+
+def test_analyze_shape():
+    section("analyze_shape")
+    r = measure("analyze_shape", "Pocket", shape_analysis.analyze_shape(doc="T1_clean", name="Pocket"))
+    d = r["data"]
+    check("Pocket ok", r["ok"])
+    check("is_valid", d["is_valid"] is True)
+    check("check_message 없음", d["check_message"] is None, str(d["check_message"]))
+    check("원통면 1개(구멍)", d["faces_by_surface"].get("Cylinder") == 1, str(d["faces_by_surface"]))
+    check("부피 = 20*12*10 - π·9·10", abs(d["volume"] - (2400 - 3.141592653589793 * 9 * 10)) < 0.5, str(d["volume"]))
+    check("feature_own_shape 있음", "feature_own_shape" in d)
+    r = shape_analysis.analyze_shape(doc="T1_clean", name="Pocket", max_faces=2, max_edges=2)
+    check("max_faces=2 → truncated", r["truncated"] is True and len(r["data"]["face_details"]) == 2)
+    r = shape_analysis.analyze_shape(doc="T1_clean", name="Sketch")
+    check("스케치(Shape 있음)도 분석됨", r["ok"] and r["data"]["shape_type"] in ("Wire", "Compound", "Edge"), str(r.get("data", {}).get("shape_type")))
+
+
+def test_sketch_diagnostics():
+    section("get_sketch_diagnostics")
+    r = measure("get_sketch_diagnostics", "T1 완전구속", sketch_diag.get_sketch_diagnostics(doc="T1_clean", sketch="Sketch"))
+    check("T1 solve 0 / dof 0 / fc True", r["data"]["solve_status"] == 0 and r["data"]["dof"] == 0 and r["data"]["fully_constrained"] is True, str({k: r["data"][k] for k in ("solve_status", "dof", "fully_constrained")}))
+
+    r = sketch_diag.get_sketch_diagnostics(doc="T2_underconstrained", sketch="Sketch")
+    check("T2 dof > 0, fc False", r["data"]["solve_status"] == 0 and r["data"]["dof"] > 0 and r["data"]["fully_constrained"] is False, str({k: r["data"][k] for k in ("solve_status", "dof", "fully_constrained")}))
+
+    r = measure("get_sketch_diagnostics", "T3 충돌", sketch_diag.get_sketch_diagnostics(doc="T3_conflict", sketch="Sketch"))
+    d = r["data"]
+    ids = [c["id"] for c in d["conflicting"]]
+    check("T3 solve 실패", d["solve_status"] != 0, str(d["solve_status"]))
+    check("T3 conflicting == [12, 13]", ids == [12, 13], str(ids))
+    check("T3 fully_constrained null", d["fully_constrained"] is None)
+    check("T3 index = id-1", all(c["index"] == c["id"] - 1 for c in d["conflicting"]))
+    r2 = sketch_diag.get_sketch_diagnostics(doc="T3_conflict", sketch="Sketch", max_items=2)
+    got = [c["i"] for c in r2["data"]["constraints"]]
+    check("T3 max_items=2 에도 문제 제약 포함", 11 in got and 12 in got, str(got))
+
+    r = sketch_diag.get_sketch_diagnostics(doc="T4_open_wire", sketch="Sketch")
+    check("T4 open_vertices 2개", len(r["data"]["open_vertices"]) == 2, str(r["data"]["open_vertices"]))
+
+    r = sketch_diag.get_sketch_diagnostics(doc="T1_clean", sketch="Pad")
+    check("스케치 아님 → ok False", r["ok"] is False and "스케치가 아닙니다" in r["error"])
+
+
+def test_tracked_recompute():
+    section("tracked_recompute")
+    doc = FreeCAD.getDocument("T1_clean")
+    pad = doc.getObject("Pad")
+    pad.Length = 0
+    r = measure("tracked_recompute", "깨뜨린 뒤", recompute.tracked_recompute(doc="T1_clean"))
+    names = [e["name"] for e in r["data"]["new_errors"]]
+    check("깨뜨림 → new_errors에 Pad", "Pad" in names, str(r["data"]["new_errors"]))
+    check("new_errors status에 원인", any("zero" in (e["status"] or "") for e in r["data"]["new_errors"]), str(r["data"]["new_errors"]))
+    pad.Length = 10
+    r = measure("tracked_recompute", "고친 뒤", recompute.tracked_recompute(doc="T1_clean"))
+    names = [e["name"] for e in r["data"]["resolved"]]
+    check("고침 → resolved에 Pad", "Pad" in names, str(r["data"]["resolved"]))
+    check("고침 → new_errors 없음", r["data"]["new_errors"] == [])
+    r = recompute.tracked_recompute(doc="T1_clean", objects=["Pad"])
+    check("objects=[Pad] requested", r["data"]["requested"] == ["Pad"])
+    r = recompute.tracked_recompute(doc="T1_clean", objects=["없는객체"])
+    check("없는 객체 → ok False", r["ok"] is False)
+
+
+def test_execute_code():
+    section("execute_code")
+    r = measure("execute_code", "_result = 1+1", execute.execute_code("print('hi')\n_result = 1 + 1", doc="T1_clean"))
+    check("result == 2", r["ok"] and r["data"]["result"] == 2, str(r))
+    check("stdout 캡처", r["data"]["stdout"].strip() == "hi")
+    r = execute.execute_code("_result = doc.Name", doc="T1_clean")
+    check("doc 네임스페이스", r["data"]["result"] == "T1_clean")
+    r = execute.execute_code("1/0", doc="T1_clean")
+    check("예외 → ok False + traceback", r["ok"] is False and "ZeroDivisionError" in r["error"] and "traceback" in r)
+    r = execute.execute_code("_result = doc.getObject('Pad').Length", doc="T1_clean")
+    check("Quantity 직렬화", isinstance(r["data"]["result"], dict) and r["data"]["result"].get("value") == 10.0, str(r["data"]["result"]))
+
+
+def test_screenshot():
+    section("get_screenshot")
+    if not FreeCAD.GuiUp:
+        r = screenshot.get_screenshot(doc="T1_clean", view="iso")
+        check("GUI 없음 → ok False + 안내", r["ok"] is False and "GUI" in r["error"])
+        skip("get_screenshot 이미지", "GUI 없음 (FreeCADCmd)")
+        return
+    r = measure("get_screenshot", "iso 800x600", screenshot.get_screenshot(doc="T1_clean", view="iso", width=800, height=600))
+    check("iso ok", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        png = base64.b64decode(r["data"]["png_base64"])
+        check("PNG 시그니처", png[:8] == b"\x89PNG\r\n\x1a\n")
+        check("크기 필드", r["data"]["width"] == 800 and r["data"]["height"] == 600)
+    r = screenshot.get_screenshot(doc="T1_clean", view="옆에서")
+    check("잘못된 view → ok False", r["ok"] is False)
+
+
+def test_registry_and_cap():
+    section("레지스트리 / 하드캡")
+    expected = {
+        "ping", "list_documents", "get_document_graph", "inspect_object", "analyze_shape",
+        "get_sketch_diagnostics", "tracked_recompute", "get_screenshot", "execute_code",
+        "reload_handlers",
+    }
+    check("툴 10개 등록", expected <= set(REGISTRY), str(sorted(set(REGISTRY) ^ expected)))
+    r = reload_handlers()
+    check("reload_handlers ok", r["ok"] and not r["data"]["failed"], str(r["data"]["failed"]))
+    check("reload 후에도 10개", expected <= set(REGISTRY))
+
+    big = {"ok": True, "data": {"x": "a" * (util.HARD_CAP_BYTES + 10)}}
+    out = json.loads(rpc_server._dump(big))
+    check("하드캡 초과 → 에러 봉투", out["ok"] is False and "하드캡" in out["error"])
+    out = json.loads(rpc_server._dump(big, capped=False))
+    check("capped=False → 통과", out["ok"] is True)
+    check("get_screenshot은 no_size_cap", getattr(screenshot.get_screenshot, "no_size_cap", False) is True)
+
+    out = json.loads(rpc_server.call("ping", "{}"))
+    check("rpc_server.call 왕복", out["ok"] is True and "freecad_version" in out["data"])
+    out = json.loads(rpc_server.call("inspect_object", json.dumps({"doc": "T1_clean", "이상한인자": 1})))
+    check("잘못된 인자 → 친절한 에러", out["ok"] is False and "인자 오류" in out["error"])
+    out = json.loads(rpc_server.call("없는툴", "{}"))
+    check("없는 툴 → 목록 안내", out["ok"] is False and "ping" in out["error"])
+
+
+# --- 실행 -----------------------------------------------------------------------
+
+
+def main():
+    print(f"FreeCAD {util.version_string()}  GUI={FreeCAD.GuiUp}  root={ROOT}")
+    t0 = time.time()
+    for name, fn in (
+        ("fixtures", test_fixtures),
+        ("ping_and_list", test_ping_and_list),
+        ("document_graph", test_document_graph),
+        ("inspect_object", test_inspect_object),
+        ("analyze_shape", test_analyze_shape),
+        ("sketch_diagnostics", test_sketch_diagnostics),
+        ("tracked_recompute", test_tracked_recompute),
+        ("execute_code", test_execute_code),
+        ("screenshot", test_screenshot),
+        ("registry_and_cap", test_registry_and_cap),
+    ):
+        run(name, fn)
+    fx.close_all()
+
+    n = {"PASS": 0, "FAIL": 0, "SKIP": 0}
+    for status, _, _ in _results:
+        n[status] += 1
+    print(f"\n결과: PASS {n['PASS']}  FAIL {n['FAIL']}  SKIP {n['SKIP']}  ({round(time.time() - t0, 1)}초)")
+    if n["FAIL"]:
+        print("실패:")
+        for status, name, detail in _results:
+            if status == "FAIL":
+                print(f"  - {name}: {detail}")
+
+    print("\n측정표 (README용):")
+    print("| 툴 | 경우 | 응답 크기 | 시간 |")
+    print("|---|---|---|---|")
+    for tool, case, size, ms in _measure:
+        print(f"| `{tool}` | {case} | {size:,} B | {ms} ms |")
+    return 1 if n["FAIL"] else 0
+
+
+_code = main()
+sys.stdout.flush()
+if not FreeCAD.GuiUp:
+    sys.exit(_code)

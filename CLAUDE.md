@@ -22,5 +22,28 @@
 ## 커밋
 - 마일스톤마다 커밋. 메시지는 한국어로, 무엇이 동작하게 됐는지 한 줄
 
-## 완성 후 (M5에서 채운다)
-- 명세 10장의 "진단 워크플로"를 이 파일에 옮겨 적는다. 이 MCP를 사용하는 Claude가 읽는 부분이다
+## 테스트
+- `"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" tests\in_freecad\test_handlers.py` — 서버 없이 핸들러를 직접 돌린다. GUI가 없어 스크린샷은 SKIP
+- 핸들러를 고쳤으면 `reload_handlers` 툴로 다시 읽는다. `InitGui.py`·`rpc_server.py`·`handlers/__init__.py`·`main_thread.py`를 고쳤을 때만 FreeCAD 재시작
+- 브릿지(`bridge/`)를 고쳤으면 Claude Code에서 `/mcp` → Reconnect
+
+## 진단 워크플로 (이 MCP를 쓰는 Claude용)
+1. `ping` → 연결·버전 확인. `freecad_version`이 1.0인지 1.1인지 기억한다
+2. `list_documents` → 대상 문서 확정. 여러 개면 사용자에게 묻는다
+3. `get_document_graph` (기본 `max_objects`) → `invalid_objects`와 `summary`부터 본다. `warnings`에 "dof/fully_constrained 값이 서로 맞지 않습니다"가 있으면 그 스케치는 4번으로
+4. 문제 객체가 스케치면 `get_sketch_diagnostics`, 형상이면 `analyze_shape`, 그 외는 `inspect_object`
+5. 원인을 사용자에게 한 문장으로 설명하고 수정 방향을 제시한 뒤 `execute_code`로 수정
+6. `tracked_recompute`로 결과 확인 → `resolved`에 들어갔는지, `new_errors`가 없는지. 필요 시 `get_screenshot(view="iso")`
+7. 전체 트리 덤프(`max_objects` 크게)는 사용자가 명시적으로 원할 때만
+
+### 읽을 때 주의
+- `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
+- 제약 번호는 `id`(1-based, GUI 제약 패널과 같음)와 `index`(0-based, `sk.Constraints[index]`)가 같이 온다. 사용자에게는 `id`로 말한다
+- `open_vertices`는 열린 곳 한 군데당 2개(양쪽 끝점)다
+- `analyze_shape`의 `shape`는 PartDesign 피처면 Body 누적 형상이다. 피처 자체는 `feature_own_shape`
+- `tracked_recompute`에서 실패한 객체는 `Invalid`와 함께 `Touched`도 남는다. 에러 판단은 `Invalid`(= `new_errors`/`persistent`)로
+
+### 수정 코드 작성 시 주의
+- FreeCAD 1.1에는 `Sketch.movePoint`가 없다 → `moveGeometry` / `moveGeometries`. `ping`의 버전을 보고 결정한다
+- `execute_code`는 메인 스레드에서 돌아 중단할 수 없다. 긴 작업은 짧게 나눈다
+- 수정 전에 사용자에게 무엇을 바꿀지 말한다. 문서 저장(`doc.save()`)은 사용자가 시키기 전엔 하지 않는다
