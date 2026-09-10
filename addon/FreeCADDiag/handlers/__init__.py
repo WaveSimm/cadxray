@@ -5,25 +5,34 @@
 """
 
 import importlib
+import pkgutil
 
-# reload_handlers가 다시 읽을 모듈들. 새 핸들러 모듈을 추가하면 여기에도 넣는다.
-_HANDLER_MODULES = [
-    "util",
-    "documents",
-    "execute",
-]
+# reload_handlers가 다시 읽을 모듈들. util이 먼저여야 한다(나머지가 util을 쓴다).
+# 파일을 새로 추가해도 pkgutil이 찾아내므로 여기 손댈 필요는 없다.
+_HANDLER_MODULES = ["util", "documents", "structure", "execute"]
+
+
+def _discover_modules():
+    """패키지 안의 핸들러 모듈 이름. util을 맨 앞에 둔다."""
+    found = [m.name for m in pkgutil.iter_modules(__path__)]
+    ordered = [n for n in _HANDLER_MODULES if n in found]
+    ordered += [n for n in found if n not in ordered]
+    return ordered
 
 REGISTRY = {}
 
 
 def _build():
-    from . import documents, execute
+    from . import documents, execute, structure
 
     REGISTRY.clear()
     REGISTRY.update(
         {
             "ping": documents.ping,
             "list_documents": documents.list_documents,
+            "get_document_graph": structure.get_document_graph,
+            "inspect_object": structure.inspect_object,
+            "analyze_shape": structure.analyze_shape,
             "execute_code": execute.execute_code,
             "reload_handlers": reload_handlers,
         }
@@ -38,7 +47,7 @@ def reload_handlers():
 
     t0 = time.time()
     reloaded, failed = [], []
-    for name in _HANDLER_MODULES:
+    for name in _discover_modules():
         try:
             mod = importlib.import_module(f"{__name__}.{name}")
             importlib.reload(mod)

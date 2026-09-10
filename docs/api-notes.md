@@ -34,6 +34,9 @@
 - 프로퍼티(속성으로 접근): `Label`, `Label2`, `ExpressionEngine`(`[(prop, expr), ...]`), `Visibility` (`DocumentObject.h`)
 - PropertyContainer 공통: `PropertiesList`, `getPropertyByName(name)`, `getTypeIdOfProperty(name)`, `getGroupOfProperty(name)`, `getDocumentationOfProperty(name)`, `getPropertyStatus(name)`, `getEditorMode(name)`
 - `[1.1.3]` 추가: `Placement` 속성, `getPlacementOf()`
+- **덤프하면 안 되는 프로퍼티 타입** `[라이브 1.1.3 확인, 2026-09-10]` — `inspect_object`는 타입명만 남긴다:
+  `Part::PropertyPartShape`(Shape/AddSubShape/PreviewShape), `Part::PropertyGeometryList`, `Sketcher::PropertyConstraintList`, `App::PropertyPythonObject`(Proxy), `Mesh::PropertyMeshKernel`, `Points::PropertyPointKernel`, `Materials::PropertyMaterial`(repr에 메모리 주소가 들어가 호출마다 값이 바뀐다)
+- `ExpressionEngine`은 프로퍼티 목록에도 나오고 속성으로도 읽힌다. 값 형태: `[('Length', '<<Spreadsheet>>.height')]` `[라이브 1.1.3]`
 
 ## 3. `App.Document` `[1.0.2][1.1.3]`
 
@@ -126,7 +129,9 @@
 
 - `PartDesign::Body` (← `Part::BodyBase` + OriginGroupExtension): `Tip`(PropertyLink), `BaseFeature`, `Group`(PropertyLinkList — 피처 목록), `Origin`, py 속성 `VisibleFeature`, 메서드 `insertObject()`
 - `PartDesign::Feature`: `BaseFeature`, `Shape`(**Body 누적 형상**), `getBaseObject()`; `[1.1.3]` `SuppressedShape`
-- `PartDesign::FeatureAddSub`(Pad, Pocket, Revolution, Groove, Loft, Pipe, Helix 등): **`AddSubShape`** = 그 피처 자체의 형상, `AddSubType`
+- `PartDesign::FeatureAddSub`(Pad, Pocket, Revolution, Groove, Loft, Pipe, Helix 등): **`AddSubShape`** = 그 피처 자체의 형상
+  - **정정** `[라이브 1.1.3 확인, 2026-09-10]`: `AddSubType`은 Pad에 Python 속성으로 **없다**(`AttributeError`). C++ 쪽 이름이고 바인딩에 노출되지 않는다. `AddSubShape`는 정상. → `analyze_shape`는 `AddSubType`이 있을 때만 `add_sub_type`을 넣는다.
+  - `Pad`(1.1.3)의 실제 `PropertiesList` 확인 예: `AddSubShape`, `AllowMultiFace`, `AlongSketchNormal`, `BaseFeature`, `Direction`, `Length`, `Length2`, `Midplane`, `Offset`, `PreviewShape`, `Profile`, `ReferenceAxis`, `Refine`, `Reversed`, `Shape`, `ShapeMaterial`, `SideType`, `Type`, `UpToFace`
 - 타입 문자열 예: `PartDesign::Body`, `PartDesign::Pad`, `PartDesign::Pocket`, `PartDesign::Fillet`, `PartDesign::Chamfer`, `PartDesign::Hole`, `PartDesign::LinearPattern`
 
 ---
@@ -139,6 +144,19 @@
 | `Placement` | `Base`(Vector), `Rotation`, `Matrix` |
 | `Rotation` | `Axis`, `Angle`(라디안), `Q`(쿼터니언 튜플), `RawAxis` |
 | `BoundBox` | 6장 참조 |
+
+### `Base.Quantity` `[라이브 1.1.3 확인, 2026-09-10]`
+
+`App::PropertyLength` 등 단위 프로퍼티를 `getPropertyByName()`으로 읽으면 float이 아니라 `Base.Quantity`가 온다. `isinstance(v, FreeCAD.Units.Quantity)`로 판별한다.
+
+| 속성 | 값 예 |
+|---|---|
+| `Value` | `15.0` (float, 내부 단위 = mm) |
+| `Unit` | `Unit: mm (1,0,0,0,0,0,0,0) [Length]` — `Unit.Type` → `"Length"` |
+| `UserString` | `"15.00 mm"` (사용자 표시 정밀도 적용) |
+| `Format` | `{'Precision': 2, 'NumberFormat': 'f', 'Denominator': 8}` |
+
+메서드는 `getValueAs`, `getUserPreferred`, `toStr`뿐. → `serialize`는 `{"value": 15.0, "text": "15.00 mm", "quantity": "Length"}`로 낸다.
 
 ---
 

@@ -33,6 +33,9 @@ def _timeout_for(tool, params):
             return int(params.get("timeout", 300)) + 10
         except Exception:
             return 310
+    if tool == "analyze_shape":
+        # bop_check=True는 큰 형상에서 오래 걸린다 [api-notes 12장]
+        return 120 if params.get("bop_check") else _DEFAULT_TIMEOUT
     return _DEFAULT_TIMEOUT
 
 

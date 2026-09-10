@@ -32,6 +32,82 @@ def list_documents() -> str:
 
 
 @mcp.tool()
+def get_document_graph(
+    doc: str | None = None,
+    max_objects: int = 200,
+    type_filter: str | None = None,
+    label_pattern: str | None = None,
+    include_sketch_summary: bool = True,
+) -> str:
+    """문서의 객체 트리·의존관계·문제 객체를 한 번에 본다. **진단의 첫 호출.**
+
+    사용자가 "모델 구조 파악해줘", "뭐가 빨간지 봐줘"라고 하면 이것부터 부른다.
+    응답의 invalid_objects에 나온 객체를 inspect_object / get_sketch_diagnostics로 파고든다.
+
+    summary와 invalid_objects는 잘려도 **항상 전체 기준**이다.
+    객체가 많으면 type_filter(예: "Sketcher::SketchObject")나 label_pattern(정규식)으로 좁힌다.
+    """
+    return client.call(
+        "get_document_graph",
+        {
+            "doc": doc,
+            "max_objects": max_objects,
+            "type_filter": type_filter,
+            "label_pattern": label_pattern,
+            "include_sketch_summary": include_sketch_summary,
+        },
+        timeout=60,
+    )
+
+
+@mcp.tool()
+def inspect_object(
+    doc: str | None = None,
+    name: str = "",
+    include_shape: bool = True,
+    max_list: int = 20,
+) -> str:
+    """객체 하나의 모든 프로퍼티·수식(ExpressionEngine)·형상 요약·의존관계를 본다.
+
+    get_document_graph에서 문제 객체를 찾은 뒤, 그 객체의 값이 왜 그런지 볼 때 호출한다.
+    name은 Name(예: "Pad001") 우선, 없으면 Label로도 찾는다.
+    """
+    return client.call(
+        "inspect_object",
+        {"doc": doc, "name": name, "include_shape": include_shape, "max_list": max_list},
+        timeout=60,
+    )
+
+
+@mcp.tool()
+def analyze_shape(
+    doc: str | None = None,
+    name: str = "",
+    max_faces: int = 30,
+    max_edges: int = 30,
+    bop_check: bool = False,
+) -> str:
+    """형상의 유효성·부피·면/모서리 구성을 본다. **형상이 왜 이상한가**를 볼 때.
+
+    check_message가 채워져 있으면 형상 자체가 깨진 것이다(자기교차 등).
+    PartDesign 피처면 feature_own_shape에 그 피처 자체 형상도 같이 온다
+    (Shape는 Body 누적 형상이라 피처만의 결과와 다르다).
+    bop_check=True는 정밀하지만 큰 형상에서 느리다.
+    """
+    return client.call(
+        "analyze_shape",
+        {
+            "doc": doc,
+            "name": name,
+            "max_faces": max_faces,
+            "max_edges": max_edges,
+            "bop_check": bop_check,
+        },
+        timeout=120,
+    )
+
+
+@mcp.tool()
 def execute_code(code: str, doc: str | None = None, timeout: int = 300) -> str:
     """FreeCAD 안에서 Python 코드를 실행한다. **모델 수정용 탈출구**다.
 

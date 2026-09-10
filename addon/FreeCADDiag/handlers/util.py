@@ -1,5 +1,6 @@
 """핸들러 공통 — 응답 봉투, 직렬화, 크기 제한, 버전 분기."""
 
+import json
 import time
 import traceback
 
@@ -60,9 +61,8 @@ def round_vec(v, nd=4):
 
 
 # --- 직렬화 -----------------------------------------------------------------
-# M1에서는 execute_code의 `_result`를 돌려주는 데 필요한 만큼만 구현한다.
-# Quantity 등 아직 확인하지 않은 타입은 추측하지 않고 문자열로 떨어뜨린다.
-# (M2에서 라이브 introspection으로 확인한 뒤 확장 — 명세 6.4)
+# 확인한 타입만 구조화한다. 나머지는 추측하지 않고 "<타입명> repr" 문자열로 떨어뜨린다.
+# (Quantity는 M2에서 라이브 introspection으로 확인 — api-notes 8장)
 
 _MAX_DEPTH = 6
 
@@ -89,6 +89,14 @@ def shape_summary(shape):
         }
     except Exception as e:
         return {"error": f"shape 요약 실패: {e}"}
+
+
+def _quantity_class():
+    """Base.Quantity 클래스. 없으면 None. [확인됨: 라이브 1.1.3, 2026-09-10]"""
+    try:
+        return FreeCAD.Units.Quantity
+    except Exception:
+        return None
 
 
 def _is_shape(value):
@@ -128,6 +136,16 @@ def serialize(value, depth=0, max_list=50):
             "size": [round(value.XLength, 4), round(value.YLength, 4), round(value.ZLength, 4)],
         }
 
+    # Base.Quantity — Value(float), Unit.Type("Length"), UserString("15.00 mm")
+    # [확인됨: 라이브 1.1.3 introspection, 2026-09-10]
+    _Q = _quantity_class()
+    if _Q is not None and isinstance(value, _Q):
+        return {
+            "value": round(float(value.Value), 6),
+            "text": str(value.UserString),
+            "quantity": str(getattr(value.Unit, "Type", "")),
+        }
+
     if _is_shape(value):
         return shape_summary(value)
 
@@ -154,3 +172,63 @@ def serialize(value, depth=0, max_list=50):
         return out
 
     return f"<{type(value).__name__}> {value}"
+
+
+# --- 이름으로 객체 찾기 -------------------------------------------------------
+
+
+def find_object(doc, name):
+    """Name 우선, 없으면 Label로 찾는다. 실패하면 (None, 안내메시지)."""
+    if not name or not isinstance(name, str):
+        return None, "name은 객체 이름(Name) 또는 라벨(Label) 문자열이어야 합니다."
+    obj = doc.getObject(name)
+    if obj is not None:
+        return obj, None
+    try:
+        matches = doc.getObjectsByLabel(name)
+    except Exception:
+        matches = []
+    if len(matches) == 1:
+        return matches[0], None
+    if len(matches) > 1:
+        names = ", ".join(o.Name for o in matches)
+        return None, f"라벨 '{name}'인 객체가 여러 개입니다: {names}. Name으로 지정하세요."
+    sample = ", ".join(o.Name for o in doc.Objects[:15])
+    more = " ..." if len(doc.Objects) > 15 else ""
+    return None, f"문서 '{doc.Name}'에 '{name}'이(가) 없습니다. 객체 예: {sample}{more}"
+
+
+def status_string(obj):
+    """getStatusString() — 에러면 설명 문자열, 아니면 Touched/Valid. [확인됨: api-notes 2장]"""
+    try:
+        return obj.getStatusString()
+    except Exception:
+        return None
+
+
+# --- 응답 크기 맞추기 ---------------------------------------------------------
+
+
+def json_size(obj):
+    return len(json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"))
+
+
+def fit_cap(data, key, warnings, floor=5):
+    """data[key] 리스트를 하드캡 안에 들어오도록 줄인다. 줄였으면 True.
+
+    rpc_server가 하드캡을 넘는 응답을 에러로 바꿔 버리므로, 그 전에 여기서 깎는다.
+    """
+    items = data.get(key)
+    if not isinstance(items, list):
+        return False
+    target = int(HARD_CAP_BYTES * 0.9)  # 봉투·다른 필드 몫을 남긴다
+    shrunk = False
+    while len(items) > floor and json_size(data) > target:
+        items[:] = items[: max(floor, int(len(items) * 0.7))]
+        shrunk = True
+    if shrunk:
+        warnings.append(
+            f"응답 크기 제한으로 {key}를 {len(items)}개까지만 담았습니다. "
+            "필요하면 필터나 max_* 인자를 좁혀서 다시 호출하세요."
+        )
+    return shrunk
