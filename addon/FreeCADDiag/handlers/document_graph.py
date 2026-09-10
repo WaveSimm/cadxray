@@ -34,7 +34,7 @@ def _is_type(obj, type_id):
 def _obj_entry(obj, include_sketch_summary):
     entry = {
         "name": obj.Name,
-        "label": obj.Label,
+        "label": util.label(obj),
         "type": obj.TypeId,
         "state": list(obj.State),
         "status": util.status_string(obj),
@@ -106,7 +106,7 @@ def get_document_graph(
             rx = re.compile(label_pattern)
         except re.error as e:
             return util.error(f"label_pattern 정규식 오류: {e}")
-        selected = [o for o in selected if rx.search(o.Label)]
+        selected = [o for o in selected if rx.search(util.label(o))]
 
     truncated = len(selected) > max_objects
     entries = [_obj_entry(o, include_sketch_summary) for o in selected[:max_objects]]
@@ -119,7 +119,7 @@ def get_document_graph(
         bodies.append(
             {
                 "name": obj.Name,
-                "label": obj.Label,
+                "label": util.label(obj),
                 "tip": tip.Name if tip is not None else None,
                 "features": [f.Name for f in getattr(obj, "Group", [])],
             }
@@ -127,7 +127,7 @@ def get_document_graph(
 
     data = {
         "document": d.Name,
-        "label": d.Label,
+        "label": util.label(d),
         "summary": summary,
         "bodies": bodies,
         "roots": [o.Name for o in d.RootObjects],
@@ -209,7 +209,7 @@ def inspect_object(doc=None, name=None, include_shape=True, max_list=20):
     data = {
         "document": d.Name,
         "name": obj.Name,
-        "label": obj.Label,
+        "label": util.label(obj),
         "type": obj.TypeId,
         "state": list(obj.State),
         "status": util.status_string(obj),

@@ -330,6 +330,10 @@ def test_registry_and_cap():
         "reload_handlers", "import_step", "find_holes", "check_interference", "get_mass_properties",
     }
     check("툴 14개 등록", expected <= set(REGISTRY), str(sorted(set(REGISTRY) ^ expected)))
+    raw = r"20250624_\X2\c6d4d30c\X0\ \X2\be0cb77ccf13\X0\(\X2\c218c815bcf8\X0\)"
+    check("STEP 한글 라벨 디코딩", util.decode_step_text(raw) == "20250624_월파 브라켓(수정본)", util.decode_step_text(raw))
+    check("디코딩: 이스케이프 없으면 원문", util.decode_step_text("Plate") == "Plate")
+    check("디코딩: \\S\\ Latin-1", util.decode_step_text(r"caf\S\i") == "café")
     r = reload_handlers()
     check("reload_handlers ok", r["ok"] and not r["data"]["failed"], str(r["data"]["failed"]))
     check("reload 후에도 14개", expected <= set(REGISTRY))

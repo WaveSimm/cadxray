@@ -174,6 +174,43 @@ def serialize(value, depth=0, max_list=50):
     return f"<{type(value).__name__}> {value}"
 
 
+# --- STEP 라벨 디코딩 ---------------------------------------------------------
+# FreeCAD는 STEP 이름의 ISO 10303-21 이스케이프를 풀지 않는다 [라이브 1.1.3]:
+#   \X2\c6d4d30c\X0\  → UTF-16BE 16진수 → "월파"     \X4\0001F600\X0\ → UTF-32BE
+#   \S\c              → Latin-1 상위 반쪽(0x80 + ord)
+# 라벨을 내보낼 때만 풀고, 객체의 Label 자체는 건드리지 않는다.
+
+import re as _re
+
+_STEP_X2 = _re.compile(r"\\X2\\([0-9A-Fa-f]+)\\X0\\")
+_STEP_X4 = _re.compile(r"\\X4\\([0-9A-Fa-f]+)\\X0\\")
+_STEP_S = _re.compile(r"\\S\\(.)")
+
+
+def decode_step_text(text):
+    """STEP 이스케이프가 섞인 문자열을 사람이 읽는 문자열로. 실패하면 원문 그대로."""
+    if not isinstance(text, str) or "\\" not in text:
+        return text
+    try:
+        out = _STEP_X4.sub(
+            lambda m: "".join(chr(int(m.group(1)[i : i + 8], 16)) for i in range(0, len(m.group(1)), 8)),
+            text,
+        )
+        out = _STEP_X2.sub(
+            lambda m: "".join(chr(int(m.group(1)[i : i + 4], 16)) for i in range(0, len(m.group(1)), 4)),
+            out,
+        )
+        out = _STEP_S.sub(lambda m: chr(0x80 + ord(m.group(1))), out)
+        return out
+    except Exception:
+        return text
+
+
+def label(obj):
+    """객체(또는 문서)의 Label을 STEP 이스케이프를 푼 형태로."""
+    return decode_step_text(getattr(obj, "Label", "") or "")
+
+
 # --- 이름으로 객체 찾기 -------------------------------------------------------
 
 
@@ -188,6 +225,9 @@ def find_object(doc, name):
         matches = doc.getObjectsByLabel(name)
     except Exception:
         matches = []
+    if not matches:
+        # STEP 이스케이프가 풀린 라벨("월파 브라켓")로 찾는 경우
+        matches = [o for o in doc.Objects if label(o) == name]
     if len(matches) == 1:
         return matches[0], None
     if len(matches) > 1:

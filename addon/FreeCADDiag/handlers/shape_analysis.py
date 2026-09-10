@@ -45,7 +45,7 @@ def analyze_shape(doc=None, name=None, max_faces=30, max_edges=30, bop_check=Fal
     data = {
         "document": d.Name,
         "object": obj.Name,
-        "label": obj.Label,
+        "label": util.label(obj),
         "type": obj.TypeId,
         "status": util.status_string(obj),
     }

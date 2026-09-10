@@ -239,7 +239,7 @@ def get_sketch_diagnostics(
     data = {
         "document": d.Name,
         "sketch": sk.Name,
-        "label": sk.Label,
+        "label": util.label(sk),
         "state": list(sk.State),
         "status": util.status_string(sk),
         "solve_status": status,

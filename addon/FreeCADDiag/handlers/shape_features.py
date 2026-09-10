@@ -74,7 +74,7 @@ def get_mass_properties(name=None, doc=None, density=None):
     data = {
         "document": d.Name,
         "object": obj.Name,
-        "label": obj.Label,
+        "label": util.label(obj),
         "solids": len(solids),
         "volume_mm3": round(volume, 4),
         "volume_cm3": round(volume / 1000.0, 6),
@@ -250,7 +250,7 @@ def find_holes(
     data = {
         "document": d.Name,
         "object": obj.Name,
-        "label": obj.Label,
+        "label": util.label(obj),
         "cylindrical_faces": cyl_faces,
         "convex_skipped": skipped_convex,
         "holes_total": len(holes),
@@ -323,7 +323,7 @@ def check_interference(names=None, doc=None, clearance=0.0, volume_tolerance=1e-
     pairs = []
     summary = {"interference": 0, "clearance_violation": 0, "ok": 0, "error": 0}
     for a, b in all_pairs[:max_pairs]:
-        entry = {"a": a.Name, "b": b.Name, "a_label": a.Label, "b_label": b.Label}
+        entry = {"a": a.Name, "b": b.Name, "a_label": util.label(a), "b_label": util.label(b)}
         tp = time.time()
         try:
             dist = float(a.Shape.distToShape(b.Shape)[0])

@@ -34,7 +34,7 @@ def list_documents():
         out.append(
             {
                 "name": name,
-                "label": doc.Label,
+                "label": util.label(doc),
                 "filename": doc.FileName or None,
                 "object_count": len(doc.Objects),
                 "active": name == active_name,

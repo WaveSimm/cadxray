@@ -23,7 +23,7 @@ def _shape_of(obj):
 
 
 def _entry(obj):
-    e = {"name": obj.Name, "label": obj.Label, "type": obj.TypeId}
+    e = {"name": obj.Name, "label": util.label(obj), "type": obj.TypeId}
     group = getattr(obj, "Group", None)
     if group is not None and not hasattr(obj, "Shape"):
         e["children"] = [o.Name for o in group]

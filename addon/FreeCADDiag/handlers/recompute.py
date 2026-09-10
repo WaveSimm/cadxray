@@ -53,7 +53,7 @@ def tracked_recompute(doc=None, objects=None, force=False):
             )
 
     all_objects = d.Objects
-    label_of = {o.Name: o.Label for o in all_objects}
+    label_of = {o.Name: util.label(o) for o in all_objects}
     before = _snapshot(all_objects)
 
     try:

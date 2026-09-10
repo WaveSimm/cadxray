@@ -241,4 +241,5 @@
 - `Solid.Mass == Solid.Volume` (밀도 1). `PrincipalProperties` 키: `Moments`, `RadiusOfGyration`, `FirstAxisOfInertia`, `SecondAxisOfInertia`, `ThirdAxisOfInertia`, `SymmetryAxis`, `SymmetryPoint`. `MatrixOfInertia`는 `Base.Matrix`(`A11`~`A33`), 전역 원점 기준.
 - `a.distToShape(b)[0]`: 겹치면 `0.0`, 떨어져 있으면 거리. `a.common(b).Volume`: 10×10×10 두 상자를 5 겹치면 `500.0`.
 - `shape.isInside(point, tol, checkFace)`: 구멍 중심축 위 점 → False, 재료 안 → True. 관통 판정 휴리스틱에 쓴다.
+- **STEP 이름의 한글** `[라이브 1.1.3, 벤더 파일]`: FreeCAD가 ISO 10303-21 이스케이프를 풀지 않는다. `\X2\c6d4d30c\X0\`(UTF-16BE 16진수)가 Label에 그대로 남는다 → `util.decode_step_text`로 응답에서만 푼다. 실측: `20250624_\X2\c6d4d30c\X0\ …` → `20250624_월파 브라켓(수정본)`.
 - **메시(STL)**: `Mesh.insert(path, docName)`으로 `Mesh::Feature`가 생기지만 `Shape`가 없어 위 API를 전혀 쓸 수 없다. `Part.Shape().makeShapeFromMesh((verts, facets), tol)`로 삼각면 컴파운드를 만들 수는 있으나 docstring이 "rather small meshes only"라고 경고하고, 원통면이 없으므로 `find_holes`는 불가. M6 범위 밖.
