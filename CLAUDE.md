@@ -36,12 +36,17 @@
 6. `tracked_recompute`로 결과 확인 → `resolved`에 들어갔는지, `new_errors`가 없는지. 필요 시 `get_screenshot(view="iso")`
 7. 전체 트리 덤프(`max_objects` 크게)는 사용자가 명시적으로 원할 때만
 
+### STEP(벤더 부품) 분석 워크플로
+`import_step` → `get_document_graph`(부품 계층; 객체 Name은 `Part__Feature…`, 원래 이름은 Label) → `analyze_shape(bop_check=True)`로 유효성 → 목적에 따라 `find_holes`(마운팅 홀 직경·피치) / `check_interference`(부품 쌍 겹침) / `get_mass_properties`(밀도를 주면 질량) → 수정이 필요하면 `PartDesign::Body`를 만들고 `BaseFeature`에 넣은 뒤 `execute_code`로 Pocket·Hole을 쌓는다. STL/OBJ(메시)는 면·솔리드가 없어 이 툴들로 분석할 수 없다 — 사용자에게 STEP을 요청한다.
+
 ### 읽을 때 주의
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
 - 제약 번호는 `id`(1-based, GUI 제약 패널과 같음)와 `index`(0-based, `sk.Constraints[index]`)가 같이 온다. 사용자에게는 `id`로 말한다
 - `open_vertices`는 열린 곳 한 군데당 2개(양쪽 끝점)다
 - `analyze_shape`의 `shape`는 PartDesign 피처면 Body 누적 형상이다. 피처 자체는 `feature_own_shape`
 - `tracked_recompute`에서 실패한 객체는 `Invalid`와 함께 `Touched`도 남는다. 에러 판단은 `Invalid`(= `new_errors`/`persistent`)로
+- `find_holes`의 `through`는 휴리스틱이다(구멍 양 끝 바깥이 재료 밖인지). 포켓 바닥으로 뚫린 구멍은 관통으로 보일 수 있다. `center`는 구멍 축의 중간점, `start`/`end`가 양 끝
+- `check_interference`는 `distToShape`가 0일 때만 `common()`을 부른다. 큰 어셈블리는 `names`를 좁혀서 여러 번 부른다
 
 ### 수정 코드 작성 시 주의
 - FreeCAD 1.1에는 `Sketch.movePoint`가 없다 → `moveGeometry` / `moveGeometries`. `ping`의 버전을 보고 결정한다

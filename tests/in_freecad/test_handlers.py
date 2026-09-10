@@ -55,7 +55,9 @@ from FreeCADDiag.handlers import (  # noqa: E402
     reload_handlers,
     screenshot,
     shape_analysis,
+    shape_features,
     sketch_diag,
+    step_import,
     util,
 )
 
@@ -256,17 +258,81 @@ def test_screenshot():
     check("잘못된 view → ok False", r["ok"] is False)
 
 
+def _by_label(doc_name, label):
+    d = FreeCAD.getDocument(doc_name)
+    for o in d.Objects:
+        if o.Label == label:
+            return o.Name
+    return None
+
+
+def test_step_tools():
+    section("M6: import_step / find_holes / check_interference / get_mass_properties")
+    path = fx.STEP_PATHS.get("T6_step")
+    check("T6 STEP 파일 존재", path and os.path.isfile(path), str(path))
+    plate, block = _by_label("T6_step", "Plate"), _by_label("T6_step", "Block")
+    a, b = _by_label("T6_step", "BlockA"), _by_label("T6_step", "BlockB")
+    check("가져온 부품 4개 라벨 유지", all((plate, block, a, b)), str((plate, block, a, b)))
+
+    r = measure("find_holes", "판 Ø6.6×4", shape_features.find_holes(doc="T6_step", name=plate))
+    d = r["data"]
+    check("find_holes ok", r["ok"], str(r.get("error")))
+    check("구멍 4개", d["holes_total"] == 4, str(d["holes_total"]))
+    check("직경 6.6 ±0.01", all(abs(h["diameter"] - 6.6) < 0.01 for h in d["holes"]), str([h["diameter"] for h in d["holes"]]))
+    got = sorted(tuple(h["center"][:2]) for h in d["holes"])
+    check("중심 위치 ±0.01", got == [(10.0, 10.0), (10.0, 50.0), (90.0, 10.0), (90.0, 50.0)], str(got))
+    check("전부 관통", all(h["through"] for h in d["holes"]))
+    check("패턴 pitch [40, 80]", d["patterns"] and d["patterns"][0]["pitch"] == [40.0, 80.0], str(d["patterns"]))
+    check("10초 이내", r["elapsed_ms"] < 10000, f"{r['elapsed_ms']} ms")
+    r = shape_features.find_holes(doc="T6_step", name=block)
+    check("블록 관통 구멍 Ø6 1개", r["data"]["holes_total"] == 1 and abs(r["data"]["holes"][0]["diameter"] - 6.0) < 0.01)
+    r = shape_features.find_holes(doc="T6_step", name=a)
+    check("구멍 없는 블록 → 0개 + 경고", r["ok"] and r["data"]["holes_total"] == 0 and r["warnings"])
+
+    r = measure("check_interference", "블록 2개", shape_features.check_interference(doc="T6_step", names=[a, b]))
+    p = r["data"]["pairs"][0]
+    check("겹친 블록 → interference", p["status"] == "interference", str(p))
+    check("간섭 부피 4000 ±0.01", abs(p["interference_volume"] - 4000.0) < 0.01, str(p["interference_volume"]))
+    r = measure("check_interference", "부품 4개(6쌍)", shape_features.check_interference(doc="T6_step", names=[block, plate, a, b]))
+    check("6쌍, 간섭 2", r["data"]["pairs_total"] == 6 and r["data"]["summary"]["interference"] == 2, str(r["data"]["summary"]))
+    r = shape_features.check_interference(doc="T6_step", names=[a])
+    check("1개만 주면 ok False", r["ok"] is False)
+    r = shape_features.check_interference(doc="T6_step", names=[plate, a], clearance=30.0)
+    check("clearance 위반 판정", r["data"]["pairs"][0]["status"] == "clearance_violation", str(r["data"]["pairs"][0]))
+
+    r = measure("get_mass_properties", "판, 밀도 2.7", shape_features.get_mass_properties(doc="T6_step", name=plate, density=2.7))
+    d = r["data"]
+    expected_v = 100 * 60 * 8 - 4 * 3.141592653589793 * 3.3 ** 2 * 8
+    check("부피 = 판 − 구멍 4개", abs(d["volume_mm3"] - expected_v) < 0.5, f"{d['volume_mm3']} vs {expected_v:.2f}")
+    check("질량 g = 부피/1000 × 2.7", abs(d["mass_g"] - expected_v / 1000 * 2.7) < 0.01, str(d["mass_g"]))
+    check("무게중심 [50, 30, 4]", d["center_of_mass"] == [50.0, 30.0, 4.0], str(d["center_of_mass"]))
+    check("principal 있음", "principal" in d and len(d["principal"]["moments"]) == 3)
+
+    r = measure("import_step", "insert(13객체)", step_import.import_step(path, doc="T6_step"))
+    check("insert ok", r["ok"], str(r.get("error")))
+    check("insert created 13 / solids 4", r["data"]["created_total"] == 13 and r["data"]["solids_total"] == 4, str({k: r["data"][k] for k in ("created_total", "solids_total")}))
+    check("insert invalid 없음", r["data"]["invalid"] == [])
+    r = measure("import_step", "새 문서", step_import.import_step(path))
+    check("새 문서 ok", r["ok"] and r["data"]["document"] and r["data"]["solids_total"] == 4, str(r.get("data", {}).get("document")))
+    if r["ok"]:
+        FreeCAD.closeDocument(r["data"]["document"])
+    r = step_import.import_step(r"C:\없는파일.step")
+    check("없는 파일 → ok False", r["ok"] is False and "없습니다" in r["error"])
+    r = step_import.import_step(path.replace(".step", ".stl"))
+    check("STL → 메시 안내", r["ok"] is False and "메시" in r["error"])
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
         "ping", "list_documents", "get_document_graph", "inspect_object", "analyze_shape",
         "get_sketch_diagnostics", "tracked_recompute", "get_screenshot", "execute_code",
-        "reload_handlers",
+        "reload_handlers", "import_step", "find_holes", "check_interference", "get_mass_properties",
     }
-    check("툴 10개 등록", expected <= set(REGISTRY), str(sorted(set(REGISTRY) ^ expected)))
+    check("툴 14개 등록", expected <= set(REGISTRY), str(sorted(set(REGISTRY) ^ expected)))
     r = reload_handlers()
     check("reload_handlers ok", r["ok"] and not r["data"]["failed"], str(r["data"]["failed"]))
-    check("reload 후에도 10개", expected <= set(REGISTRY))
+    check("reload 후에도 14개", expected <= set(REGISTRY))
 
     big = {"ok": True, "data": {"x": "a" * (util.HARD_CAP_BYTES + 10)}}
     out = json.loads(rpc_server._dump(big))
@@ -299,6 +365,7 @@ def main():
         ("tracked_recompute", test_tracked_recompute),
         ("execute_code", test_execute_code),
         ("screenshot", test_screenshot),
+        ("step_tools", test_step_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

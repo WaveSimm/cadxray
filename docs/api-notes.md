@@ -232,3 +232,13 @@
 - 거리·간섭: `a.distToShape(b, tol=1e-7) -> (dist, [(p1, p2), ...], infos)`; `a.common(b)` 또는 `a.common((b, c), tolerance)` → 교집합 Shape, `.Volume`으로 간섭 부피
 - 유효성: `shape.check(True)` — BOP 검사 포함, 문제 시 예외. 큰 형상에서는 느림.
 - 단위: FreeCAD 내부 길이 단위는 mm. 질량 = Volume(mm³)/1000 × 밀도(g/cm³) [g].
+
+### 라이브 확인 `[1.1.3, 2026-09-10]`
+- docstring은 `Import.open(string)`, `Import.insert(string,string)`, `Import.export(list,string)`만 보여주지만 키워드 인자(`importHidden`, `merge`, `useLinkGroup`, `mode`)는 소스대로 받는다. 코드는 `TypeError` 폴백을 둔다.
+- `Cylinder` 표면 속성: `Radius`, `Axis`, `Center` (+ `UPeriod`, `VPeriod`, `Rotation`). `Center`는 축 위의 한 점.
+- **구멍/보스 판정**: 면 중앙 `p = face.valueAt(u, v)`, `n = face.normalAt(u, v)`, 축 위 발 `foot`에 대해 `(foot - p)·n > 0`이면 오목(구멍). `normalAt`이 면의 `Orientation`(구멍면은 `Reversed`)을 반영하므로 따로 뒤집지 않는다. 구멍 → True, 보스 → False 확인.
+- `Part.makeCylinder`로 뺀 구멍은 원통면 **1개**, 스케치 원으로 Pocket한 구멍은 보통 반원통 **2개** → 축·반지름·축선으로 묶어야 한다.
+- `Solid.Mass == Solid.Volume` (밀도 1). `PrincipalProperties` 키: `Moments`, `RadiusOfGyration`, `FirstAxisOfInertia`, `SecondAxisOfInertia`, `ThirdAxisOfInertia`, `SymmetryAxis`, `SymmetryPoint`. `MatrixOfInertia`는 `Base.Matrix`(`A11`~`A33`), 전역 원점 기준.
+- `a.distToShape(b)[0]`: 겹치면 `0.0`, 떨어져 있으면 거리. `a.common(b).Volume`: 10×10×10 두 상자를 5 겹치면 `500.0`.
+- `shape.isInside(point, tol, checkFace)`: 구멍 중심축 위 점 → False, 재료 안 → True. 관통 판정 휴리스틱에 쓴다.
+- **메시(STL)**: `Mesh.insert(path, docName)`으로 `Mesh::Feature`가 생기지만 `Shape`가 없어 위 API를 전혀 쓸 수 없다. `Part.Shape().makeShapeFromMesh((verts, facets), tol)`로 삼각면 컴파운드를 만들 수는 있으나 docstring이 "rather small meshes only"라고 경고하고, 원통면이 없으므로 `find_holes`는 불가. M6 범위 밖.

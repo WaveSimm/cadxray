@@ -160,12 +160,64 @@ def T5_large(count=320):
     return doc
 
 
+# --- T6 STEP 왕복 ---------------------------------------------------------------
+
+STEP_PATHS = {}  # 문서 이름 → 내보낸 STEP 파일 경로 (테스트가 import_step에 쓴다)
+
+
+def T6_step():
+    """T1 블록 + Ø6.6 구멍 4개 판 + 일부러 겹친 블록 2개를 STEP으로 내보냈다가 다시 연다.
+
+    결과 문서에는 히스토리(스케치·피처)가 없다. 기대값:
+    find_holes(Plate) → Ø6.6 × 4, 피치 [40, 80]  /  check_interference(BlockA, BlockB) → 4000 mm³
+    """
+    import os
+    import tempfile
+
+    import Import
+
+    src = _fresh("T6_src")
+    # T1과 같은 형상(20×12×10 블록 + Ø6 관통 구멍)을 히스토리 없이 직접 만든다.
+    # T1_clean()을 불러 쓰면 그 문서를 닫아야 해서 다른 테스트가 깨진다.
+    block = src.addObject("Part::Feature", "Block")
+    block.Label = "Block"
+    block.Shape = Part.makeBox(20, 12, 10).cut(Part.makeCylinder(3, 10, Vec(10, 6, 0)))
+
+    plate_shape = Part.makeBox(100, 60, 8)
+    for x, y in ((10, 10), (90, 10), (10, 50), (90, 50)):
+        plate_shape = plate_shape.cut(Part.makeCylinder(3.3, 8, Vec(x, y, 0)))
+    plate = src.addObject("Part::Feature", "Plate")
+    plate.Label = "Plate"
+    plate.Shape = plate_shape
+
+    a = src.addObject("Part::Feature", "BlockA")
+    a.Label = "BlockA"
+    a.Shape = Part.makeBox(20, 20, 20, Vec(0, 0, 30))
+    b = src.addObject("Part::Feature", "BlockB")
+    b.Label = "BlockB"
+    b.Shape = Part.makeBox(20, 20, 20, Vec(10, 0, 30))  # X로 10 겹침 → 10×20×20 = 4000
+    src.recompute()
+
+    path = os.path.join(tempfile.mkdtemp(prefix="fcdiag_"), "T6_step.step")
+    Import.export([block, plate, a, b], path)
+    FreeCAD.closeDocument("T6_src")
+
+    # Import.open은 문서 이름을 "Unnamed"로 만든다 [라이브 1.1.3] → 이름을 정하려고 insert를 쓴다.
+    # 결과는 App::Part("T6_src") 안에 Part::Feature 4개 (Name은 Part__Feature…, Label이 원래 이름).
+    doc = _fresh("T6_step")
+    Import.insert(path, doc.Name)
+    doc.recompute()
+    STEP_PATHS["T6_step"] = path
+    return doc
+
+
 BUILDERS = {
     "T1_clean": T1_clean,
     "T2_underconstrained": T2_underconstrained,
     "T3_conflict": T3_conflict,
     "T4_open_wire": T4_open_wire,
     "T5_large": T5_large,
+    "T6_step": T6_step,
 }
 
 

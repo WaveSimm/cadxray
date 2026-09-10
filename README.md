@@ -73,6 +73,9 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | "이 형상 뭔가 이상해" | `analyze_shape` → 유효성, 부피, 면 구성, 깨진 이유 |
 | "지금 어떻게 생겼는지 보여줘" | `get_screenshot(view="iso")` → 이미지가 대화에 뜸 |
 | "Pad의 Length가 어디서 오는 값이야?" | `inspect_object` → 프로퍼티와 수식(스프레드시트 참조 등) |
+| "이 STEP 파일 마운팅 홀 몇 개고 피치 얼마야?" | `import_step` → `find_holes` → 직경·개수·중심·피치 |
+| "브라켓이랑 센서 겹치는지 봐줘" | `check_interference` → 겹치는 부피(mm³) |
+| "이거 알루미늄이면 몇 g이야?" | `get_mass_properties(density=2.7)` |
 
 ### 툴 목록
 
@@ -88,6 +91,12 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `get_screenshot` | 3D 뷰 PNG (iso, front, top … 12가지) |
 | `execute_code` | FreeCAD 안에서 Python 실행 (수정용) |
 | `reload_handlers` | 애드온 코드 다시 읽기 (개발용) |
+| `import_step` | STEP/IGES 가져오기 + 생긴 부품 요약 |
+| `find_holes` | 구멍 직경·중심·깊이·관통 여부, 같은 직경끼리 패턴·피치 |
+| `check_interference` | 부품 쌍 최소 거리·간섭 부피 |
+| `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
+
+**STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 
 모든 응답은 `{"ok", "data", "warnings", "truncated", "elapsed_ms"}` 봉투이고, 목록형 응답은 `max_*` 인자로 크기를 조절합니다. 요약(`summary`, `invalid_objects`)은 잘려도 항상 전체 기준입니다.
 
@@ -108,6 +117,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `tracked_recompute` | 13객체 전체 | 0.5 KB | 8 ms |
 | `get_screenshot` | 800×600 | 12 KB | 430 ms |
 | `get_screenshot` | 2400×1800, 320객체 | 194 KB | 470 ms |
+| `import_step` | 부품 4개 STEP (새 문서 / 기존 문서) | 1.7 KB | 85 / 41 ms |
+| `find_holes` | Ø6.6 × 4 판 | 1.4 KB | 3 ms |
+| `check_interference` | 부품 4개 = 6쌍 | 1.4 KB | 31 ms |
+| `get_mass_properties` | 구멍 뚫린 판 | 0.7 KB | 2 ms |
 
 응답 하드캡은 100 KB입니다(스크린샷 제외). 넘으면 핸들러가 목록을 먼저 줄이고 `warnings`에 알립니다.
 
@@ -133,7 +146,7 @@ FreeCAD에 서버가 안 떠 있습니다. 리포트 뷰에 `서버 시작` 메�
 
 ## 7. 테스트
 
-서버를 켤 필요 없이 FreeCAD 명령줄에서 핸들러를 직접 돌립니다 (66개, 0.5초):
+서버를 켤 필요 없이 FreeCAD 명령줄에서 핸들러를 직접 돌립니다 (약 90개, 1초):
 
 ```
 "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" tests\in_freecad\test_handlers.py

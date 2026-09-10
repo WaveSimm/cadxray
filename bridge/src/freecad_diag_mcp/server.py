@@ -221,6 +221,111 @@ def get_screenshot(
 
 
 @mcp.tool()
+def import_step(
+    path: str,
+    doc: str | None = None,
+    merge: bool = False,
+    use_link_group: bool = False,
+    import_hidden: bool = False,
+    mode: int = 0,
+    max_objects: int = 100,
+) -> str:
+    """STEP/IGES 파일을 문서에 넣고 생긴 객체(부품·솔리드)를 요약한다.
+
+    사용자가 벤더 STEP을 분석해 달라고 할 때 첫 호출. doc이 없으면 새 문서를 만든다.
+    가져온 뒤 get_document_graph → analyze_shape(bop_check=True) → find_holes /
+    check_interference / get_mass_properties 순으로 본다.
+    merge=True면 솔리드가 하나로 합쳐져 간섭 검사·구멍 검출이 어려워진다 — 기본값(False) 권장.
+    STL/OBJ 같은 메시 파일은 받지 않는다(면·솔리드가 없어 분석 불가).
+    """
+    return client.call(
+        "import_step",
+        {
+            "path": path,
+            "doc": doc,
+            "merge": merge,
+            "use_link_group": use_link_group,
+            "import_hidden": import_hidden,
+            "mode": mode,
+            "max_objects": max_objects,
+        },
+        timeout=310,
+    )
+
+
+@mcp.tool()
+def find_holes(
+    name: str,
+    doc: str | None = None,
+    min_radius: float = 0.5,
+    max_radius: float = 50.0,
+    max_holes: int = 100,
+    group_tolerance: float = 0.01,
+) -> str:
+    """원통면에서 **구멍**의 직경·중심·축·깊이·관통 여부를 뽑는다. 마운팅 홀 패턴 확인용.
+
+    patterns에 같은 직경끼리 개수·중심·최소 피치가 묶여 온다.
+    through는 휴리스틱이다(구멍 양 끝 바깥이 재료 밖인지). 보스·축 같은 볼록 원통은 제외한다.
+    """
+    return client.call(
+        "find_holes",
+        {
+            "name": name,
+            "doc": doc,
+            "min_radius": min_radius,
+            "max_radius": max_radius,
+            "max_holes": max_holes,
+            "group_tolerance": group_tolerance,
+        },
+        timeout=130,
+    )
+
+
+@mcp.tool()
+def check_interference(
+    names: list[str],
+    doc: str | None = None,
+    clearance: float = 0.0,
+    volume_tolerance: float = 1e-6,
+    max_pairs: int = 50,
+) -> str:
+    """부품 쌍마다 최소 거리와 **간섭 부피(mm³)**를 잰다.
+
+    names에 객체 2개 이상, 또는 App::Part 하나(안의 부품을 전부 쌍으로 푼다).
+    status: interference(겹침) / clearance_violation(거리 < clearance) / ok.
+    큰 어셈블리는 쌍 수가 폭발하므로 max_pairs로 제한된다.
+    """
+    return client.call(
+        "check_interference",
+        {
+            "names": names,
+            "doc": doc,
+            "clearance": clearance,
+            "volume_tolerance": volume_tolerance,
+            "max_pairs": max_pairs,
+        },
+        timeout=130,
+    )
+
+
+@mcp.tool()
+def get_mass_properties(
+    name: str,
+    doc: str | None = None,
+    density: float | None = None,
+) -> str:
+    """부피(mm³)·표면적·무게중심·관성 행렬. density(g/cm³)를 주면 질량(g)도 계산한다.
+
+    예: 알루미늄 2.7, 강 7.85, 스테인리스 7.9, ABS 1.04, PLA 1.24.
+    """
+    return client.call(
+        "get_mass_properties",
+        {"name": name, "doc": doc, "density": density},
+        timeout=60,
+    )
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

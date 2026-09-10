@@ -36,9 +36,12 @@ def _timeout_for(tool, params):
     if tool == "analyze_shape":
         # bop_check=True는 큰 형상에서 오래 걸린다 [api-notes 12장]
         return 120 if params.get("bop_check") else _DEFAULT_TIMEOUT
-    if tool == "tracked_recompute":
-        # 큰 문서의 전체 재계산은 오래 걸릴 수 있다
+    if tool in ("tracked_recompute", "import_step"):
+        # 큰 문서의 전체 재계산·큰 STEP 가져오기는 오래 걸릴 수 있다
         return 300
+    if tool in ("find_holes", "check_interference"):
+        # 수백 면 어셈블리 — common()이 느리다 [api-notes 12장]
+        return 120
     return _DEFAULT_TIMEOUT
 
 
