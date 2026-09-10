@@ -1,5 +1,7 @@
 # cadxray
 
+*English: [README.en.md](README.en.md)*
+
 FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
 - 지원: FreeCAD **1.0.x / 1.1.x** (1.1.3에서 검증), Windows · macOS · Linux
@@ -95,10 +97,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
-**STEP → 파라메트릭 재구성 예시** (`execute_code`로 실행):
-- `examples/rebuild_bracket_from_step.py` — 판+각기둥 브라켓. 면 측정값만으로 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)를 만들고 원본과 **차집합 0.0 mm³**
-- `examples/rebuild_jaw_2c2_from_step.py` — 어셈블리의 클램프 조(44면: 배럴·더브테일 홈·60° 립·카운터보어·챔퍼). 2D 윤곽은 원본 단면에서 트레이스(Block 구속), 3D 피처는 파라메트릭. 부피 차 **0.017 mm³ (0.0007 %)**. 트레이스한 기하에 Coincident를 잘못 짝지으면 솔버가 윤곽을 비트는 함정을 기록해 둠
-- `examples/rebuild_jaw_2b2_from_step.py` — 같은 계열의 큰 조(BSpline 8면, "어려움" 판정). 구멍이 단면을 전부 가려서 **3D에서 구멍을 상자로 메운 뒤** 단면을 뜨고, 불리언이 만든 1e-5 틈은 그려진 기하 기준으로 찾아 Radius+Coincident로 닫음. 부피 차 **0.034 mm³ (0.0004 %)**. 윤곽·회전 프로파일 스케치는 DoF 0, 귀 복원 스케치만 1
+**예제** (`execute_code`로 실행):
+- `examples/rebuild_bracket_from_step.py` — STEP으로 받은 판+각기둥 브라켓을 면 측정값만으로 파라메트릭 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)로 재구성. 원본과 **차집합 0.0 mm³**
+- `examples/step_assembly_to_bodies.py` — STEP 어셈블리(80부품)를 부품별 Body + 접지 조인트 Assembly로 변환. 5.7초
+- 벤더 부품(클램프 조 44면, BSpline 전이면·더브테일 홈·립 챔퍼 포함)도 같은 방법으로 부피 차 0.0004 %까지 재구성했습니다. 그 과정에서 확인한 함정(트레이스 기하는 Block으로, 2D 불리언 회피, 1e-5 틈 닫기, 회전 절삭의 과절삭 복원)은 `docs/api-notes.md` 7.5절에 있습니다
 
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 
@@ -154,7 +156,7 @@ FreeCAD가 꺼져 있거나 서버가 안 떴습니다. 먼저 `cadxray doctor`(
 
 ## 7. 테스트
 
-서버를 켤 필요 없이 FreeCAD 명령줄에서 핸들러를 직접 돌립니다 (약 90개, 1초):
+서버를 켤 필요 없이 FreeCAD 명령줄에서 핸들러를 직접 돌립니다 (109개, 1초):
 
 ```
 "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" tests\in_freecad\test_handlers.py
@@ -172,7 +174,8 @@ scripts/install_addon.py
 tests/fixtures/        테스트 모델 생성
 tests/in_freecad/      핸들러 테스트 (FreeCADCmd)
 docs/api-notes.md      FreeCAD 1.0.2·1.1.3 API 확인 노트 — 구현의 근거
+docs/archive/          작업 시작 때 쓴 지시서 (기록용)
 CADXRAY_SPEC.md  개발 명세
 ```
 
-라이선스: MIT (`LICENSE`). `docs/freecad-src-ref/`의 FreeCAD 소스 발췌는 LGPL-2.1입니다.
+라이선스: MIT (`LICENSE`). 구현 근거로 참고한 FreeCAD 소스 발췌(LGPL-2.1)는 저장소에 넣지 않았습니다 — 받는 법은 `CADXRAY_SPEC.md` 부록 A.2.

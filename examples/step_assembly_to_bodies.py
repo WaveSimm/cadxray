@@ -15,7 +15,7 @@ import JointObject
 
 SRC_DOC = "Unnamed"
 DOC = "clamp_assembly"
-OUT = r"C:/path/to/clamp_assembly.FCStd"
+OUT = r"C:/path/to/clamp_assembly.FCStd"   # 저장 위치 — 바꿔서 쓴다
 
 t0 = time.time()
 src = FreeCAD.getDocument(SRC_DOC)

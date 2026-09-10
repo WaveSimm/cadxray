@@ -3,7 +3,7 @@
 ## 문서
 - 명세: `CADXRAY_SPEC.md` — 0장 작업 지침, 7장 툴 명세, 9장 마일스톤 순서, 부록 A 소스 지도
 - API 근거: `docs/api-notes.md` — FreeCAD 1.0.2·1.1.3에서 확인한 사실. `[확인됨]` 표시의 출처
-- 소스 발췌: `docs/freecad-src-ref/<태그>/src/...` — 노트에 없는 것을 찾을 때만 grep. 1.0은 `*Py.xml`, 1.1은 `*.pyi`
+- 소스 발췌: `docs/freecad-src-ref/<태그>/src/...` — 노트에 없는 것을 찾을 때만 grep. 1.0은 `*Py.xml`, 1.1은 `*.pyi`. **저장소에는 없다**(LGPL 발췌라 gitignore). 로컬에 없으면 `CADXRAY_SPEC.md` 부록 A.2대로 받는다
 
 ## 규칙
 - 명세 9장의 마일스톤 순서대로. 마일스톤이 끝나면 **멈추고** 결과와 사용자가 할 일을 보고한다

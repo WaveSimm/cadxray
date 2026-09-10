@@ -508,7 +508,7 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 
 ## 부록 A. FreeCAD 소스 참조 지도
 
-FreeCAD 저장소 전체를 문서화하지 않는다. 이 MCP가 쓰는 Python API의 정의는 각 모듈의 바인딩 정의 파일(1.0.x는 `*Py.xml`, 1.1.x는 `*.pyi` — 메서드·속성·docstring이 여기서 생성됨)에 있다. 아래 파일들은 **이미 받아서 `docs/freecad-src-ref/1.0.2/`와 `docs/freecad-src-ref/1.1.3/`에 들어 있고**, 거기서 확인한 사실이 `docs/api-notes.md`에 정리되어 있다. 설치 버전이 두 태그와 다를 때만 A.2로 그 태그를 받는다.
+FreeCAD 저장소 전체를 문서화하지 않는다. 이 MCP가 쓰는 Python API의 정의는 각 모듈의 바인딩 정의 파일(1.0.x는 `*Py.xml`, 1.1.x는 `*.pyi` — 메서드·속성·docstring이 여기서 생성됨)에 있다. 아래 파일들은 로컬 `docs/freecad-src-ref/1.0.2/`와 `docs/freecad-src-ref/1.1.3/`에 받아 두고 봤으며(LGPL이라 **저장소에는 넣지 않는다**, gitignore), 거기서 확인한 사실이 `docs/api-notes.md`에 정리되어 있다. 설치 버전이 두 태그와 다를 때만 A.2로 그 태그를 받는다.
 
 ### A.1 검증 순서 (반드시 이 순서로)
 1. **라이브 introspection 먼저** — 실행 중인 FreeCAD에 `execute_code`로 물어본다. 설치된 버전의 실제 API가 나오므로 가장 정확하다.

@@ -6,3 +6,6 @@ freecad-src/
 *.FCStd1
 .pdca-status.json
 .bkit-memory.json
+
+# FreeCAD 소스 발췌(LGPL)는 저장소에 넣지 않는다 — 로컬 참고용. 받는 법: CADXRAY_SPEC.md 부록 A.2
+docs/freecad-src-ref/
