@@ -23,6 +23,14 @@ The first line copies the addon into FreeCAD's Mod folder; the second registers 
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
+**Which Claude?** All three work: Claude Code CLI and the Claude Code desktop app share the registration above (`--scope user`). For the **Claude Desktop chat app**, add the same server to `claude_desktop_config.json` (Settings → Developer → Edit Config; Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`) and fully restart the app:
+
+```json
+{ "mcpServers": { "cadxray": { "command": "uvx",
+    "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"] } } }
+```
+If Windows cannot find `uvx`, put its full path in `"command"` (`(Get-Command uvx).Source` in PowerShell).
+
 Also installable from FreeCAD's **Addon Manager** (add this repo as a custom repository). Developers: `git clone … && cd cadxray/bridge && uv run cadxray install --dev` (symlink, edits apply immediately).
 
 ## Tools (14)

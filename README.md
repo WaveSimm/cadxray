@@ -72,9 +72,30 @@ claude mcp add --scope user cadxray -- uv --directory "<이 폴더의 절대경�
 | Auto Start | 자동시작 켜기/끄기 (기본 켜짐) |
 | Set Port… | 포트 변경 (기본 9877). 바꾸면 `claude mcp add` 명령 끝에 `--port 9878`을 붙입니다 |
 
-## 3. Claude Code 연결 확인
+## 3. 어느 Claude에서 쓰나 — 세 가지 다 됩니다
 
-`claude`를 실행하고 `/mcp`를 치면 `cadxray`가 연결된 것으로 보입니다. 안 보이면 `doctor`부터.
+| 클라이언트 | 등록 방법 | 확인 |
+|---|---|---|
+| **Claude Code CLI** (터미널에서 `claude`) | 1장의 둘째 줄 (`claude mcp add --scope user …`) | `/mcp` 에 `cadxray · connected · 14 tools` |
+| **Claude Code 데스크톱 앱** | 위와 **같은 등록**을 그대로 씁니다 (설정을 공유). 추가 작업 없음 | 앱의 MCP 목록에 `cadxray` |
+| **Claude Desktop 채팅 앱** | 아래 설정 파일에 넣기 | 대화창 도구(🔧) 목록에 `cadxray` |
+
+**Claude Desktop 채팅 앱 등록**: 앱 설정 → 개발자 → **설정 편집**으로 `claude_desktop_config.json`을 열고(Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`) `mcpServers` 안에 추가한 뒤, 앱을 **완전히 종료했다가**(트레이 아이콘까지) 다시 켭니다:
+
+```json
+{
+  "mcpServers": {
+    "cadxray": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+    }
+  }
+}
+```
+
+Windows에서 "uvx를 찾을 수 없다"고 하면 `"command"`에 전체 경로를 넣습니다 — PowerShell에서 `(Get-Command uvx).Source` (보통 `C:\Users\<이름>\.local\bin\uvx.exe`). 다른 MCP가 이미 있으면 `mcpServers` 안에 항목만 추가합니다.
+
+세 클라이언트가 같은 FreeCAD 서버(9877)에 붙으므로 FreeCAD는 하나만 켜 두면 됩니다.
 
 ## 4. 이렇게 씁니다
 
