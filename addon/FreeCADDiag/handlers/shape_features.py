@@ -518,23 +518,43 @@ def find_holes(
 # --- 7.14 check_interference ----------------------------------------------------
 
 
-def _expand(d, name, out, seen):
-    """App::Part/그룹이면 안의 형상 객체로 푼다."""
+# 안의 부품으로 풀어야 하는 컨테이너. Assembly 객체는 Shape(자식 compound)를 갖고 있어도 컨테이너다.
+_CONTAINER_TYPES = {
+    "App::Part",
+    "App::DocumentObjectGroup",
+    "App::LinkGroup",
+    "Assembly::AssemblyObject",
+    "Assembly::AssemblyLink",
+}
+
+
+def _expand(d, name, out, seen, skipped=None):
+    """App::Part·Assembly·그룹이면 안의 형상 객체로 푼다. 형상 없는 자식(조인트·원점)은 건너뛴다."""
     obj, err = util.find_object(d, name)
     if err:
         return err
     if obj.Name in seen:
         return None
     seen.add(obj.Name)
-    if hasattr(obj, "Shape") and not obj.Shape.isNull() and obj.TypeId != "App::Part":
+    is_container = obj.TypeId in _CONTAINER_TYPES or obj.TypeId.startswith("Assembly::")
+    if not is_container and hasattr(obj, "Shape") and not obj.Shape.isNull():
         out.append(obj)
         return None
     group = getattr(obj, "Group", None)
     if group:
         for child in group:
-            e = _expand(d, child.Name, out, seen)
+            if child.TypeId.startswith(("App::Origin", "App::Line", "App::Plane", "App::Point", "Assembly::JointGroup")):
+                continue
+            if not (child.TypeId in _CONTAINER_TYPES or child.TypeId.startswith("Assembly::")) and not hasattr(child, "Shape"):
+                if skipped is not None:
+                    skipped.append(child.Name)
+                continue
+            e = _expand(d, child.Name, out, seen, skipped)
             if e:
                 return e
+        return None
+    if skipped is not None:
+        skipped.append(obj.Name)
         return None
     return f"'{obj.Name}'({obj.TypeId})에는 형상이 없습니다."
 

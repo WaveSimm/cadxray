@@ -326,6 +326,9 @@ def test_step_tools():
     check("멀리 떨어진 쌍은 bbox로 건너뜀", r_all["data"]["pairs_skipped_by_bbox"] >= 1 and any(p.get("distance_is_lower_bound") for p in r_all["data"]["pairs"]), str(r_all["data"]["pairs_skipped_by_bbox"]))
     r = shape_features.check_interference(doc="T6_step", names=[a])
     check("1개만 주면 ok False", r["ok"] is False)
+    container = next((o.Name for o in FreeCAD.getDocument("T6_step").Objects if o.TypeId == "App::Part"), None)
+    r = shape_features.check_interference(doc="T6_step", names=[container])
+    check("App::Part 하나 주면 안의 부품 4개로 풀림 (6쌍)", r["ok"] and r["data"]["pairs_total"] == 6, str(r.get("data", {}).get("pairs_total", r.get("error"))))
     r = shape_features.check_interference(doc="T6_step", names=[plate, a], clearance=30.0)
     check("clearance 위반 판정", r["data"]["pairs"][0]["status"] == "clearance_violation", str(r["data"]["pairs"][0]))
 

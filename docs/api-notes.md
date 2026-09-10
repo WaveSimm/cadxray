@@ -248,6 +248,9 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
   doc.recompute(); asm.solve()                                        # 0 = 성공, 링크 Placement가 움직인다
   ```
 - **문서 간 링크는 원본 문서가 저장돼 있어야 한다** (`RuntimeError: Linked document not saved`). STEP을 연 `Unnamed` 문서의 부품을 다른 문서에서 링크하려면 먼저 저장하거나, 같은 문서 안에서 만든다.
+- **STEP 부품을 Body에 넣을 때** (`body.BaseFeature = part_feature`): STEP 임포터는 형상을 로컬 좌표 + `Placement`로 저장하는데, Body는 BaseFeature의 Placement를 **버린다** → 80부품이 전부 원점 근처로 흩어진다(실제로 겪음). `body.Placement = part.Placement`를 따로 주면 원위치. `part.Shape.copy()`는 Placement를 품고 있어 `Part::Feature`에 넣으면 Placement가 그대로 옮겨진다.
+- `Assembly::AssemblyObject.Group`에는 부품 외에 `Assembly::JointGroup`과 접지 조인트(`App::FeaturePython`, Shape 없음)가 같이 들어 있다. 어셈블리를 부품 목록으로 풀 때 이것들을 건너뛰어야 한다(`check_interference`의 `_expand`).
+- 80부품 접지 어셈블리 생성 실측: 5.7초, 파일 4.6 MB(원본 형상 80 + Body 80 + 원점 81 = 객체 970개). `asm.solve()` 0.
 - `GroundedJoint`는 프로퍼티 `ObjectToGround` 하나. 어느 면이 어느 면과 맞물리는지(조인트 참조)는 자동으로 알 수 없다 — 사람이 지정하거나 `find_holes`/`analyze_shape`로 축·반지름이 맞는 원통면을 골라 준다.
 
 ## 12. STEP 가져오기·형상 분석 (M6용) `[1.0.2][1.1.3]`
