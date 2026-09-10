@@ -98,7 +98,9 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
-**STEP → 파라메트릭 재구성 예시**: `examples/rebuild_bracket_from_step.py` — 벤더 STEP을 면 단위로 측정한 값으로 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 스프레드시트 파라미터 15개)를 다시 만들고, 원본과 **차집합 0.0 mm³**를 확인한 스크립트입니다. `execute_code`로 실행합니다.
+**STEP → 파라메트릭 재구성 예시** (`execute_code`로 실행):
+- `examples/rebuild_bracket_from_step.py` — 판+각기둥 브라켓. 면 측정값만으로 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)를 만들고 원본과 **차집합 0.0 mm³**
+- `examples/rebuild_jaw_2c2_from_step.py` — 어셈블리의 클램프 조(44면: 배럴·더브테일 홈·60° 립·카운터보어·챔퍼). 2D 윤곽은 원본 단면에서 트레이스(Block 구속), 3D 피처는 파라메트릭. 부피 차 **0.017 mm³ (0.0007 %)**. 트레이스한 기하에 Coincident를 잘못 짝지으면 솔버가 윤곽을 비트는 함정을 기록해 둠
 
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 
