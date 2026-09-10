@@ -38,7 +38,9 @@
 ## 3. `App.Document` `[1.0.2][1.1.3]`
 
 - `recompute(objs=None) -> int` — 재계산된 피처 수 반환. 실패 객체는 예외가 아니라 `State`에 `Invalid`가 들어간다.
-- `mustExecute()`, `purgeTouched()`, `Objects`, `RootObjects`, `getObject(name)`, `FileName`, `Modified`, `Name`, `Label`
+- `mustExecute()`, `purgeTouched()`, `Objects`, `RootObjects`, `getObject(name)`, `FileName`, `Name`, `Label`
+- **정정** `[라이브 1.1.3 확인, 2026-09-10]`: `Document.Modified` 속성은 **없다**(`AttributeError`). 저장 여부는 `isSaved() -> bool`, 변경 여부는 `isTouched() -> bool`. 두 메서드는 1.0.2 `DocumentPy.xml`·1.1.3 `Document.pyi` 양쪽에 있다. `Modified`는 GUI 쪽(`Gui.Document`) 이름이다. → `list_documents`는 `saved`/`modified`(=`not isSaved()`)/`touched`를 준다.
+- 그 밖에 실제로 있는 것 `[라이브 1.1.3]`: `Temporary`, `Uid`, `Id`, `TransientDir`, `LastModifiedDate`, `LastModifiedBy`, `CreatedBy`, `CreationDate`, `RecomputesFrozen`, `Recomputing`, `DependencyGraph`, `TopologicalSortedObjects`, `findObjects()`, `getObjectsByLabel()`
 - 모듈: `FreeCAD.listDocuments()` → dict, `FreeCAD.getDocument(name)`, `FreeCAD.ActiveDocument`, `FreeCAD.GuiUp`
 
 ---

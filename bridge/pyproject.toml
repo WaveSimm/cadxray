@@ -1,0 +1,17 @@
+[project]
+name = "freecad-diag-mcp"
+version = "0.1.0"
+description = "FreeCAD 모델 진단용 MCP 서버 (브릿지)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.2"]
+
+[project.scripts]
+freecad-diag-mcp = "freecad_diag_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/freecad_diag_mcp"]
