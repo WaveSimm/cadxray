@@ -285,6 +285,7 @@ def test_step_tools():
     check("Ø3.3 막힌 구멍 → M4 탭 드릴 (high)", tap is not None and tap["thread_hint"]["size"] == "M4" and tap["thread_hint"]["type"] == "tap_drill" and tap["thread_hint"]["confidence"] == "high" and tap["through"] is False, str(tap))
     recess = [h for h in real if abs(h["diameter"] - 4.0) < 0.01]
     check("Ø4 자리파기(깊이 1)에는 나사 추정 안 붙음", recess and all("thread_hint" not in h for h in recess), str([h.get("thread_hint") for h in recess]))
+    check("막힌 구멍엔 관통 추정 안 붙음", all(not h.get("thread_hint", {}).get("type", "").startswith("clearance") for h in real if h["through"] is False), str([(h["diameter"], h.get("thread_hint")) for h in real if h["through"] is False]))
     m3 = [h for h in real if abs(h["diameter"] - 3.4) < 0.01]
     cs = next((h for h in m3 if "countersink" in h), None)
     check("Ø3.4 + 90° 카운터싱크 입구 Ø6.5 깊이 1.55", cs is not None and abs(cs["countersink"]["top_diameter"] - 6.5) < 0.02

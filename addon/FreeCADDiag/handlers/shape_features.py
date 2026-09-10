@@ -135,13 +135,17 @@ _THREADS = [
 _THREAD_TOL = 0.06
 
 
-def _thread_hint(diameter, depth):
-    """지름으로 나사 규격을 추정한다. 없으면 None."""
+def _thread_hint(diameter, depth, through):
+    """지름으로 나사 규격을 추정한다. 없으면 None.
+
+    관통 구멍(볼트 통과)은 through일 때만 — 막힌 구멍은 볼트가 지나갈 수 없다.
+    """
     for size, tap, fine, medium, coarse in _THREADS:
         if abs(diameter - tap) <= _THREAD_TOL:
             return {"size": size, "type": "tap_drill", "confidence": "high",
                     "text": f"{size} 탭 드릴(암나사 자리) Ø{tap}"}
-    for size, tap, fine, medium, coarse in _THREADS:
+    # 막힌 구멍엔 관통 추정을 붙이지 않는다 (through가 None이면 판정 불가였으므로 허용)
+    for size, tap, fine, medium, coarse in (_THREADS if through is not False else []):
         for kind, val, ko in (("clearance_fine", fine, "정밀"), ("clearance_medium", medium, "보통"), ("clearance_coarse", coarse, "거침")):
             if abs(diameter - val) <= _THREAD_TOL:
                 return {"size": size, "type": kind, "confidence": "medium",
@@ -404,7 +408,7 @@ def find_holes(
             if extra in rec:
                 h[extra] = rec[extra]
         if rec["kind"] == "hole":
-            hint = _thread_hint(2 * rec["r"], depth)
+            hint = _thread_hint(2 * rec["r"], depth, h["through"])
             if hint:
                 if "counterbore" in rec and hint["type"].startswith("clearance"):
                     hint["text"] += " + 카운터보어 → 볼트 머리 자리"
