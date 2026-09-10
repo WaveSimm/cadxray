@@ -14,12 +14,15 @@ import FreeCAD
 _tasks = queue.Queue()
 _timer = None
 _INTERVAL_MS = 50
+_main_ident = None   # start()를 부른 스레드 = 메인 스레드
 
 
 def submit(fn, *args, timeout=60, **kwargs):
     """RPC 스레드에서 호출한다. 메인 스레드에서 실행한 결과를 기다려 반환."""
-    if not FreeCAD.GuiUp:
-        # FreeCADCmd: 이벤트 루프가 없으므로 호출 스레드에서 바로 실행한다.
+    # 이벤트 루프가 없거나(FreeCADCmd) 이미 메인 스레드면 바로 실행한다.
+    # 메인 스레드에서 큐에 넣고 기다리면 QTimer가 돌 수 없어 FreeCAD가 멈춘다
+    # (예: execute_code 안에서 rpc_server.call을 부르는 경우).
+    if not FreeCAD.GuiUp or threading.get_ident() == _main_ident:
         try:
             return fn(*args, **kwargs)
         except Exception as e:
@@ -56,7 +59,8 @@ def _pump():
 
 
 def start():
-    global _timer
+    global _timer, _main_ident
+    _main_ident = threading.get_ident()
     if not FreeCAD.GuiUp or _timer is not None:
         return
     from PySide import QtCore

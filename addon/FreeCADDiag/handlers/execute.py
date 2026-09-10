@@ -76,3 +76,6 @@ def execute_code(code, doc=None, timeout=300):
         {"stdout": out.getvalue(), "stderr": err_buf.getvalue(), "result": result},
         t0=t0,
     )
+
+
+TOOLS = {"execute_code": execute_code}

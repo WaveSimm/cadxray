@@ -78,6 +78,21 @@
 ```
 `solve_status_text`는 이 표로 만든다.
 
+**라이브 검증** `[1.1.3, 2026-09-10]` — `tests/fixtures/make_test_models.py`의 T1~T4로 확인:
+
+| 상황 | `solve()` | `DoF` | `FullyConstrained` | 채워지는 목록 |
+|---|---|---|---|---|
+| 완전 구속 (T1) | `0` | `0` | `True` | — |
+| 치수 부족 (T2) | `0` | `3` | `False` | — |
+| 같은 선에 값이 다른 길이 제약 2개 (T3) | **`-4`** (`-3` 아님) | `-1` | `True` ← **거짓값** | `ConflictingConstraints = [12, 13]` |
+| 열린 와이어 (T4) | `0` | `10` | `False` | `OpenVertices` 2개 |
+
+- **중요**: 값이 다른 중복 치수는 문서 설명상 "conflicting"이지만 `solve()`는 **`-4`(over-constrained)**를 돌려주고, 목록은 `ConflictingConstraints`에 들어간다. 코드는 반환값이 아니라 **어느 목록이 찼는지**로 판단해야 한다.
+- **중요**: solve 실패 시 `FullyConstrained`가 `True`로, `DoF`가 `-1`로 남는다(T3). → `solve_status != 0`이면 `fully_constrained`를 `null`로 내보낸다.
+- 저장된 문서를 막 열었을 때 `DoF`는 실제와 다를 수 있다(실측: 열자마자 `0` → `solve()` 후 `1`). **반드시 solve()를 먼저.**
+- `getStatusString()`(T3): `"Over-constrained sketch\nRemove at least one of the following conflicting constraints:12\n, 13\n"` — 번호가 1-based임을 다시 확인해 준다.
+- 열린 곳이 한 군데여도 `OpenVertices`는 **2개**(맞물리지 않은 양쪽 끝점 각각). 그 스케치를 쓰는 Pad는 `State`에 `Invalid`, `getStatusString()`이 `"Wire is not closed."`.
+
 ### 4.3 제약 번호는 1-based
 솔버가 제약을 추가할 때 `tag = ++ConstraintsCounter`(0에서 시작)로 붙이고(`Sketch.cpp`), `ConflictingConstraints` 등은 이 tag를 그대로 돌려준다. GUI 제약 패널의 번호와 같다. Python `sk.Constraints[i]`로 접근하려면 **`i = id - 1`**. 응답에는 `id`(1-based)와 `index`(0-based)를 둘 다 넣는다.
 
@@ -172,6 +187,11 @@
 
 `AttachmentSupport`(PropertyLinkSubList), `MapMode`(enum 문자열), `AttachmentOffset`(Placement), `MapReversed`, `MapPathParameter`.
 `Support`는 0.21 이하에서만 쓰던 이름 — 1.x 대상인 이 프로젝트에서는 `AttachmentSupport`만 쓰고, `hasattr` 폴백만 둔다.
+
+`[라이브 1.1.3 확인, 2026-09-10]`
+- `hasattr(sk, "Support")` → **False**. 폴백은 실제로 쓰이지 않는다(코드는 그대로 둔다).
+- `AttachmentSupport` 값 형태: `[(<DocumentObject>, ('XY_Plane',))]` — 리스트 안의 (객체, 서브이름 튜플). Body 안 스케치는 평면을 직접 가리키지 않고 **Origin 객체의 서브요소**(`Origin` + `'XY_Plane'`)를 가리킨다.
+- 부착이 없으면 `MapMode == "Deactivated"`, `AttachmentSupport == []`.
 
 ---
 

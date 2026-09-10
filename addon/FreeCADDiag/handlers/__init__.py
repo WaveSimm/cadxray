@@ -1,46 +1,51 @@
 """핸들러 레지스트리.
 
-툴 이름 → 함수. 새 툴을 추가할 때 여기에만 등록하면 RPC/브릿지 양쪽이
-자동으로 알게 된다 (RPC 메서드는 `call` 하나뿐 — 명세 6.2).
+각 핸들러 모듈이 자기 툴을 `TOOLS = {"이름": 함수}`로 선언한다. 이 파일은 그것을
+모아 올리기만 한다 — 새 핸들러 파일을 추가할 때 여기를 고칠 필요가 없고,
+`reload_handlers`가 FreeCAD 재시작 없이 새 파일을 집어 올린다.
+(RPC 메서드는 `call` 하나뿐 — 명세 6.2)
 """
 
 import importlib
 import pkgutil
 
-# reload_handlers가 다시 읽을 모듈들. util이 먼저여야 한다(나머지가 util을 쓴다).
-# 파일을 새로 추가해도 pkgutil이 찾아내므로 여기 손댈 필요는 없다.
-_HANDLER_MODULES = ["util", "documents", "structure", "execute"]
+# util은 나머지가 쓰므로 항상 먼저. 그 밖의 순서는 상관없다.
+_FIRST = ["util"]
+
+# REGISTRY는 rpc_server가 같은 dict 객체를 들고 있다.
+# 절대 새 dict로 갈아 끼우지 말고 clear/update로만 바꾼다.
+REGISTRY = {}
 
 
 def _discover_modules():
     """패키지 안의 핸들러 모듈 이름. util을 맨 앞에 둔다."""
     found = [m.name for m in pkgutil.iter_modules(__path__)]
-    ordered = [n for n in _HANDLER_MODULES if n in found]
+    ordered = [n for n in _FIRST if n in found]
     ordered += [n for n in found if n not in ordered]
     return ordered
 
-REGISTRY = {}
-
 
 def _build():
-    from . import documents, execute, structure
-
+    """각 모듈의 TOOLS를 모아 REGISTRY를 제자리에서 다시 채운다."""
+    collected = {"reload_handlers": reload_handlers}
+    conflicts = []
+    for name in _discover_modules():
+        mod = importlib.import_module(f"{__name__}.{name}")
+        for tool, fn in getattr(mod, "TOOLS", {}).items():
+            if tool in collected and tool != "reload_handlers":
+                conflicts.append(tool)
+            collected[tool] = fn
     REGISTRY.clear()
-    REGISTRY.update(
-        {
-            "ping": documents.ping,
-            "list_documents": documents.list_documents,
-            "get_document_graph": structure.get_document_graph,
-            "inspect_object": structure.inspect_object,
-            "analyze_shape": structure.analyze_shape,
-            "execute_code": execute.execute_code,
-            "reload_handlers": reload_handlers,
-        }
-    )
+    REGISTRY.update(collected)
+    return conflicts
 
 
 def reload_handlers():
-    """FreeCAD 재시작 없이 핸들러 코드를 다시 읽는다 (개발용)."""
+    """FreeCAD 재시작 없이 핸들러 코드를 다시 읽는다 (개발용).
+
+    새로 추가한 핸들러 파일도 집어 올린다. `InitGui.py`·`rpc_server.py`·
+    이 파일 자체를 고쳤을 때만 FreeCAD 재시작이 필요하다.
+    """
     import time
 
     from . import util
@@ -54,10 +59,21 @@ def reload_handlers():
             reloaded.append(name)
         except Exception as e:
             failed.append({"module": name, "error": str(e)})
-    _build()
+
+    warnings = [
+        "reload_handlers는 개발용입니다. InitGui.py·rpc_server.py·handlers/__init__.py "
+        "변경은 FreeCAD 재시작이 필요합니다."
+    ]
+    try:
+        conflicts = _build()
+        if conflicts:
+            warnings.append(f"툴 이름이 겹칩니다(뒤에 읽은 모듈이 이깁니다): {', '.join(conflicts)}")
+    except Exception as e:
+        failed.append({"module": "__init__._build", "error": str(e)})
+
     return util.envelope(
         {"reloaded": reloaded, "failed": failed, "tools": sorted(REGISTRY.keys())},
-        warnings=["reload_handlers는 개발용입니다. InitGui.py·rpc_server.py 변경은 FreeCAD 재시작이 필요합니다."],
+        warnings=warnings,
         t0=t0,
     )
 

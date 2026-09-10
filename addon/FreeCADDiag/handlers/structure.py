@@ -375,3 +375,10 @@ def analyze_shape(doc=None, name=None, max_faces=30, max_edges=30, bop_check=Fal
         truncated = True
 
     return util.envelope(data, warnings=warnings, truncated=truncated, t0=t0)
+
+
+TOOLS = {
+    "get_document_graph": get_document_graph,
+    "inspect_object": inspect_object,
+    "analyze_shape": analyze_shape,
+}

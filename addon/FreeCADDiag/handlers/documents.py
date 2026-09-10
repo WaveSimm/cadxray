@@ -46,3 +46,6 @@ def list_documents():
             }
         )
     return util.envelope(out, t0=t0)
+
+
+TOOLS = {"ping": ping, "list_documents": list_documents}

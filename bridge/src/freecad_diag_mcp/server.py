@@ -80,6 +80,39 @@ def inspect_object(
 
 
 @mcp.tool()
+def get_sketch_diagnostics(
+    doc: str | None = None,
+    sketch: str = "",
+    include_geometry: bool = True,
+    include_constraints: bool = True,
+    max_items: int = 200,
+) -> str:
+    """스케치가 **왜 빨간지**를 한 번에 알려준다. 스케치 문제면 이것 하나로 끝난다.
+
+    읽는 순서:
+    1. solve_status가 0이 아니면 → conflicting / redundant / malformed 목록을 본다.
+       그 번호(id)는 GUI 제약 패널의 번호와 같다. constraints 목록에는 잘려도 항상 들어 있다.
+    2. solve_status가 0인데 dof > 0이면 → 구속이 모자란 것이다.
+    3. open_vertices가 비어 있지 않으면 → 와이어가 닫히지 않은 것이다.
+       이 스케치를 쓰는 Pad/Pocket이 "Wire is not closed."로 실패한다.
+
+    주의: solve_status가 0이 아니면 fully_constrained는 신뢰할 수 없어 null로 온다.
+    이 툴은 진단 전에 solve()를 호출한다(문서를 저장하지는 않는다).
+    """
+    return client.call(
+        "get_sketch_diagnostics",
+        {
+            "doc": doc,
+            "sketch": sketch,
+            "include_geometry": include_geometry,
+            "include_constraints": include_constraints,
+            "max_items": max_items,
+        },
+        timeout=60,
+    )
+
+
+@mcp.tool()
 def analyze_shape(
     doc: str | None = None,
     name: str = "",
