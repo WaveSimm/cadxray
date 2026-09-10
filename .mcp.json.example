@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "freecad-diag": {
+      "command": "uv",
+      "args": ["--directory", "/ABS/PATH/freecad-diag-mcp/bridge", "run", "freecad-diag-mcp"]
+    }
+  }
+}
