@@ -1044,6 +1044,39 @@ def _profile_wires(d, plane, profile, warnings):
     raise _BuildError("profile에 section / elements / wires / circles / polygon / rect 중 하나가 필요합니다.")
 
 
+def _split_wide_arcs(elements, max_deg=150.0):
+    """150°를 넘는 호를 중간점에서 둘로 나눈다.
+
+    정확히 180°인 호는 양 끝점을 고정하면 반지름이 현으로 결정돼 Sketcher가 Radius를
+    '중복 제약'으로 거부한다 [라이브 1.1.3: Part 25 바닥 단면의 R8.75 반원]. 넓은 호를 나누면 그 특이점을 피한다.
+    """
+    out = []
+    for el in elements:
+        if el.get("type") != "arc":
+            out.append(el)
+            continue
+        cx, cy = el["center"]
+        r = float(el["radius"])
+        (sx, sy), (ex, ey) = el["start"], el["end"]
+        a0 = math.atan2(sy - cy, sx - cx)
+        a1 = math.atan2(ey - cy, ex - cx)
+        ccw = bool(el.get("ccw", True))
+        sweep = ((a1 - a0) if ccw else (a0 - a1)) % TWO_PI or TWO_PI
+        if math.degrees(sweep) <= max_deg:
+            out.append(el)
+            continue
+        n = int(math.ceil(math.degrees(sweep) / max_deg))
+        pts = []
+        for k in range(n + 1):
+            a = a0 + (sweep * k / n) * (1.0 if ccw else -1.0)
+            pts.append([cx + r * math.cos(a), cy + r * math.sin(a)])
+        pts[0], pts[-1] = [sx, sy], [ex, ey]
+        for k in range(n):
+            out.append({"type": "arc", "center": [cx, cy], "radius": r, "start": pts[k], "end": pts[k + 1],
+                        "ccw": ccw, "angle_deg": math.degrees(sweep) / n})
+    return out
+
+
 def _draw_wire(sk, elements):
     """요소 목록을 스케치에 옮기고 DoF 0으로 고정한다. [api-notes 7.5]
 
@@ -1056,6 +1089,7 @@ def _draw_wire(sk, elements):
 
     chain = []  # (gid, start_pos, end_pos, kind, start_xy, end_xy)
     named = []
+    elements = _split_wide_arcs(elements)
     for el in elements:
         t = el.get("type")
         if t == "line":
@@ -1432,25 +1466,42 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
     if center_gap > 0.01:
         warnings.append(f"bbox 중심이 {round(center_gap, 3)} mm 어긋나 있습니다. Body.Placement(원본 Placement 복사)를 확인하세요.")
 
-    fz = max(float(fuzzy), 0.0)
+    fz0 = max(float(fuzzy), 0.0)
     vol_a = sa.Volume or 1e-12
     boolean_failed = False
+    method = "cut"
+    fz = fz0
     try:
-        for attempt in range(3):
+        # 면이 겹치는 쌍에서 퍼지 차집합이 형상 전체를 돌려주기도 한다 [api-notes 7.5·13]
+        # → 정확한 불리언, 10배·100배 fuzzy 순으로 다시 시도한다
+        for fz in (fz0, 0.0, (fz0 or 1e-5) * 10.0, (fz0 or 1e-5) * 100.0):
             missing, missing_total, n_missing = _pieces(sa.cut(sb, fz) if fz else sa.cut(sb), float(min_piece_volume), int(max_pieces))
             extra, extra_total, n_extra = _pieces(sb.cut(sa, fz) if fz else sb.cut(sa), float(min_piece_volume), int(max_pieces))
-            # 면이 겹치는 쌍에서 불리언이 전체 형상을 돌려주는 경우 [api-notes 7.5] → fuzzy를 키워 다시
             biggest = max([p["volume"] for p in missing + extra] or [0.0])
             if biggest < 0.5 * vol_a:
                 break
-            fz = (fz or 1e-5) * 10.0
-            warnings.append(f"차집합이 형상 전체를 돌려줘 fuzzy를 {fz:g}로 키워 다시 계산했습니다.")
+            warnings.append(f"차집합(fuzzy {fz:g})이 형상 전체를 돌려줬습니다.")
         else:
             boolean_failed = True
     except Exception as e:
         return util.error(f"차집합 실패: {e}. fuzzy를 키워 보세요(예: 1e-3).", e)
     if boolean_failed:
-        warnings.append("퍼지 차집합이 실패했습니다(면 겹침). missing/extra는 믿을 수 없고 volume_diff·area_diff로만 판단하세요.")
+        # 조각은 못 얻어도 교집합으로 총량은 잰다: missing = Va − Vc, extra = Vb − Vc
+        missing, extra, n_missing, n_extra = [], [], 0, 0
+        missing_total = extra_total = 0.0
+        try:
+            vc = (sa.common(sb, fz0) if fz0 else sa.common(sb)).Volume
+            if 0.0 < vc <= min(sa.Volume, sb.Volume) + 1e-3:
+                missing_total = round(max(sa.Volume - vc, 0.0), 6)
+                extra_total = round(max(sb.Volume - vc, 0.0), 6)
+                method = "common"
+                warnings.append("퍼지 차집합이 실패해(면 겹침) 교집합으로 총량만 계산했습니다. 조각(bbox)은 없습니다.")
+            else:
+                method = "volume_only"
+        except Exception:
+            method = "volume_only"
+        if method == "volume_only":
+            warnings.append("차집합·교집합이 모두 실패했습니다(면 겹침). volume_diff·area_diff로만 판단하세요.")
     # 퍼지 불리언은 얇은 차이를 삼킬 수 있으므로 부피 차 자체도 판정에 넣는다
     diff_pct = max(missing_total + extra_total, abs(sb.Volume - sa.Volume)) / vol_a * 100.0
     if diff_pct < 0.001:
@@ -1467,8 +1518,8 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
         "missing_in_b": missing, "extra_in_b": extra,
         "missing_total": missing_total, "extra_total": extra_total,
         "missing_pieces": n_missing, "extra_pieces": n_extra,
-        "diff_pct": round(diff_pct, 6), "verdict": verdict if not boolean_failed else "unknown", "fuzzy": fz,
-        "boolean_failed": boolean_failed,
+        "diff_pct": round(diff_pct, 6), "verdict": verdict if method != "volume_only" else "unknown", "fuzzy": fz,
+        "boolean_failed": boolean_failed, "method": method,
     }
     if n_missing > len(missing) or n_extra > len(extra):
         warnings.append(f"조각은 부피 큰 순으로 {max_pieces}개까지만 담았습니다.")

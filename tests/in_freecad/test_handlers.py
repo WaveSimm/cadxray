@@ -491,6 +491,14 @@ def test_rebuild_tools():
          "profile": {"polygon": [[5, 0], [10, 0], [10, 10], [5, 10]]}}])
     check("revolution: 축 구성선 + 폴리곤 → 관 (부피 π(100−25)·10)", r["ok"] and r["data"]["stopped_at"] is None
           and abs(r["data"]["volume"] - math.pi * 75 * 10) < 0.01, str(r["data"].get("volume") if r["ok"] else r))
+    # 반원(180°) 호: 양 끝점 고정 + Radius는 Sketcher가 '중복'으로 거부한다 → 150° 넘는 호는 나눠 그린다
+    r = rebuild.build_features(doc="T7_rebuild", body="Rebuilt5", features=[
+        {"op": "pad", "name": "DShape", "plane": "XY", "position": 0.0, "length": 2.0,
+         "profile": {"elements": [{"type": "line", "start": [0, -5], "end": [0, 5]},
+                                  {"type": "arc", "center": [0, 0], "radius": 5.0, "start": [0, 5], "end": [0, -5], "ccw": False}]}}])
+    c = r["data"]["created"][0] if r["ok"] and r["data"]["created"] else {}
+    check("반원 프로파일 Pad: DoF 0·부피 π·25·2/2", r["ok"] and r["data"]["stopped_at"] is None and c.get("dof") == 0
+          and abs(r["data"]["volume"] - math.pi * 25) < 0.01, str((c.get("status"), c.get("dof"), r["data"].get("volume")) if r["ok"] else r))
 
 
 # --- 실행 -----------------------------------------------------------------------
