@@ -12,16 +12,32 @@ FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다
 
 ## 1. 설치 — 명령 두 줄
 
-필요한 것: FreeCAD 1.0 이상(한 번은 실행해 둔 상태), [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), git.
+**아래 명령은 전부 "터미널"에 입력합니다.** Claude Code 대화창이 아닙니다.
+- Windows: 시작 메뉴에서 **PowerShell** 을 찾아 실행 (명령 프롬프트 `cmd`도 됩니다)
+- macOS: **터미널**(Terminal) 앱
+- Linux: 터미널
+
+**먼저 있어야 하는 것** (없으면 한 번만 설치):
+
+| | 확인 명령 | 없을 때 |
+|---|---|---|
+| FreeCAD 1.0 이상 | (한 번은 실행해 두세요 — Mod 폴더가 그때 생깁니다) | freecad.org |
+| [Claude Code](https://claude.com/claude-code) | `claude --version` | 공식 안내대로 설치 후 로그인 |
+| [uv](https://docs.astral.sh/uv/) | `uv --version` | Windows(PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` · macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh \| sh` — 설치 후 터미널을 **다시 엽니다** |
+| git | `git --version` | Windows: git-scm.com · macOS: `xcode-select --install` |
+
+**설치** — 터미널에 한 줄씩 붙여 넣고 Enter:
 
 ```bash
 uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고, 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `서버 시작 http://127.0.0.1:9877`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 14개)`). 끝입니다.
 
-막히면:
+이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
+
+막히면 (역시 터미널에):
 ```bash
 uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
 ```

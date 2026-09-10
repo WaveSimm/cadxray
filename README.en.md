@@ -10,7 +10,9 @@ An MCP server that lets Claude Code **diagnose** FreeCAD models. Ask "why is Ske
 
 ## Install — two commands
 
-Requires FreeCAD ≥ 1.0 (launched at least once), [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), git.
+Type these in a **terminal** (Windows: PowerShell or Command Prompt; macOS: Terminal) — not in the Claude Code chat.
+
+Prerequisites, each installed once: FreeCAD ≥ 1.0 (launch it once so the Mod folder exists), [Claude Code](https://claude.com/claude-code) (`claude --version`), [uv](https://docs.astral.sh/uv/) (`uv --version`; Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`, macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`, then reopen the terminal), git.
 
 ```bash
 uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
