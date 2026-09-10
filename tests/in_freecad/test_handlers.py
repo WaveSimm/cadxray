@@ -533,6 +533,31 @@ def test_rebuild_tools():
     check("taper −5° Pad → 원뿔대 부피 (안으로 좁아짐)", r["ok"] and r["data"]["stopped_at"] is None and abs(r["data"]["volume"] - frustum) < 0.5,
           str((r["data"].get("volume"), round(frustum, 2)) if r["ok"] else r))
 
+    # align_shapes: 옮기고 돌린 사본 → 변환 복원, 거울상 사본 → mirrored
+    import Part as _Part
+    doc = FreeCAD.getDocument("T7_rebuild")
+    plate = doc.getObject("Plate")
+    # Plate는 y=20에 대칭이라 거울상이 회전과 같다 → 한 귀퉁이를 잘라 비대칭(키랄)으로 만든 사본으로 시험한다
+    chiral = doc.addObject("Part::Feature", "Chiral")
+    chiral.Shape = plate.Shape.cut(_Part.makeBox(5, 5, 10))
+    moved = doc.addObject("Part::Feature", "ChiralMoved")
+    pl = FreeCAD.Placement(FreeCAD.Vector(120, -30, 7), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 37))
+    s = chiral.Shape.copy(); s.Placement = pl.multiply(s.Placement); moved.Shape = s
+    mir = doc.addObject("Part::Feature", "ChiralMirror")
+    mir.Shape = chiral.Shape.mirror(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 1, 0))
+    doc.recompute()
+    r = rebuild.align_shapes(doc="T7_rebuild", a="Chiral", b="ChiralMoved")
+    got = r["data"]["placement"] if r["ok"] else None
+    check("align_shapes: 37° 회전+이동 복원, match 100 %", r["ok"] and r["data"]["match_pct"] >= 99.9 and not r["data"]["mirrored"]
+          and got is not None and abs(got["rotation_angle_deg"] - 37) < 0.01 and all(abs(got["base"][i] - (120, -30, 7)[i]) < 0.01 for i in range(3)),
+          str((got, r["data"].get("match_pct")) if r["ok"] else r))
+    r = rebuild.align_shapes(doc="T7_rebuild", a="Chiral", b="ChiralMirror")
+    check("align_shapes: 거울상 사본 → mirrored, placement 없음", r["ok"] and r["data"]["mirrored"] and r["data"]["placement"] is None and r["data"]["match_pct"] >= 99.9,
+          str({k: r["data"].get(k) for k in ("mirrored", "match_pct")} if r["ok"] else r))
+    r = rebuild.align_shapes(doc="T7_rebuild", a="Plate", b="PlateB")
+    check("align_shapes: 같은 자리 사본(BSpline 판) → 항등 변환", r["ok"] and r["data"]["match_pct"] >= 99.9 and abs(r["data"]["placement"]["rotation_angle_deg"]) < 0.05
+          and all(abs(v) < 0.05 for v in r["data"]["placement"]["base"]), str(r["data"].get("placement") if r["ok"] else r))
+
 
 # --- 실행 -----------------------------------------------------------------------
 

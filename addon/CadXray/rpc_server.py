@@ -42,7 +42,7 @@ def _timeout_for(tool, params):
     if tool in ("find_holes", "check_interference"):
         # 수백 면 어셈블리 — common()이 느리다 [api-notes 12장]
         return 120
-    if tool in ("classify_faces", "section_profile", "compare_shapes"):
+    if tool in ("classify_faces", "section_profile", "compare_shapes", "align_shapes"):
         # 면 표본 추출·3D fuse·퍼지 불리언 (M7)
         return 120
     if tool == "build_features":

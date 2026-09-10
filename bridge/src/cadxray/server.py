@@ -436,6 +436,28 @@ def compare_shapes(
 
 
 @mcp.tool()
+def align_shapes(
+    a: str,
+    b: str,
+    doc: str | None = None,
+    doc_b: str | None = None,
+    fuzzy: float = 1e-4,
+) -> str:
+    """같은 부품의 두 인스턴스 a, b 사이의 **강체 변환**(b = T·a)을 형상에서 찾는다.
+
+    STEP 어셈블리의 Placement는 하위 어셈블리 프레임이라 인스턴스 위치가 아니다. 재구성한 Body를
+    여러 자리에 App::Link로 놓을 때 이 툴의 matrix/placement를 Link.Placement에 넣는다.
+    관성 주축을 맞춘 뒤 정점·면 위 점이 b 표면에 얼마나 붙는지로 검증한다(match_pct).
+    mirrored=true면 거울상이라 Link로는 안 되고 Part::Mirroring 본을 만들어 다시 정렬한다.
+    """
+    return client.call(
+        "align_shapes",
+        {"a": a, "b": b, "doc": doc, "doc_b": doc_b, "fuzzy": fuzzy},
+        timeout=130,
+    )
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

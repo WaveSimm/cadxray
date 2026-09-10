@@ -134,6 +134,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `section_profile` | 높이의 단면 윤곽을 스케치용 선분·호·원으로(스케치 로컬 2D). 구멍·카운터보어·챔퍼 자리는 3D에서 메운 뒤 잘라 바깥 윤곽만. BSpline 곡선도 직선·원으로 다시 판별 |
 | `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓고 피처마다 검증**. `profile.section`이면 원본을 직접 트레이스해 좌표가 대화를 오가지 않음. Block·구성점 고정·구성선 축 규칙 내장, `params`는 Spreadsheet로 |
 | `compare_shapes` | 부피·면적·bbox 차 + 퍼지 차집합 조각의 bbox — **어디가 틀렸는지** 바로 짚음 |
+| `align_shapes` | 같은 부품의 두 인스턴스 사이 강체 변환(관성 주축 + 표면 점 검증). 재구성한 Body를 Link로 여러 자리에 놓을 때. 거울상이면 `mirrored` |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
@@ -141,6 +142,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 - `examples/rebuild_bracket_from_step.py` — STEP으로 받은 판+각기둥 브라켓을 면 측정값만으로 파라메트릭 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 파라미터 15개)로 재구성. 원본과 **차집합 0.0 mm³**
 - `examples/step_assembly_to_bodies.py` — STEP 어셈블리(80부품)를 부품별 Body + 접지 조인트 Assembly로 변환. 5.7초
 - 벤더 부품(클램프 조 44면, BSpline 전이면·더브테일 홈·립 챔퍼 포함)도 같은 방법으로 부피 차 0.0004 %까지 재구성했습니다. 그 과정에서 확인한 함정(트레이스 기하는 Block으로, 2D 불리언 회피, 1e-5 틈 닫기, 회전 절삭의 과절삭 복원)은 `docs/api-notes.md` 7.5절에 있습니다
+- **어셈블리 전체 재구성** — 벤더 STEP 80부품(20종)을 전부 파라메트릭 Body로 다시 만들고(`examples/rebuild_*_with_tools.py`), 종류당 Body 하나에 인스턴스 80개를 `align_shapes`로 배치한 Link + Assembly로 조립(`examples/assemble_from_bodies.py`). 20종 중 identical 15 · match 4 · 0.14 % 1(자유곡면 필렛), 인스턴스 80개 전부 배치·접지, 간섭 0(접촉 9쌍), 3.5분. STEP의 Placement는 인스턴스 변환이 아니라서 형상에서 강체 변환을 찾는 `align_shapes`가 필요했고, D형 캡과 스페이서에 **거울상 인스턴스**가 섞여 있다는 것도 이 과정에서 드러났습니다
 - `examples/rebuild_2b2_with_tools.py` — 같은 클램프 조를 **M7 툴 네 개만으로** 다시 만든 기록. 손으로 쓰던 200줄이 피처 12개 목록 하나가 됐고, 스케치 12개 전부 DoF 0, `compare_shapes` 판정 identical(부피 차 0.0004 %). BSpline 전이면 8개는 `classify_faces`가 원뿔(축·꼭짓점·반각 59.63°)로 판별했습니다. 그때 확인한 것(법선 부호 뒤집힘, `common()`의 겹친 면, 구성점으로 호 고정, 반지름 반올림의 대가)은 13절
 
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.

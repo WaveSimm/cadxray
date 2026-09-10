@@ -335,3 +335,12 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `PartDesign::Revolution`도 Groove와 같이 첫 구성선을 `ReferenceAxis=(sketch, ["Axis0"])`로. XZ 평면에서 X 방향 축은 `axis: {"y": z값}`(로컬 y = 전역 Z). handle(플랜지·챔퍼·바 반단면 8점) → 회전체 + 위아래 평면 포켓 + 탱 Pad + R5 필렛 + 피벗 6피처로 **identical(6e-6 %)** — 첫 시도.
 - foot의 노치 플레어는 진짜 BSpline이지만 `classify_faces`가 `best_axis_fit`(잔차 0.0036)으로 원뿔 힌트를 줬고, `tolerance=0.005`로 다시 부르면 cone(반각 44.9°, 반지름 15.8~18.6)으로 판정한다. 원통(R15, 0.8 mm) + 45° 원뿔 회전 절삭으로 근사하면 부피 차 0.003 %, 노치 부근 국소 차 ~18 mm³.
 - 5° 구배 벽의 노치처럼 **축이 살짝 기운(2.4°) 원뿔 판정**은 축 정렬 회전 절삭으로 근사할 수밖에 없다. 기운 축은 `axis: {x|y}` 구성선으로 표현할 수 없다(향후: 스케치 회전 지원 여부 검토).
+
+### 전체 재구성·조립(20종 80개)에서 확인한 것 `[라이브 1.1.3, 2026-09-10]`
+- **STEP 어셈블리의 `Placement`는 인스턴스 변환이 아니다.** 같은 부품 31개의 로컬 형상(Placement를 뺀 것)이 서로 다르다 — Import가 하위 어셈블리 프레임을 Placement에 넣고 나머지 변환은 Shape에 구워 넣는다. 인스턴스 배치는 형상에서 직접 찾아야 한다(`align_shapes`).
+- `align_shapes`: `Solid.PrincipalProperties`의 `FirstAxisOfInertia`… 로 주축을 맞춘 뒤 검증. 검증에 `common()`은 못 쓴다(회전 사본에서 80 %), `isInside(tol, True)`도 표면 위 점을 놓친다(같은 자리 사본 87.5 %) → 정점·면 위 점(`valueAt` 파라미터 중앙)을 옮겨 `distToShape(Part.Vertex)` ≤ tol 인 비율로 잰다. 곡면의 `CenterOfMass`는 표면 밖이라 프로브로 쓰면 안 된다.
+- D형 캡 31개 중 일부는 **거울상**(왼손 기저에서만 100 %). Link의 Placement로는 반사를 못 하므로 `Part::Mirroring`(Source·Base·Normal) 본을 만들어 그것을 정렬한다. `Part::Mirroring`의 Shape는 Compound라 `CenterOfMass`가 없다 → `CenterOfGravity`.
+- 대칭 부품(rod)은 주 관성모멘트가 겹쳐 주축이 임의다 → 축 둘레 45° 간격 후보를 더해 100 %.
+- 문서 이름이 숫자로 시작하면 FreeCAD가 앞에 `_`를 붙인다(`2C1_tools` → `_2C1_tools`) → 스크립트가 문서를 못 찾는다.
+- `section` `clip` 상자는 형상의 로컬 2D 범위 전체를 덮어야 한다. 원점 기준 ±대각선으로 잡으면 원점에서 먼 부품(2C2, y 45~80)은 일부만 잘려 앞 귀 복원이 전체 단면을 다시 더해 립 쐐기를 메웠다.
+- 스크립트를 '기록 모드'(build_features 가로채기)로 다시 실행해 피처 목록만 모을 때, 스크립트 안의 `reload_handlers()`가 가로채기를 되돌린다 → 그 줄을 빼고 exec.

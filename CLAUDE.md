@@ -46,6 +46,7 @@
 4. 반지름·중심은 `classify_faces`가 준 **측정값 그대로** 쓴다(반올림하면 겹친 면이 9e-6 어긋나 fuse가 부피를 잃는다)
 5. `compare_shapes(a=원본, b=Body, doc_b=새 문서)` → `verdict`와 `missing_in_b`/`extra_in_b` 조각의 bbox로 틀린 곳만 고친다. 조각이 없는데 부피가 다르면 `created[].volume_after`를 단계별로 비교한다
 6. `build_features`가 `stopped_at`을 돌려주면 그 피처의 `status`가 원인이다. 실패한 객체는 문서에 남는다(Body.Tip이 그것을 가리키므로 지우면 Tip을 되돌린다)
+7. 어셈블리 전체를 다시 만들 때: 같은 부품(면 수·부피·크기가 같은 것)은 **종류당 Body 하나**만 만들고, 인스턴스는 `align_shapes(기준 인스턴스, 인스턴스)`의 `matrix`를 `App::Link.Placement`에 넣는다. STEP의 `Placement`는 인스턴스 변환이 아니다. `mirrored: true`면 `Part::Mirroring` 본을 만들어 그것을 다시 정렬한다. 한 문서에 여러 종류를 만들 때는 파라미터·피처 이름에 종류 접두사를 붙인다(`examples/assemble_from_bodies.py`)
 
 ### 읽을 때 주의
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다

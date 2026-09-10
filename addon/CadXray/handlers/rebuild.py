@@ -735,6 +735,10 @@ def _edge_element(edge, p0, p1, frame, tol, samples):
         r = float(c.Radius)
         if closed:
             return {"type": "circle", "center": _r2(*c2), "radius": round(r, 6)}
+        # 반지름이 수만 mm인 '거의 직선' 호(벤더 STEP의 2A2 끝단, r=23514)는 현으로 그린다 — 스케치에 그런 원은 못 넣는다
+        (x0, y0), (x1, y1) = to2d(p0), to2d(p1)
+        if r > 5000.0 or r > 1000.0 * max(math.hypot(x1 - x0, y1 - y0), 1e-9):
+            return {"type": "line", "start": _r2(x0, y0), "end": _r2(x1, y1), "was": "Circle r%.0f" % r}
         return _arc_element(c2, r, to2d(p0), to2d(p1), to2d(mid))
     # BSpline 등: 표본으로 직선 → 원 순서로 맞춘다 [라이브 1.1.3: BSpline 솔리드의 slice는 직선도 BSplineCurve]
     try:
@@ -819,19 +823,23 @@ def _section(shape, axis, position, fill_holes, max_fill_radius, tol, samples, e
         src = src.cut(cyls)
     if clip:
         # common()은 상자 면이 부품 면과 겹치면 빈 결과를 준다 [라이브 1.1.3] → 범위 밖을 상자로 cut한다
+        # 상자는 형상의 로컬 2D 범위 전체를 덮어야 한다 (원점 기준 ±대각선으로 잡으면 원점에서 먼 부품은 일부만 잘린다 — 2C2 실측)
         bb = src.BoundBox
-        big = bb.DiagonalLength + 10.0
+        corners = [Vec(x, y, z) for x in (bb.XMin, bb.XMax) for y in (bb.YMin, bb.YMax) for z in (bb.ZMin, bb.ZMax)]
+        us = [(c - origin).dot(e1) for c in corners]
+        vs = [(c - origin).dot(e2) for c in corners]
+        umin, umax, vmin, vmax = min(us) - 5.0, max(us) + 5.0, min(vs) - 5.0, max(vs) + 5.0
         lo = clip.get("min") or [None, None]
         hi = clip.get("max") or [None, None]
         cutters = []
         if lo[0] is not None:
-            cutters.append(_local_box(axis, e1, e2, position, [float(lo[0]) - big, -big], [float(lo[0]), big]))
+            cutters.append(_local_box(axis, e1, e2, position, [umin, vmin], [float(lo[0]), vmax]))
         if hi[0] is not None:
-            cutters.append(_local_box(axis, e1, e2, position, [float(hi[0]), -big], [float(hi[0]) + big, big]))
+            cutters.append(_local_box(axis, e1, e2, position, [float(hi[0]), vmin], [umax, vmax]))
         if lo[1] is not None:
-            cutters.append(_local_box(axis, e1, e2, position, [-big, float(lo[1]) - big], [big, float(lo[1])]))
+            cutters.append(_local_box(axis, e1, e2, position, [umin, vmin], [umax, float(lo[1])]))
         if hi[1] is not None:
-            cutters.append(_local_box(axis, e1, e2, position, [-big, float(hi[1])], [big, float(hi[1]) + big]))
+            cutters.append(_local_box(axis, e1, e2, position, [umin, float(hi[1])], [umax, vmax]))
         if cutters:
             src = src.cut(cutters)
     wires = src.slice(axis, float(position))
@@ -1580,9 +1588,149 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
     return util.envelope(data, warnings=warnings, truncated=n_missing > len(missing) or n_extra > len(extra), t0=t0)
 
 
+
+
+# --- 7.20 align_shapes -----------------------------------------------------------
+
+
+def _rotation_from_axes(src_axes, dst_axes):
+    """src 정규직교 기저를 dst 기저로 보내는 회전 (FreeCAD.Rotation). R = Dst · Srcᵀ"""
+    m = FreeCAD.Matrix()
+    # 열: dst 축, 행렬 D = [d1 d2 d3], S = [s1 s2 s3] → R = D · Sᵀ
+    d = dst_axes
+    sv = src_axes
+    rows = [[sum(d[k][i] * sv[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+    m.A11, m.A12, m.A13 = rows[0]
+    m.A21, m.A22, m.A23 = rows[1]
+    m.A31, m.A32, m.A33 = rows[2]
+    return FreeCAD.Rotation(m)
+
+
+def _principal_frames(shape):
+    """관성 주축 기저 후보 목록. 부호가 정해지지 않으므로 오른손 조합 4개, 대칭이면 축 둘레 회전도 추가."""
+    pp = shape.Solids[0].PrincipalProperties if shape.Solids else None
+    if pp is None:
+        return None, []
+    a1, a2, a3 = (Vec(pp["FirstAxisOfInertia"]), Vec(pp["SecondAxisOfInertia"]), Vec(pp["ThirdAxisOfInertia"]))
+    moments = [float(v) for v in pp["Moments"]]
+    frames = []
+    for s1 in (1.0, -1.0):
+        for s2 in (1.0, -1.0):
+            e1, e2 = a1 * s1, a2 * s2
+            e3 = e1.cross(e2)
+            frames.append(([e1.x, e1.y, e1.z], [e2.x, e2.y, e2.z], [e3.x, e3.y, e3.z]))
+    for fr in list(frames):  # 거울상 후보(왼손 기저): 맞으면 mirrored로 보고한다
+        frames.append((fr[0], fr[1], [-v for v in fr[2]], "mirror"))
+    # 주 관성모멘트가 겹치면(회전 대칭) 그 평면 안의 축이 임의다 → 45° 간격으로 더 돌려 본다
+    sym = []
+    for i, j in ((0, 1), (1, 2), (0, 2)):
+        if abs(moments[i] - moments[j]) < 1e-3 * max(moments):
+            sym.append((i, j))
+    if sym:
+        extra = []
+        for fr in frames:
+            e = [Vec(*fr[0]), Vec(*fr[1]), Vec(*fr[2])]
+            for i, j in sym:
+                k = 3 - i - j
+                for deg in (45, 90, 135, 180, 225, 270, 315):
+                    rot = FreeCAD.Rotation(e[k], deg)
+                    ne = list(e)
+                    ne[i] = rot.multVec(e[i])
+                    ne[j] = rot.multVec(e[j])
+                    extra.append(tuple([v.x, v.y, v.z] for v in ne))
+        frames += extra
+    return moments, frames
+
+
+def align_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4):
+    """같은 부품의 두 인스턴스 a, b 사이의 강체 변환(b = T·a)을 형상에서 찾는다."""
+    t0 = time.time()
+    da, err = util.get_doc(doc)
+    if err:
+        return util.error(err)
+    db, err = util.get_doc(doc_b) if doc_b else (da, None)
+    if err:
+        return util.error(err)
+    oa, sa, err = _shape_or_error(da, a)
+    if err:
+        return util.error(err)
+    ob, sb, err = _shape_or_error(db, b)
+    if err:
+        return util.error(err)
+    warnings = []
+    if abs(sa.Volume - sb.Volume) > 1e-3 * max(sa.Volume, 1e-9):
+        warnings.append(f"부피가 다릅니다({round(sa.Volume, 3)} vs {round(sb.Volume, 3)}). 같은 부품이 아닐 수 있습니다.")
+    ma, fa = _principal_frames(sa)
+    mb, fb = _principal_frames(sb)
+    if not fa or not fb:
+        return util.error("솔리드가 없어 관성 주축을 구할 수 없습니다.")
+    ca, cb = sa.CenterOfGravity, sb.CenterOfGravity   # Compound(Part::Mirroring 결과)에는 CenterOfMass가 없다 [라이브 1.1.3]
+    # 점수: a의 정점·면 중심을 옮겨서 b 안(표면 포함)에 들어가는 비율. 불리언은 겹친 면에서 흔들려 쓰지 않는다
+    # [라이브 1.1.3: 회전된 인스턴스의 common()이 80 %만 돌려줌]
+    probes = [Vec(v.Point) for v in sa.Vertexes]
+    for f in sa.Faces:  # 면 위의 점(곡면의 CenterOfMass는 표면 밖이라 쓰면 안 된다)
+        try:
+            u0, u1, v0, v1 = f.ParameterRange
+            um, vm = (u0 + u1) / 2.0, (v0 + v1) / 2.0
+            if f.isPartOfDomain(um, vm):
+                probes.append(Vec(f.valueAt(um, vm)))
+        except Exception:
+            pass
+    tol = max(1e-3, 1e-5 * sa.BoundBox.DiagonalLength)
+    best = None
+    tried = 0
+    ref_frame = fb[0]
+    for fr in fa:
+        mirror = len(fr) == 4
+        mtx = FreeCAD.Matrix()
+        dst, srcf = ref_frame, fr
+        rows = [[sum(dst[k][i] * srcf[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+        mtx.A11, mtx.A12, mtx.A13 = rows[0]
+        mtx.A21, mtx.A22, mtx.A23 = rows[1]
+        mtx.A31, mtx.A32, mtx.A33 = rows[2]
+        shift = cb - mtx.multVec(ca)
+        mtx.A14, mtx.A24, mtx.A34 = shift.x, shift.y, shift.z
+        tried += 1
+        inside = 0
+        for p in probes:
+            q = mtx.multVec(p)
+            try:
+                # isInside는 표면 위 점을 놓친다(같은 자리 인스턴스도 87.5 %) → 표면까지 거리로 판정
+                if sb.distToShape(Part.Vertex(q))[0] <= tol:
+                    inside += 1
+            except Exception:
+                pass
+        score = inside / max(len(probes), 1)
+        if best is None or score > best[0]:
+            best = (score, mtx, mirror)
+        if score > 0.9999:
+            break
+    score, mtx, mirror = best
+    pl = FreeCAD.Placement(mtx) if not mirror else None
+    match = round(score * 100.0, 4)
+    if mirror:
+        warnings.append("거울상(반사) 변환이 가장 잘 맞습니다. Link의 Placement로는 표현할 수 없으므로 Part Mirror 본을 따로 만들어야 합니다.")
+    if match < 99.0:
+        warnings.append(f"교집합 {match} % — 두 인스턴스가 같은 부품이 아니거나 대칭 후보가 부족합니다.")
+    data = {
+        "a": {"object": oa.Name, "label": util.label(oa), "document": da.Name},
+        "b": {"object": ob.Name, "label": util.label(ob), "document": db.Name},
+        "placement": util.serialize(pl) if pl is not None else None,
+        "mirrored": bool(mirror),
+        "matrix": [[round(mtx.A11, 9), round(mtx.A12, 9), round(mtx.A13, 9), round(mtx.A14, 6)],
+                   [round(mtx.A21, 9), round(mtx.A22, 9), round(mtx.A23, 9), round(mtx.A24, 6)],
+                   [round(mtx.A31, 9), round(mtx.A32, 9), round(mtx.A33, 9), round(mtx.A34, 6)],
+                   [0.0, 0.0, 0.0, 1.0]],
+        "match_pct": match, "candidates_tried": tried,
+        "symmetric": len(fa) > 8, "moments_a": [round(v, 3) for v in ma], "moments_b": [round(v, 3) for v in mb],
+    }
+    return util.envelope(data, warnings=warnings, t0=t0)
+
+
 TOOLS = {
     "classify_faces": classify_faces,
     "section_profile": section_profile,
     "build_features": build_features,
     "compare_shapes": compare_shapes,
+    "align_shapes": align_shapes,
 }

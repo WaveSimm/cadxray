@@ -466,6 +466,13 @@ STEP 분석 워크플로(CLAUDE.md에 추가): `import_step` → `get_document_g
   ```
 - API `[확인됨: api-notes 7.5]`: 면이 겹치는 쌍은 정확한 불리언이 실패하므로 `a.cut(b, fuzzy)`·`b.cut(a, fuzzy)`로 차집합을 뜨고, 두께 0인 조각(bbox 한 변 < 1e-6)과 `min_piece_volume` 미만 조각은 버린다. `verdict`: (missing+extra)/volume_a < 0.001 % → identical, < 0.1 % → match, 그 밖에 different. bbox 중심이 0.01 이상 어긋나면 "Body.Placement 확인" 경고.
 
+### 7.20 `align_shapes` (M7)
+같은 부품의 두 인스턴스 사이의 **강체 변환**(b = T·a)을 형상에서 찾는다. STEP 어셈블리의 `Placement`는 하위 어셈블리 프레임이라 인스턴스 변환이 아니므로(같은 종류인데 로컬 형상이 다르다 `[라이브 1.1.3]`), 재구성한 Body 하나를 여러 자리에 Link로 놓을 때 쓴다.
+- 입력: `a, b, doc=None, doc_b=None, fuzzy=1e-4`
+- 출력: `{"placement": {"base": [..], "rotation_axis": [..], "rotation_angle_deg": ..}, "matrix": [[..]*4], "match_pct": 99.99, "candidates_tried": 4, "symmetric": false}`
+- 방법 `[확인됨: api-notes 13장]`: 무게중심을 맞추고 관성 주축(`Solid.PrincipalProperties`의 First/Second/ThirdAxisOfInertia)을 대응시킨다. 주축 부호가 정해지지 않으므로 오른손 조합 4가지를 모두 시도해 `a`를 옮긴 형상과 `b`의 교집합 부피가 가장 큰 것을 고른다(`match_pct` = 교집합/부피). 주 관성모멘트가 겹치는(대칭) 부품은 축이 임의라 후보를 더 만든다(축 둘레 90° 회전들). 형상이 같으면 어느 변환이든 결과는 같으므로 대칭성은 문제가 아니다.
+- `match_pct < 99`면 경고 — 두 인스턴스가 다른 부품(변형)일 수 있다.
+
 STEP → 파라메트릭 워크플로(CLAUDE.md에 추가): `classify_faces`(정체·주축·레벨·verdict) → `section_profile(position=None)`으로 띠 후보 확인 → 띠마다 `build_features`의 `profile.section`으로 Pad(아래→위, 겹치게) → 홈·립은 `groove`(구성선 축, 폴리곤) → 구멍은 `find_holes` 결과로 `pocket`+`circles`(+`chamfer`) → `compare_shapes`로 차집합 조각의 bbox를 보고 틀린 곳만 고친다. 자유곡면이 많으면(verdict free_form) BaseFeature 하이브리드로.
 
 ---

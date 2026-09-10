@@ -55,6 +55,7 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `section_profile` | cross-section at a height as sketch-ready lines/arcs/circles in sketch-local 2D; holes, counterbores and chamfers filled in 3D first so only the outline remains; BSpline curves re-identified |
 | `build_features` | stacks sketch + Pad / Pocket / Groove / Revolution / Fillet / Chamfer on a Body, one feature at a time with recompute and validation; `profile.section` traces the original directly (no coordinates through the LLM); Block / point-anchored arcs / axis construction line rules built in; `params` go to a Spreadsheet |
 | `compare_shapes` | volume / area / bbox difference plus fuzzy-difference pieces with bounding boxes — tells you *where* the rebuild is wrong |
+| `align_shapes` | rigid transform between two instances of the same part (principal axes + on-surface probe verification); use it to place one rebuilt Body at many positions with App::Link; flags mirror images |
 
 Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_ms"}`. List-type responses take `max_*` limits; summaries and `invalid_objects` are always computed over the whole document even when the list is truncated. Hard cap 100 KB (screenshots excepted).
 
@@ -65,6 +66,7 @@ Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.
 - STEP assembly → one PartDesign Body per part + grounded Assembly joints: `examples/step_assembly_to_bodies.py`
+- **Whole assembly rebuilt parametrically**: all 20 part types of the 80-part vendor assembly rebuilt with the M7 tools (15 identical, 4 match, one at 0.14 % because of free-form fillets), then one Body per type placed 80 times via `align_shapes` into App::Links with grounded joints — 0 interference, 3.5 min (`examples/assemble_from_bodies.py`). Two part types turned out to have mirror-image instances.
 
 ## Known limits
 
