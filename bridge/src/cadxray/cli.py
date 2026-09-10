@@ -1,10 +1,10 @@
-"""freecad-diag-mcp 명령줄.
+"""cadxray 명령줄.
 
-    freecad-diag-mcp                          MCP 서버 실행 (Claude Code가 부른다)
-    freecad-diag-mcp install [--dev] [--dest 경로]   애드온을 FreeCAD에 설치
-    freecad-diag-mcp doctor                   무엇이 안 되는지 진단
+    cadxray                          MCP 서버 실행 (Claude Code가 부른다)
+    cadxray install [--dev] [--dest 경로]   애드온을 FreeCAD에 설치
+    cadxray doctor                   무엇이 안 되는지 진단
 
-install은 패키지에 동봉된 애드온(addon/FreeCADDiag)을 FreeCAD Mod 폴더에 복사한다.
+install은 패키지에 동봉된 애드온(addon/CadXray)을 FreeCAD Mod 폴더에 복사한다.
 --dev 는 저장소 체크아웃을 심링크로 연결한다(코드를 고치면 바로 반영).
 """
 
@@ -20,8 +20,8 @@ from pathlib import Path
 
 from . import client
 
-ADDON_NAME = "FreeCADDiag"
-REPO_URL = "https://github.com/WaveSimm/freecad-diag-mcp"
+ADDON_NAME = "CadXray"
+REPO_URL = "https://github.com/WaveSimm/cadxray"
 GIT_SPEC = f"git+{REPO_URL}#subdirectory=bridge"
 
 
@@ -34,7 +34,7 @@ def bundled_addon_dir() -> Path | None:
 
 
 def repo_addon_dir() -> Path | None:
-    """저장소 체크아웃에서 실행 중이면 addon/FreeCADDiag (bridge/src/freecad_diag_mcp/cli.py 기준)."""
+    """저장소 체크아웃에서 실행 중이면 addon/CadXray (bridge/src/cadxray/cli.py 기준)."""
     try:
         p = Path(__file__).resolve().parents[3] / "addon" / ADDON_NAME
     except IndexError:
@@ -78,7 +78,7 @@ def addon_version(path: Path) -> str | None:
 
 
 def installed_addons() -> list[tuple[Path, str | None, bool]]:
-    """(경로, 버전, 심링크 여부) - 존재하는 Mod 폴더 안의 FreeCADDiag."""
+    """(경로, 버전, 심링크 여부) - 존재하는 Mod 폴더 안의 CadXray."""
     out = []
     for mod in mod_candidates():
         target = mod / ADDON_NAME
@@ -140,7 +140,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     print()
     print(f"     {register_command()}")
     print()
-    print("  3. 확인: freecad-diag-mcp doctor")
+    print("  3. 확인: cadxray doctor")
     return 0
 
 
@@ -149,8 +149,8 @@ def register_command() -> str:
     repo = repo_addon_dir()
     if repo is not None:
         bridge = repo.parents[1] / "bridge"
-        return f'claude mcp add --scope user freecad-diag -- uv --directory "{bridge}" run freecad-diag-mcp'
-    return f"claude mcp add --scope user freecad-diag -- uvx --from {GIT_SPEC} freecad-diag-mcp"
+        return f'claude mcp add --scope user cadxray -- uv --directory "{bridge}" run cadxray'
+    return f"claude mcp add --scope user cadxray -- uvx --from {GIT_SPEC} cadxray"
 
 
 # --- doctor ---------------------------------------------------------------------
@@ -168,14 +168,14 @@ def _bad(msg: str, fix: str | None = None) -> None:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     problems = 0
-    print(f"freecad-diag-mcp doctor  (Python {sys.version.split()[0]}, {sys.platform})")
+    print(f"cadxray doctor  (Python {sys.version.split()[0]}, {sys.platform})")
     print()
 
     print("1. 애드온 설치")
     found = installed_addons()
     if not found:
         problems += 1
-        _bad("FreeCAD Mod 폴더에 FreeCADDiag 가 없습니다.", "freecad-diag-mcp install")
+        _bad("FreeCAD Mod 폴더에 CadXray 가 없습니다.", "cadxray install")
         for p in mod_candidates()[:3]:
             print(f"       후보 폴더: {p}  ({'있음' if p.is_dir() else '없음'})")
     for path, ver, link in found:
@@ -197,7 +197,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         problems += 1
         _bad(
             "포트가 닫혀 있습니다 - FreeCAD가 꺼져 있거나 서버가 안 떴습니다.",
-            "FreeCAD를 켜세요. 자동시작이 꺼져 있으면 워크벤치 'FreeCAD Diag' → Start Server",
+            "FreeCAD를 켜세요. 자동시작이 꺼져 있으면 워크벤치 'CAD X-ray' → Start Server",
         )
     else:
         r = client.call_raw("ping", timeout=10)
@@ -208,10 +208,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 _bad(f"실행 중인 애드온({d['addon_version']})과 설치된 파일({found[0][1]})의 버전이 다릅니다.", "FreeCAD를 재시작하세요.")
         else:
             problems += 1
-            _bad(f"포트는 열렸지만 ping 실패: {r.get('error')}", "다른 프로그램이 9877을 쓰고 있을 수 있습니다. FreeCAD Diag → Set Port… 로 바꾸세요.")
+            _bad(f"포트는 열렸지만 ping 실패: {r.get('error')}", "다른 프로그램이 9877을 쓰고 있을 수 있습니다. CAD X-ray → Set Port… 로 바꾸세요.")
 
     print("3. Claude Code 등록")
-    print("     claude mcp list  로 'freecad-diag' 가 보여야 합니다. 없으면:")
+    print("     claude mcp list  로 'cadxray' 가 보여야 합니다. 없으면:")
     print(f"     {register_command()}")
 
     print()
@@ -232,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(errors="replace")
         except Exception:
             pass
-    parser = argparse.ArgumentParser(prog="freecad-diag-mcp", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(prog="cadxray", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default=client.default_host(), help="애드온 서버 주소 (기본 127.0.0.1)")
     parser.add_argument("--port", type=int, default=client.default_port(), help="애드온 서버 포트 (기본 9877)")
     sub = parser.add_subparsers(dest="cmd")

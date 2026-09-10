@@ -114,7 +114,7 @@ def start(host=DEFAULT_HOST, port=DEFAULT_PORT):
     global _server, _thread, _bound
     if _server is not None:
         FreeCAD.Console.PrintMessage(
-            f"[FreeCAD Diag] 이미 실행 중입니다 ({_bound[0]}:{_bound[1]})\n"
+            f"[CAD X-ray] 이미 실행 중입니다 ({_bound[0]}:{_bound[1]})\n"
         )
         return True
 
@@ -125,7 +125,7 @@ def start(host=DEFAULT_HOST, port=DEFAULT_PORT):
     except OSError as e:
         _server = None
         FreeCAD.Console.PrintError(
-            f"[FreeCAD Diag] 포트 {port}을 열 수 없습니다: {e}\n"
+            f"[CAD X-ray] 포트 {port}을 열 수 없습니다: {e}\n"
             "  다른 프로그램이 쓰고 있거나 서버가 이미 떠 있습니다.\n"
         )
         return False
@@ -135,11 +135,11 @@ def start(host=DEFAULT_HOST, port=DEFAULT_PORT):
     _server.register_introspection_functions()
 
     main_thread.start()
-    _thread = threading.Thread(target=_server.serve_forever, name="FreeCADDiagRPC", daemon=True)
+    _thread = threading.Thread(target=_server.serve_forever, name="CadXrayRPC", daemon=True)
     _thread.start()
     _bound = (host, port)
     FreeCAD.Console.PrintMessage(
-        f"[FreeCAD Diag] 서버 시작 http://{host}:{port}  (툴 {len(REGISTRY)}개)\n"
+        f"[CAD X-ray] 서버 시작 http://{host}:{port}  (툴 {len(REGISTRY)}개)\n"
     )
     return True
 
@@ -147,16 +147,16 @@ def start(host=DEFAULT_HOST, port=DEFAULT_PORT):
 def stop():
     global _server, _thread, _bound
     if _server is None:
-        FreeCAD.Console.PrintMessage("[FreeCAD Diag] 서버가 실행 중이 아닙니다\n")
+        FreeCAD.Console.PrintMessage("[CAD X-ray] 서버가 실행 중이 아닙니다\n")
         return False
     try:
         _server.shutdown()
         _server.server_close()
     except Exception:
-        FreeCAD.Console.PrintError(f"[FreeCAD Diag] 종료 중 오류\n{traceback.format_exc()}")
+        FreeCAD.Console.PrintError(f"[CAD X-ray] 종료 중 오류\n{traceback.format_exc()}")
     _server = None
     _thread = None
     _bound = (None, None)
     main_thread.stop()
-    FreeCAD.Console.PrintMessage("[FreeCAD Diag] 서버 중지\n")
+    FreeCAD.Console.PrintMessage("[CAD X-ray] 서버 중지\n")
     return True

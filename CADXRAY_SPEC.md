@@ -1,4 +1,4 @@
-# freecad-diag-mcp 개발 명세
+# cadxray 개발 명세
 
 FreeCAD 모델 **진단**에 특화한 경량 MCP 서버. 기존 모델을 불러와 AI가 구조·상태를 파악하고, 수정은 `execute_code`로 하는 워크플로를 목표로 한다.
 
@@ -45,7 +45,7 @@ FreeCAD 모델 **진단**에 특화한 경량 MCP 서버. 기존 모델을 불�
 ```
 Claude Code  ←stdio(MCP)→  브릿지 (uv / Python / FastMCP)
                               ↓ XML-RPC  http://127.0.0.1:9877
-                           FreeCAD 애드온 (워크벤치 FreeCADDiag)
+                           FreeCAD 애드온 (워크벤치 CadXray)
                               ↓ 큐 + QTimer
                            메인 스레드에서 핸들러 실행
 ```
@@ -66,9 +66,9 @@ Claude Code  ←stdio(MCP)→  브릿지 (uv / Python / FastMCP)
 ## 4. 저장소 구조
 
 ```
-freecad-diag-mcp/
+cadxray/
 ├── addon/
-│   └── FreeCADDiag/                 # FreeCAD Mod 디렉토리에 심링크/복사
+│   └── CadXray/                 # FreeCAD Mod 디렉토리에 심링크/복사
 │       ├── Init.py                  # 비-GUI 초기화 (비워두거나 로깅만)
 │       ├── InitGui.py               # 워크벤치 등록, 메뉴/툴바
 │       ├── package.xml              # 애드온 메타데이터 (Addon Manager 호환)
@@ -89,7 +89,7 @@ freecad-diag-mcp/
 │           └── shape_features.py    # find_holes, check_interference, get_mass_properties (M6)
 ├── bridge/
 │   ├── pyproject.toml
-│   └── src/freecad_diag_mcp/
+│   └── src/cadxray/
 │       ├── __init__.py
 │       ├── client.py                # XML-RPC 클라이언트 래퍼, 타임아웃, 에러 메시지
 │       └── server.py                # FastMCP 툴 정의, main()
@@ -173,9 +173,9 @@ def stop():
 
 ### 6.3 InitGui.py — 워크벤치
 
-- 워크벤치 이름: **FreeCAD Diag**. 명령 3개: `Diag_StartServer`, `Diag_StopServer`, `Diag_ToggleAutoStart`.
+- 워크벤치 이름: **CAD X-ray**. 명령 3개: `CadXray_StartServer`, `CadXray_StopServer`, `CadXray_ToggleAutoStart`.
 - 상태는 `FreeCAD.Console.PrintMessage`로 리포트 뷰에 출력(포트, 실행 중 여부).
-- 자동시작: `FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/FreeCADDiag")`에 `AutoStart` bool 저장. 켜져 있으면 GUI 로딩 완료 후 서버 시작(neka-nat 방식 참고 — QTimer.singleShot으로 지연 시작).
+- 자동시작: `FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/CadXray")`에 `AutoStart` bool 저장. 켜져 있으면 GUI 로딩 완료 후 서버 시작(neka-nat 방식 참고 — QTimer.singleShot으로 지연 시작).
 - 포트는 같은 ParamGet에 `Port` int로 저장, 기본 9877.
 
 ### 6.4 핸들러 공통 (util.py)
@@ -314,7 +314,7 @@ def stop():
 from mcp.server.fastmcp import FastMCP, Image
 from .client import call, ConnectError
 
-mcp = FastMCP("freecad-diag")
+mcp = FastMCP("cadxray")
 
 @mcp.tool()
 def get_sketch_diagnostics(sketch: str, doc: str | None = None,
@@ -340,10 +340,10 @@ def main():
 ```
 
 - `client.py`: `ServerProxy(f"http://{host}:{port}", allow_none=True)`. 소켓 타임아웃은 커스텀 `Transport`로 설정(기본 120초, `execute_code`는 timeout+10). `ConnectionRefusedError`/`socket.timeout`을 잡아 다음 문자열로 반환:
-  > FreeCAD에 연결할 수 없습니다(127.0.0.1:9877). FreeCAD를 실행하고 워크벤치 'FreeCAD Diag'에서 'Start Server'를 누르거나 자동시작을 켜 주세요.
-- 실행 인자: `--host`(기본 127.0.0.1), `--port`(기본 9877). 환경변수 `FREECAD_DIAG_PORT`도 허용.
+  > FreeCAD에 연결할 수 없습니다(127.0.0.1:9877). FreeCAD를 실행하고 워크벤치 'CAD X-ray'에서 'Start Server'를 누르거나 자동시작을 켜 주세요.
+- 실행 인자: `--host`(기본 127.0.0.1), `--port`(기본 9877). 환경변수 `CADXRAY_PORT`도 허용.
 - 툴 docstring은 Claude가 읽는 사용 설명서다. **언제 부르는지**를 한 줄씩 넣는다.
-- `pyproject.toml`: `requires-python = ">=3.10"`, `dependencies = ["mcp>=1.2"]`, `[project.scripts] freecad-diag-mcp = "freecad_diag_mcp.server:main"`, 빌드 백엔드 hatchling.
+- `pyproject.toml`: `requires-python = ">=3.10"`, `dependencies = ["mcp>=1.2"]`, `[project.scripts] cadxray = "cadxray.server:main"`, 빌드 백엔드 hatchling.
 
 ### 7.12 `import_step` (M6)
 STEP/IGES처럼 히스토리 없는 파일을 문서에 넣고, 생긴 객체를 돌려준다.
@@ -399,16 +399,16 @@ STEP 분석 워크플로(CLAUDE.md에 추가): `import_step` → `get_document_g
 ```json
 {
   "mcpServers": {
-    "freecad-diag": {
+    "cadxray": {
       "command": "uv",
-      "args": ["--directory", "/ABS/PATH/freecad-diag-mcp/bridge", "run", "freecad-diag-mcp"]
+      "args": ["--directory", "/ABS/PATH/cadxray/bridge", "run", "cadxray"]
     }
   }
 }
 ```
 또는 CLI:
 ```bash
-claude mcp add --scope project freecad-diag -- uv --directory /ABS/PATH/freecad-diag-mcp/bridge run freecad-diag-mcp
+claude mcp add --scope project cadxray -- uv --directory /ABS/PATH/cadxray/bridge run cadxray
 claude mcp list          # 등록 확인
 ```
 Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 방법을 모두 적고, `claude mcp add` 문법이 바뀌었을 수 있으니 실패하면 `claude mcp add --help`를 보라고 안내한다.
@@ -418,7 +418,7 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 ## 9. 구현 순서 (마일스톤)
 
 ### M1 — 골격과 왕복 확인
-1. `addon/FreeCADDiag`: `main_thread.py`, `rpc_server.py`, `InitGui.py`, `handlers/documents.py`(`ping`, `list_documents`), `handlers/execute.py`
+1. `addon/CadXray`: `main_thread.py`, `rpc_server.py`, `InitGui.py`, `handlers/documents.py`(`ping`, `list_documents`), `handlers/execute.py`
 2. `bridge`: `client.py`, `server.py`에 `ping`, `list_documents`, `execute_code`
 3. `scripts/install_addon.py`: OS·버전별 Mod 경로 탐지 → 심링크(실패 시 복사). 경로 후보:
    - macOS: `~/Library/Application Support/FreeCAD/v1-0/Mod/`, `.../v1-1/Mod/`

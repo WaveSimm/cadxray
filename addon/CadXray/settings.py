@@ -1,11 +1,11 @@
 """애드온 설정 — FreeCAD 파라미터에 저장한다.
 
-경로: User parameter:BaseApp/Preferences/Mod/FreeCADDiag
+경로: User parameter:BaseApp/Preferences/Mod/CadXray
 """
 
 import FreeCAD
 
-PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/FreeCADDiag"
+PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/CadXray"
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 9877

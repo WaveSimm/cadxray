@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "freecad-diag": {
+    "cadxray": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge", "freecad-diag-mcp"]
+      "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
     }
   }
 }

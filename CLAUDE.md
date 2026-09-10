@@ -1,7 +1,7 @@
-# freecad-diag-mcp — Claude Code 작업 지침
+# cadxray — Claude Code 작업 지침
 
 ## 문서
-- 명세: `FREECAD_DIAG_MCP_SPEC.md` — 0장 작업 지침, 7장 툴 명세, 9장 마일스톤 순서, 부록 A 소스 지도
+- 명세: `CADXRAY_SPEC.md` — 0장 작업 지침, 7장 툴 명세, 9장 마일스톤 순서, 부록 A 소스 지도
 - API 근거: `docs/api-notes.md` — FreeCAD 1.0.2·1.1.3에서 확인한 사실. `[확인됨]` 표시의 출처
 - 소스 발췌: `docs/freecad-src-ref/<태그>/src/...` — 노트에 없는 것을 찾을 때만 grep. 1.0은 `*Py.xml`, 1.1은 `*.pyi`
 
@@ -14,7 +14,7 @@
 
 ## 코드
 - 애드온: FreeCAD 내장 Python(버전에 따라 3.10~3.12)에서 돈다. 외부 패키지 없이 stdlib + PySide만
-- 브릿지: Python ≥3.10, 의존성 `mcp`만. `uv run freecad-diag-mcp`로 실행
+- 브릿지: Python ≥3.10, 의존성 `mcp`만. `uv run cadxray`로 실행
 - 핸들러는 순수 함수: 입력은 키워드 인자, 출력은 JSON 직렬화 가능한 dict(봉투 형식). 예외는 잡아서 봉투로
 - FreeCAD 객체 접근은 항상 `main_thread.submit`을 통해서. 예외 없음
 - 모든 목록형 응답은 `max_*` 파라미터와 `truncated` 플래그를 가진다. 요약은 전체 기준, 상세는 상한까지

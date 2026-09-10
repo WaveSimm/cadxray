@@ -1,9 +1,9 @@
-# freecad-diag-mcp
+# cadxray
 
 FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
 - 지원: FreeCAD **1.0.x / 1.1.x** (1.1.3에서 검증), Windows · macOS · Linux
-- 구성: FreeCAD 안에서 도는 **애드온**(`addon/FreeCADDiag`) + Claude Code가 띄우는 **브릿지**(`bridge/`)
+- 구성: FreeCAD 안에서 도는 **애드온**(`addon/CadXray`) + Claude Code가 띄우는 **브릿지**(`bridge/`)
 - 두 프로그램은 `127.0.0.1:9877`로만 통신합니다 (외부 접속 없음)
 
 ---
@@ -13,15 +13,15 @@ FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다
 필요한 것: FreeCAD 1.0 이상(한 번은 실행해 둔 상태), [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), git.
 
 ```bash
-uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp install
-claude mcp add --scope user freecad-diag -- uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
+claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
 첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고, 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `서버 시작 http://127.0.0.1:9877`). 끝입니다.
 
 막히면:
 ```bash
-uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp doctor
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
 ```
 애드온 설치 여부 · FreeCAD 서버 연결 · 버전 불일치를 한글로 알려 줍니다.
 
@@ -29,12 +29,12 @@ uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge 
 
 **개발자 설치** (저장소를 직접 고치면서 쓸 때):
 ```bash
-git clone https://github.com/WaveSimm/freecad-diag-mcp.git && cd freecad-diag-mcp/bridge
-uv run freecad-diag-mcp install --dev        # 심링크 — 코드를 고치면 바로 반영
-claude mcp add --scope user freecad-diag -- uv --directory "<이 폴더의 절대경로>" run freecad-diag-mcp
+git clone https://github.com/WaveSimm/cadxray.git && cd cadxray/bridge
+uv run cadxray install --dev        # 심링크 — 코드를 고치면 바로 반영
+claude mcp add --scope user cadxray -- uv --directory "<이 폴더의 절대경로>" run cadxray
 ```
 
-**FreeCAD Addon Manager**로도 됩니다: 설정 → 사용자 저장소에 `https://github.com/WaveSimm/freecad-diag-mcp` 추가 → "FreeCAD Diag" 설치. (브릿지 등록은 둘째 줄 그대로.)
+**FreeCAD Addon Manager**로도 됩니다: 설정 → 사용자 저장소에 `https://github.com/WaveSimm/cadxray` 추가 → "CAD X-ray" 설치. (브릿지 등록은 둘째 줄 그대로.)
 
 | OS | 애드온이 들어가는 Mod 폴더 |
 |---|---|
@@ -46,7 +46,7 @@ claude mcp add --scope user freecad-diag -- uv --directory "<이 폴더의 절�
 
 ## 2. FreeCAD 쪽 조작 (보통은 할 일 없음)
 
-서버는 FreeCAD를 켤 때 **자동으로 시작**됩니다. 워크벤치 **FreeCAD Diag** 메뉴에 있는 것:
+서버는 FreeCAD를 켤 때 **자동으로 시작**됩니다. 워크벤치 **CAD X-ray** 메뉴에 있는 것:
 
 | 메뉴 | 용도 |
 |---|---|
@@ -56,7 +56,7 @@ claude mcp add --scope user freecad-diag -- uv --directory "<이 폴더의 절�
 
 ## 3. Claude Code 연결 확인
 
-`claude`를 실행하고 `/mcp`를 치면 `freecad-diag`가 연결된 것으로 보입니다. 안 보이면 `doctor`부터.
+`claude`를 실행하고 `/mcp`를 치면 `cadxray`가 연결된 것으로 보입니다. 안 보이면 `doctor`부터.
 
 ## 4. 이렇게 씁니다
 
@@ -135,16 +135,16 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 ## 6. 문제 해결
 
 **"FreeCAD에 연결할 수 없습니다(127.0.0.1:9877)"**
-FreeCAD가 꺼져 있거나 서버가 안 떴습니다. 먼저 `freecad-diag-mcp doctor`(1장의 긴 명령)를 돌리면 어느 쪽인지 알려 줍니다. FreeCAD가 켜져 있는데도 안 뜨면 리포트 뷰를 보고, **FreeCAD Diag → Auto Start**가 꺼져 있으면 켭니다.
+FreeCAD가 꺼져 있거나 서버가 안 떴습니다. 먼저 `cadxray doctor`(1장의 긴 명령)를 돌리면 어느 쪽인지 알려 줍니다. FreeCAD가 켜져 있는데도 안 뜨면 리포트 뷰를 보고, **CAD X-ray → Auto Start**가 꺼져 있으면 켭니다.
 
-**워크벤치 목록에 "FreeCAD Diag"가 없다**
+**워크벤치 목록에 "CAD X-ray"가 없다**
 `doctor`의 1번 항목이 설치된 폴더와 버전을 보여 줍니다. 폴더가 실제 FreeCAD 버전(v1-0 / v1-1)과 맞는지 FreeCAD **도움말 → 정보**와 대조하고, 다르면 `install --dest "<맞는 Mod 폴더>"`.
 
 **"포트 9877을 열 수 없습니다"**
 이미 서버가 떠 있거나 다른 프로그램이 쓰고 있습니다. **Set Port…**로 바꾸고 `claude mcp add` 명령 끝에 `--port 9878`을 붙여 다시 등록합니다.
 
 **툴이 10개보다 적게 보인다 / 새 툴이 안 보인다**
-브릿지가 옛 목록을 들고 있는 것입니다. Claude Code에서 `/mcp` → `freecad-diag` → **Reconnect**.
+브릿지가 옛 목록을 들고 있는 것입니다. Claude Code에서 `/mcp` → `cadxray` → **Reconnect**.
 
 **FreeCAD가 멈췄다**
 `execute_code`로 긴 코드를 돌린 것입니다. 메인 스레드에서 실행되므로 중단할 수 없습니다 — 끝나길 기다리거나 FreeCAD를 강제 종료합니다. 코드를 짧게 나눠서 시키세요.
@@ -165,14 +165,14 @@ macOS는 `/Applications/FreeCAD.app/Contents/MacOS/FreeCADCmd`, Linux는 `freeca
 ## 8. 저장소 구성
 
 ```
-addon/FreeCADDiag/     FreeCAD 애드온 (stdlib + PySide만 사용)
+addon/CadXray/     FreeCAD 애드온 (stdlib + PySide만 사용)
   handlers/            툴 구현 — 파일마다 TOOLS 선언, 자동 등록
 bridge/                MCP 브릿지 (의존성: mcp)
 scripts/install_addon.py
 tests/fixtures/        테스트 모델 생성
 tests/in_freecad/      핸들러 테스트 (FreeCADCmd)
 docs/api-notes.md      FreeCAD 1.0.2·1.1.3 API 확인 노트 — 구현의 근거
-FREECAD_DIAG_MCP_SPEC.md  개발 명세
+CADXRAY_SPEC.md  개발 명세
 ```
 
 라이선스: MIT (`LICENSE`). `docs/freecad-src-ref/`의 FreeCAD 소스 발췌는 LGPL-2.1입니다.

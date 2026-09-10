@@ -11,10 +11,10 @@ from . import rpc_server, settings
 
 
 def log(msg):
-    FreeCAD.Console.PrintMessage(f"[FreeCAD Diag] {msg}\n")
+    FreeCAD.Console.PrintMessage(f"[CAD X-ray] {msg}\n")
 
 
-class DiagStartServer:
+class CadXrayStartServer:
     def GetResources(self):
         return {
             "MenuText": "Start Server",
@@ -28,7 +28,7 @@ class DiagStartServer:
         rpc_server.start(settings.get_host(), settings.get_port())
 
 
-class DiagStopServer:
+class CadXrayStopServer:
     def GetResources(self):
         return {"MenuText": "Stop Server", "ToolTip": "진단 MCP 서버를 중지한다"}
 
@@ -39,7 +39,7 @@ class DiagStopServer:
         rpc_server.stop()
 
 
-class DiagToggleAutoStart:
+class CadXrayToggleAutoStart:
     def GetResources(self):
         return {
             "MenuText": "Auto Start",
@@ -56,7 +56,7 @@ class DiagToggleAutoStart:
         log(f"자동시작 {'켜짐' if new_value else '꺼짐'}")
 
 
-class DiagSetPort:
+class CadXraySetPort:
     def GetResources(self):
         return {
             "MenuText": "Set Port…",
@@ -72,7 +72,7 @@ class DiagSetPort:
         current = settings.get_port()
         value, ok = QtWidgets.QInputDialog.getInt(
             None,
-            "FreeCAD Diag",
+            "CAD X-ray",
             "서버 포트 (기본 9877)\n\n"
             "바꾸면 Claude Code의 .mcp.json에도 --port를 같은 값으로 넣어야 합니다.",
             current,
@@ -90,23 +90,23 @@ class DiagSetPort:
             log("Start Server를 누르면 새 포트로 시작합니다.")
 
 
-class FreeCADDiagWorkbench(FreeCADGui.Workbench):
-    MenuText = "FreeCAD Diag"
+class CadXrayWorkbench(FreeCADGui.Workbench):
+    MenuText = "CAD X-ray"
     ToolTip = "FreeCAD 모델 진단용 MCP 서버"
 
     def Initialize(self):
-        FreeCADGui.addCommand("Diag_StartServer", DiagStartServer())
-        FreeCADGui.addCommand("Diag_StopServer", DiagStopServer())
-        FreeCADGui.addCommand("Diag_ToggleAutoStart", DiagToggleAutoStart())
-        FreeCADGui.addCommand("Diag_SetPort", DiagSetPort())
+        FreeCADGui.addCommand("CadXray_StartServer", CadXrayStartServer())
+        FreeCADGui.addCommand("CadXray_StopServer", CadXrayStopServer())
+        FreeCADGui.addCommand("CadXray_ToggleAutoStart", CadXrayToggleAutoStart())
+        FreeCADGui.addCommand("CadXray_SetPort", CadXraySetPort())
         cmds = [
-            "Diag_StartServer",
-            "Diag_StopServer",
-            "Diag_ToggleAutoStart",
-            "Diag_SetPort",
+            "CadXray_StartServer",
+            "CadXray_StopServer",
+            "CadXray_ToggleAutoStart",
+            "CadXray_SetPort",
         ]
-        self.appendToolbar("FreeCAD Diag", cmds)
-        self.appendMenu("FreeCAD Diag", cmds)
+        self.appendToolbar("CAD X-ray", cmds)
+        self.appendMenu("CAD X-ray", cmds)
 
     def Activated(self):
         if rpc_server.is_running():
@@ -114,7 +114,7 @@ class FreeCADDiagWorkbench(FreeCADGui.Workbench):
             log(f"서버 실행 중 http://{host}:{port}")
         else:
             log(
-                "서버 중지 상태. 메뉴 'FreeCAD Diag > Start Server'로 시작하세요 "
+                "서버 중지 상태. 메뉴 'CAD X-ray > Start Server'로 시작하세요 "
                 f"(포트 {settings.get_port()}, 자동시작 "
                 f"{'켜짐' if settings.get_autostart() else '꺼짐'})"
             )
@@ -130,7 +130,7 @@ def _autostart():
 
 def register():
     """워크벤치를 등록하고, 자동시작이 켜져 있으면 지연 시작을 예약한다."""
-    FreeCADGui.addWorkbench(FreeCADDiagWorkbench())
+    FreeCADGui.addWorkbench(CadXrayWorkbench())
     try:
         if settings.get_autostart():
             from PySide import QtCore
@@ -138,4 +138,4 @@ def register():
             # GUI 로딩이 끝난 뒤에 시작한다.
             QtCore.QTimer.singleShot(3000, _autostart)
     except Exception as e:
-        FreeCAD.Console.PrintError(f"[FreeCAD Diag] 자동시작 예약 실패: {e}\n")
+        FreeCAD.Console.PrintError(f"[CAD X-ray] 자동시작 예약 실패: {e}\n")

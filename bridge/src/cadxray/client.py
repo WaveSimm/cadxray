@@ -29,12 +29,12 @@ def configure(host: str | None = None, port: int | None = None) -> None:
 
 
 def default_host() -> str:
-    return os.environ.get("FREECAD_DIAG_HOST", DEFAULT_HOST)
+    return os.environ.get("CADXRAY_HOST", DEFAULT_HOST)
 
 
 def default_port() -> int:
     try:
-        return int(os.environ.get("FREECAD_DIAG_PORT", DEFAULT_PORT))
+        return int(os.environ.get("CADXRAY_PORT", DEFAULT_PORT))
     except ValueError:
         return DEFAULT_PORT
 
@@ -61,7 +61,7 @@ def _not_connected() -> dict:
         "ok": False,
         "error": (
             f"FreeCAD에 연결할 수 없습니다({_host}:{_port}). "
-            "FreeCAD를 실행하고 워크벤치 'FreeCAD Diag'에서 'Start Server'를 누르거나 "
+            "FreeCAD를 실행하고 워크벤치 'CAD X-ray'에서 'Start Server'를 누르거나 "
             "자동시작(Auto Start)을 켜 주세요."
         ),
     }

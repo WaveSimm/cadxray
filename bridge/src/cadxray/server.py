@@ -12,7 +12,7 @@ import json
 from . import client
 from ._mcp_compat import Image, Server
 
-mcp = Server("freecad-diag")
+mcp = Server("cadxray")
 
 
 @mcp.tool()
@@ -339,7 +339,7 @@ def reload_handlers() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="freecad-diag-mcp")
+    parser = argparse.ArgumentParser(prog="cadxray")
     parser.add_argument("--host", default=client.default_host())
     parser.add_argument("--port", type=int, default=client.default_port())
     args = parser.parse_args()

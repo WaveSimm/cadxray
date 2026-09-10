@@ -45,8 +45,8 @@ for p in (os.path.join(ROOT, "addon"), os.path.join(ROOT, "tests", "fixtures")):
 import FreeCAD  # noqa: E402
 
 import make_test_models as fx  # noqa: E402
-from FreeCADDiag import rpc_server  # noqa: E402
-from FreeCADDiag.handlers import (  # noqa: E402
+from CadXray import rpc_server  # noqa: E402
+from CadXray.handlers import (  # noqa: E402
     REGISTRY,
     document_graph,
     documents,

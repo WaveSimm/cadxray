@@ -17,7 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 
-ADDON_NAME = "FreeCADDiag"
+ADDON_NAME = "CadXray"
 SRC = Path(__file__).resolve().parent.parent / "addon" / ADDON_NAME
 
 
@@ -75,7 +75,7 @@ def install(dest_dir: Path, use_copy: bool = False) -> Path:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="FreeCAD Diag 애드온 설치")
+    ap = argparse.ArgumentParser(description="CAD X-ray 애드온 설치")
     ap.add_argument("--dest", help="Mod 디렉토리 경로를 직접 지정")
     ap.add_argument("--copy", action="store_true", help="심링크 대신 복사")
     ap.add_argument("--list", action="store_true", help="후보 경로만 출력")
@@ -103,8 +103,8 @@ def main() -> int:
     print()
     print("다음 단계:")
     print("  1. FreeCAD를 껐다가 다시 켠다")
-    print("  2. 워크벤치 목록에서 'FreeCAD Diag'를 고른다")
-    print("  3. 메뉴 'FreeCAD Diag > Start Server'를 누른다 (리포트 뷰에 포트가 찍힌다)")
+    print("  2. 워크벤치 목록에서 'CAD X-ray'를 고른다")
+    print("  3. 메뉴 'CAD X-ray > Start Server'를 누른다 (리포트 뷰에 포트가 찍힌다)")
     return 0
 
 

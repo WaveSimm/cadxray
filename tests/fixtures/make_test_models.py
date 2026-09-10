@@ -219,7 +219,7 @@ def T6_step():
     b.Shape = Part.makeBox(20, 20, 20, Vec(10, 0, 30))  # X로 10 겹침 → 10×20×20 = 4000
     src.recompute()
 
-    path = os.path.join(tempfile.mkdtemp(prefix="fcdiag_"), "T6_step.step")
+    path = os.path.join(tempfile.mkdtemp(prefix="cadxray_"), "T6_step.step")
     Import.export([block, plate, a, b], path)
     FreeCAD.closeDocument("T6_src")
 

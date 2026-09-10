@@ -1,4 +1,4 @@
-# FreeCAD API 확인 노트 (freecad-diag-mcp)
+# FreeCAD API 확인 노트 (cadxray)
 
 확인 기준: FreeCAD 소스 태그 **1.0.2**와 **1.1.3** (2026-09-09, GitHub sparse checkout). 두 태그에서 같은 사실은 `[1.0.2][1.1.3]`, 한쪽만이면 그 태그를 적었다.
 소스는 `docs/freecad-src-ref/<태그>/src/...`에 그대로 있다(LGPL-2.1, LICENSE 동봉). 실제 설치 버전에서는 명세 부록 A.1의 라이브 introspection으로 한 번 더 확인한다.

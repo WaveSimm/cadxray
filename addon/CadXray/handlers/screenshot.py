@@ -95,7 +95,7 @@ def get_screenshot(
         except Exception as e:
             warnings.append(f"fitAll 실패: {e}")
 
-    tmpdir = tempfile.mkdtemp(prefix="fcdiag_")
+    tmpdir = tempfile.mkdtemp(prefix="cadxray_")
     path = os.path.join(tmpdir, "view.png")
     try:
         try:
