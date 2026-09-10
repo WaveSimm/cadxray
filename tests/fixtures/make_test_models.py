@@ -82,6 +82,9 @@ def T1_clean():
     body.addObject(pocket)
     pocket.Profile = sk2
     pocket.Type = 1  # ThroughAll
+    # 스케치가 z=0(XY 평면)에 있고 Pad는 +Z로 올라간다. Pocket은 기본적으로
+    # 스케치 법선 반대(-Z)로 파므로 아무것도 안 깎인다 → 뒤집어서 +Z로 관통시킨다.
+    pocket.Reversed = True
     doc.recompute()
     return doc
 
