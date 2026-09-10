@@ -43,8 +43,6 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray d
 ```
 애드온 설치 여부 · FreeCAD 서버 연결 · 버전 불일치를 한글로 알려 줍니다.
 
-> 이 저장소가 비공개인 동안은 위 명령이 남의 컴퓨터에서 안 됩니다(GitHub 로그인 필요). 그때는 아래 개발자 설치를 쓰세요.
-
 **개발자 설치** (저장소를 직접 고치면서 쓸 때):
 ```bash
 git clone https://github.com/WaveSimm/cadxray.git && cd cadxray/bridge
