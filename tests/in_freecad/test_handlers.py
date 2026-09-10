@@ -279,7 +279,12 @@ def test_step_tools():
     check("find_holes ok", r["ok"], str(r.get("error")))
     real = [h for h in d["holes"] if h["kind"] == "hole"]
     big = [h for h in real if abs(h["diameter"] - 6.6) < 0.01]
-    check("Ø6.6 구멍 4개 (전체 8: +자리파기 2 +접시 1 +카운터보어 1)", len(big) == 4 and d["holes_total"] == 8, f"holes_total={d['holes_total']}, Ø6.6={len(big)}")
+    check("Ø6.6 구멍 4개 (전체 9: +자리파기 2 +접시 1 +카운터보어 1 +탭드릴 1)", len(big) == 4 and d["holes_total"] == 9, f"holes_total={d['holes_total']}, Ø6.6={len(big)}")
+    check("Ø6.6 → M6 볼트 관통(보통급) 추정", all(h.get("thread_hint", {}).get("size") == "M6" and h["thread_hint"]["type"] == "clearance_medium" for h in big), str([h.get("thread_hint") for h in big]))
+    tap = next((h for h in real if abs(h["diameter"] - 3.3) < 0.01), None)
+    check("Ø3.3 막힌 구멍 → M4 탭 드릴 (high)", tap is not None and tap["thread_hint"]["size"] == "M4" and tap["thread_hint"]["type"] == "tap_drill" and tap["thread_hint"]["confidence"] == "high" and tap["through"] is False, str(tap))
+    recess = [h for h in real if abs(h["diameter"] - 4.0) < 0.01]
+    check("Ø4 자리파기(깊이 1)에는 나사 추정 안 붙음", recess and all("thread_hint" not in h for h in recess), str([h.get("thread_hint") for h in recess]))
     m3 = [h for h in real if abs(h["diameter"] - 3.4) < 0.01]
     cs = next((h for h in m3 if "countersink" in h), None)
     check("Ø3.4 + 90° 카운터싱크 입구 Ø6.5 깊이 1.55", cs is not None and abs(cs["countersink"]["top_diameter"] - 6.5) < 0.02
@@ -289,6 +294,8 @@ def test_step_tools():
     check("Ø3.4 + Ø5.6 카운터보어 깊이 3 → 구멍 하나로 합침", cb is not None and abs(cb["counterbore"]["diameter"] - 5.6) < 0.02
           and abs(cb["counterbore"]["depth"] - 3) < 0.02 and cb["through"] is True
           and not any(abs(h["diameter"] - 5.6) < 0.01 for h in real), str(cb))
+    check("카운터보어 구멍 → 'M3 … 볼트 머리 자리' 문구", cb is not None and cb["thread_hint"]["size"] == "M3" and "볼트 머리" in cb["thread_hint"]["text"], str(cb and cb.get("thread_hint")))
+    check("카운터싱크 구멍 → '접시머리' 문구", cs is not None and "접시머리" in cs["thread_hint"]["text"], str(cs and cs.get("thread_hint")))
     p34 = next((p for p in d["patterns"] if abs(p["diameter"] - 3.4) < 0.01), None)
     check("Ø3.4 패턴에 countersink 1·counterbore 1 표시", p34 and p34.get("countersink") == 1 and p34.get("counterbore") == 1, str(p34))
     got = sorted(tuple(h["center"][:2]) for h in big)
@@ -330,7 +337,8 @@ def test_step_tools():
                   - 2 * pi * 2.0 ** 2 * 1.0                        # − Ø4 자리파기 2개
                   - 2 * pi * 1.7 ** 2 * 8                          # − Ø3.4 관통 2개
                   - (frustum - pi * 1.7 ** 2 * 1.55)               # − 카운터싱크가 더 깎는 살
-                  - pi * (2.8 ** 2 - 1.7 ** 2) * 3)                # − 카운터보어가 더 깎는 살
+                  - pi * (2.8 ** 2 - 1.7 ** 2) * 3                 # − 카운터보어가 더 깎는 살
+                  - pi * 1.65 ** 2 * 6)                             # − M4 탭 드릴 막힌 구멍
     check("부피 = 판 − 구멍 4개", abs(d["volume_mm3"] - expected_v) < 0.5, f"{d['volume_mm3']} vs {expected_v:.2f}")
     check("질량 g = 부피/1000 × 2.7", abs(d["mass_g"] - expected_v / 1000 * 2.7) < 0.01, str(d["mass_g"]))
     cm = d["center_of_mass"]  # 자리파기·접시·카운터보어가 한쪽에 있어 중심이 조금 밀린다

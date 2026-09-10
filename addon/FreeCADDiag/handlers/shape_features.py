@@ -112,6 +112,50 @@ def get_mass_properties(name=None, doc=None, density=None):
 # --- 7.13 find_holes ------------------------------------------------------------
 
 
+# --- 나사 규격 추정 (ISO 미터 보통나사) ---------------------------------------
+# 벤더 STEP은 나사산을 모델링하지 않는다 — 탭 드릴 지름의 민구멍이나 호칭 지름 원통으로 온다.
+# 그래서 지름을 표와 대조해 '추정'만 붙인다. 탭 드릴은 값이 독특해 신뢰도가 높고,
+# 관통 구멍은 그냥 그 지름의 구멍일 수도 있어 중간이다. [ISO 273 관통 / 일반 탭 드릴 표]
+_THREADS = [
+    # (호칭, 탭드릴, 관통 정밀, 관통 보통, 관통 거침)
+    ("M1.6", 1.25, 1.7, 1.8, 2.0),
+    ("M2", 1.6, 2.2, 2.4, 2.6),
+    ("M2.5", 2.05, 2.7, 2.9, 3.1),
+    ("M3", 2.5, 3.2, 3.4, 3.6),
+    ("M4", 3.3, 4.3, 4.5, 4.8),
+    ("M5", 4.2, 5.3, 5.5, 5.8),
+    ("M6", 5.0, 6.4, 6.6, 7.0),
+    ("M8", 6.8, 8.4, 9.0, 10.0),
+    ("M10", 8.5, 10.5, 11.0, 12.0),
+    ("M12", 10.2, 13.0, 13.5, 14.5),
+    ("M14", 12.0, 15.0, 15.5, 16.5),
+    ("M16", 14.0, 17.0, 17.5, 18.5),
+    ("M20", 17.5, 21.0, 22.0, 24.0),
+]
+_THREAD_TOL = 0.06
+
+
+def _thread_hint(diameter, depth):
+    """지름으로 나사 규격을 추정한다. 없으면 None."""
+    for size, tap, fine, medium, coarse in _THREADS:
+        if abs(diameter - tap) <= _THREAD_TOL:
+            return {"size": size, "type": "tap_drill", "confidence": "high",
+                    "text": f"{size} 탭 드릴(암나사 자리) Ø{tap}"}
+    for size, tap, fine, medium, coarse in _THREADS:
+        for kind, val, ko in (("clearance_fine", fine, "정밀"), ("clearance_medium", medium, "보통"), ("clearance_coarse", coarse, "거침")):
+            if abs(diameter - val) <= _THREAD_TOL:
+                return {"size": size, "type": kind, "confidence": "medium",
+                        "text": f"{size} 볼트 관통({ko}급) Ø{val}"}
+    # 호칭 지름 그대로 뚫린 깊은 구멍 = 나사산을 생략한 암나사일 수 있다 (깊이가 지름 이상일 때만)
+    if depth >= diameter:
+        for size, *_ in _THREADS:
+            nominal = float(size[1:])
+            if abs(diameter - nominal) <= _THREAD_TOL:
+                return {"size": size, "type": "nominal", "confidence": "low",
+                        "text": f"{size} 호칭 지름 — 나사산 생략된 암나사일 수 있음"}
+    return None
+
+
 def _canonical_axis(axis):
     a = Vec(axis)
     if a.Length < 1e-12:
@@ -359,6 +403,14 @@ def find_holes(
         for extra in ("counterbore", "countersink", "drill_point"):
             if extra in rec:
                 h[extra] = rec[extra]
+        if rec["kind"] == "hole":
+            hint = _thread_hint(2 * rec["r"], depth)
+            if hint:
+                if "counterbore" in rec and hint["type"].startswith("clearance"):
+                    hint["text"] += " + 카운터보어 → 볼트 머리 자리"
+                elif "countersink" in rec and rec["countersink"]["type"] == "countersink" and hint["type"].startswith("clearance"):
+                    hint["text"] += " + 카운터싱크 → 접시머리 볼트 자리"
+                h["thread_hint"] = hint
         holes.append(h)
 
     # 어느 구멍에도 안 붙은 온전한 오목 원뿔 (원뿔 자리만 있는 경우)
@@ -416,6 +468,9 @@ def find_holes(
             pat["counterbore"] = n_cb
         if n_cs:
             pat["countersink"] = n_cs
+        hints = {h["thread_hint"]["size"] + " " + h["thread_hint"]["type"] for h in hs if "thread_hint" in h}
+        if len(hints) == 1:
+            pat["thread_hint"] = hints.pop()
         patterns.append(pat)
 
     n_holes = sum(1 for h in holes if h["kind"] == "hole")
@@ -447,6 +502,8 @@ def find_holes(
             "내부 모서리 필렛이나 슬롯 끝입니다."
         )
     warnings.append("through는 구멍 양 끝 바깥 지점이 재료 밖인지로 판정한 휴리스틱입니다. 포켓으로 뚫린 구멍은 관통으로 보일 수 있습니다.")
+    if any("thread_hint" in h for h in holes):
+        warnings.append("thread_hint는 지름을 ISO 미터나사 표와 대조한 추정입니다. 탭 드릴(high)은 믿을 만하고, 관통(medium)은 그냥 그 지름의 구멍일 수도 있습니다.")
     if truncated:
         warnings.append(f"항목 {len(holes)}개 중 {max_holes}개만 담았습니다. patterns는 전체 기준입니다.")
     if util.fit_cap(data, "holes", warnings):

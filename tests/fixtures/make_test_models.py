@@ -205,6 +205,8 @@ def T6_step():
     # M3 카운터보어: Ø3.4 관통 + 윗면에서 Ø5.6 깊이 3
     plate_shape = plate_shape.cut(Part.makeCylinder(1.7, 8, Vec(25, 45, 0)))
     plate_shape = plate_shape.cut(Part.makeCylinder(2.8, 3, Vec(25, 45, 5)))
+    # M4 탭 드릴: Ø3.3 막힌 구멍 깊이 6 (윗면에서)
+    plate_shape = plate_shape.cut(Part.makeCylinder(1.65, 6, Vec(25, 15, 2)))
     plate = src.addObject("Part::Feature", "Plate")
     plate.Label = "Plate"
     plate.Shape = plate_shape
