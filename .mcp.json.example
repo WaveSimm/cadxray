@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "freecad-diag": {
-      "command": "uv",
-      "args": ["--directory", "/ABS/PATH/freecad-diag-mcp/bridge", "run", "freecad-diag-mcp"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge", "freecad-diag-mcp"]
     }
   }
 }

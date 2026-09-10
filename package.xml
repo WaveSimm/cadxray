@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- FreeCAD Addon Manager용. 애드온 본체는 addon/FreeCADDiag/ 에 있다.
+     Addon Manager 설정 → 사용자 저장소에 https://github.com/WaveSimm/freecad-diag-mcp 를 추가하면 설치된다. -->
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>FreeCAD Diag</name>
+  <description>FreeCAD 모델 진단용 MCP 서버. 문서 구조·스케치 제약·형상 유효성·구멍·간섭을 JSON으로 내보낸다.</description>
+  <version>0.2.0</version>
+  <date>2026-09-10</date>
+  <maintainer email="yunsim@gmail.com">Wave</maintainer>
+  <license file="LICENSE">MIT</license>
+  <url type="repository" branch="master">https://github.com/WaveSimm/freecad-diag-mcp</url>
+  <url type="readme">https://github.com/WaveSimm/freecad-diag-mcp/blob/master/README.md</url>
+  <content>
+    <workbench>
+      <classname>FreeCADDiagWorkbench</classname>
+      <subdirectory>addon/FreeCADDiag/</subdirectory>
+      <name>FreeCAD Diag</name>
+      <description>진단 MCP 서버 (127.0.0.1:9877)</description>
+      <freecadmin>1.0</freecadmin>
+    </workbench>
+  </content>
+</package>

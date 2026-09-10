@@ -28,7 +28,9 @@ def get_host():
 
 
 def get_autostart():
-    return bool(_p().GetBool("AutoStart", False))
+    # 기본 켜짐: 설치하면 FreeCAD를 켤 때 서버가 같이 뜬다 (127.0.0.1 전용이라 외부 노출 없음).
+    # 사용자가 메뉴에서 끄면 그 값이 저장돼 유지된다.
+    return bool(_p().GetBool("AutoStart", True))
 
 
 def set_autostart(value):

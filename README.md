@@ -8,58 +8,55 @@ FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다
 
 ---
 
-## 1. 설치 (처음 한 번)
+## 1. 설치 — 명령 두 줄
 
-필요한 것: FreeCAD 1.0 이상, [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), Python 3.10 이상, git.
+필요한 것: FreeCAD 1.0 이상(한 번은 실행해 둔 상태), [Claude Code](https://claude.com/claude-code), [uv](https://docs.astral.sh/uv/), git.
 
 ```bash
-git clone https://github.com/WaveSimm/freecad-diag-mcp.git
-cd freecad-diag-mcp
-python scripts/install_addon.py
+uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp install
+claude mcp add --scope user freecad-diag -- uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp
 ```
 
-> 이 저장소는 비공개입니다. 다른 컴퓨터에서 clone하려면 그 컴퓨터에서 `gh auth login`으로 같은 GitHub 계정에 먼저 로그인합니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고, 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `서버 시작 http://127.0.0.1:9877`). 끝입니다.
 
-이 프로젝트는 [theosib/FreeCAD-MCP-Server](https://github.com/theosib/FreeCAD-MCP-Server)의 진단 툴 설계와 [neka-nat/freecad-mcp](https://github.com/neka-nat/freecad-mcp)의 애드온 서버 패턴을 참고해 한국어 환경에 맞춰 다시 만든 것입니다.
+막히면:
+```bash
+uvx --from git+https://github.com/WaveSimm/freecad-diag-mcp#subdirectory=bridge freecad-diag-mcp doctor
+```
+애드온 설치 여부 · FreeCAD 서버 연결 · 버전 불일치를 한글로 알려 줍니다.
 
-`install_addon.py`가 OS별 FreeCAD Mod 폴더를 찾아 애드온을 **심링크**로 연결합니다(권한이 없으면 복사). 경로를 직접 주려면 `--dest "<Mod 폴더>"`, 후보만 보려면 `--list`.
+> 이 저장소가 비공개인 동안은 위 명령이 남의 컴퓨터에서 안 됩니다(GitHub 로그인 필요). 그때는 아래 개발자 설치를 쓰세요.
 
-| OS | Mod 폴더 |
+**개발자 설치** (저장소를 직접 고치면서 쓸 때):
+```bash
+git clone https://github.com/WaveSimm/freecad-diag-mcp.git && cd freecad-diag-mcp/bridge
+uv run freecad-diag-mcp install --dev        # 심링크 — 코드를 고치면 바로 반영
+claude mcp add --scope user freecad-diag -- uv --directory "<이 폴더의 절대경로>" run freecad-diag-mcp
+```
+
+**FreeCAD Addon Manager**로도 됩니다: 설정 → 사용자 저장소에 `https://github.com/WaveSimm/freecad-diag-mcp` 추가 → "FreeCAD Diag" 설치. (브릿지 등록은 둘째 줄 그대로.)
+
+| OS | 애드온이 들어가는 Mod 폴더 |
 |---|---|
 | Windows | `%APPDATA%\FreeCAD\v1-1\Mod\` (1.0은 `v1-0`) |
 | macOS | `~/Library/Application Support/FreeCAD/v1-1/Mod/` |
-| Linux | `~/.local/share/FreeCAD/v1-1/Mod/` (Flatpak·snap 경로는 `--list`로 확인) |
+| Linux | `~/.local/share/FreeCAD/v1-1/Mod/` (Flatpak·snap은 `install --dest` 로 지정) |
 
-## 2. FreeCAD에서 서버 켜기
+이 프로젝트는 [theosib/FreeCAD-MCP-Server](https://github.com/theosib/FreeCAD-MCP-Server)의 진단 툴 설계와 [neka-nat/freecad-mcp](https://github.com/neka-nat/freecad-mcp)의 애드온 서버 패턴을 참고해 다시 만든 것입니다.
 
-1. FreeCAD를 껐다 켭니다
-2. 워크벤치 목록에서 **FreeCAD Diag**를 고릅니다
-3. 메뉴 **FreeCAD Diag → Start Server** — 리포트 뷰에 `서버 시작 http://127.0.0.1:9877 (툴 10개)`가 찍히면 됩니다
+## 2. FreeCAD 쪽 조작 (보통은 할 일 없음)
 
-같은 메뉴의 **Auto Start**를 켜 두면 다음부터는 FreeCAD를 켤 때 서버가 같이 뜹니다. **Set Port…**로 포트를 바꿀 수 있습니다(바꾸면 아래 3번 설정도 같이).
+서버는 FreeCAD를 켤 때 **자동으로 시작**됩니다. 워크벤치 **FreeCAD Diag** 메뉴에 있는 것:
 
-## 3. Claude Code 연결
+| 메뉴 | 용도 |
+|---|---|
+| Start / Stop Server | 수동 시작·중지 |
+| Auto Start | 자동시작 켜기/끄기 (기본 켜짐) |
+| Set Port… | 포트 변경 (기본 9877). 바꾸면 `claude mcp add` 명령 끝에 `--port 9878`을 붙입니다 |
 
-저장소 루트의 `.mcp.json.example`을 `.mcp.json`으로 복사하고 경로만 **절대경로**로 바꿉니다:
+## 3. Claude Code 연결 확인
 
-```json
-{
-  "mcpServers": {
-    "freecad-diag": {
-      "command": "uv",
-      "args": ["--directory", "E:/claude/freecad-diag-mcp/bridge", "run", "freecad-diag-mcp"]
-    }
-  }
-}
-```
-
-그 폴더에서 `claude`를 실행하고 `/mcp`를 치면 `freecad-diag`가 연결된 것으로 보입니다. 다른 폴더에서 쓰려면 사용자 범위로 등록합니다:
-
-```bash
-claude mcp add --scope user freecad-diag -- uv --directory "E:/claude/freecad-diag-mcp/bridge" run freecad-diag-mcp
-```
-
-포트를 바꿨다면 `args` 끝에 `"--port", "9878"`처럼 추가합니다 (환경변수 `FREECAD_DIAG_PORT`도 됩니다).
+`claude`를 실행하고 `/mcp`를 치면 `freecad-diag`가 연결된 것으로 보입니다. 안 보이면 `doctor`부터.
 
 ## 4. 이렇게 씁니다
 
@@ -138,13 +135,13 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 ## 6. 문제 해결
 
 **"FreeCAD에 연결할 수 없습니다(127.0.0.1:9877)"**
-FreeCAD에 서버가 안 떠 있습니다. 리포트 뷰에 `서버 시작` 메시지가 있는지 보고, 없으면 **FreeCAD Diag → Start Server**. `.mcp.json`의 경로가 절대경로인지도 확인하세요.
+FreeCAD가 꺼져 있거나 서버가 안 떴습니다. 먼저 `freecad-diag-mcp doctor`(1장의 긴 명령)를 돌리면 어느 쪽인지 알려 줍니다. FreeCAD가 켜져 있는데도 안 뜨면 리포트 뷰를 보고, **FreeCAD Diag → Auto Start**가 꺼져 있으면 켭니다.
 
 **워크벤치 목록에 "FreeCAD Diag"가 없다**
-`python scripts/install_addon.py --list`로 설치된 폴더가 실제 FreeCAD 버전(v1-0 / v1-1)과 맞는지 보세요. FreeCAD **도움말 → 정보**의 버전과 대조합니다.
+`doctor`의 1번 항목이 설치된 폴더와 버전을 보여 줍니다. 폴더가 실제 FreeCAD 버전(v1-0 / v1-1)과 맞는지 FreeCAD **도움말 → 정보**와 대조하고, 다르면 `install --dest "<맞는 Mod 폴더>"`.
 
 **"포트 9877을 열 수 없습니다"**
-이미 서버가 떠 있거나 다른 프로그램이 쓰고 있습니다. **Set Port…**로 바꾸고 `.mcp.json`의 `--port`도 같이 바꿉니다.
+이미 서버가 떠 있거나 다른 프로그램이 쓰고 있습니다. **Set Port…**로 바꾸고 `claude mcp add` 명령 끝에 `--port 9878`을 붙여 다시 등록합니다.
 
 **툴이 10개보다 적게 보인다 / 새 툴이 안 보인다**
 브릿지가 옛 목록을 들고 있는 것입니다. Claude Code에서 `/mcp` → `freecad-diag` → **Reconnect**.
