@@ -96,6 +96,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `check_interference` | 부품 쌍 최소 거리·간섭 부피 |
 | `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
 
+`find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
+
+**STEP → 파라메트릭 재구성 예시**: `examples/rebuild_bracket_from_step.py` — 벤더 STEP을 면 단위로 측정한 값으로 Body(스케치 7·Pad 2·Pocket 5·Fillet 3, 스프레드시트 파라미터 15개)를 다시 만들고, 원본과 **차집합 0.0 mm³**를 확인한 스크립트입니다. `execute_code`로 실행합니다.
+
 **STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
 
 모든 응답은 `{"ok", "data", "warnings", "truncated", "elapsed_ms"}` 봉투이고, 목록형 응답은 `max_*` 인자로 크기를 조절합니다. 요약(`summary`, `invalid_objects`)은 잘려도 항상 전체 기준입니다.

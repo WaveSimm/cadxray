@@ -274,15 +274,21 @@ def test_step_tools():
     a, b = _by_label("T6_step", "BlockA"), _by_label("T6_step", "BlockB")
     check("가져온 부품 4개 라벨 유지", all((plate, block, a, b)), str((plate, block, a, b)))
 
-    r = measure("find_holes", "판 Ø6.6×4", shape_features.find_holes(doc="T6_step", name=plate))
+    r = measure("find_holes", "판 Ø6.6×4 + 필렛 + 자리파기", shape_features.find_holes(doc="T6_step", name=plate))
     d = r["data"]
     check("find_holes ok", r["ok"], str(r.get("error")))
-    check("구멍 4개", d["holes_total"] == 4, str(d["holes_total"]))
-    check("직경 6.6 ±0.01", all(abs(h["diameter"] - 6.6) < 0.01 for h in d["holes"]), str([h["diameter"] for h in d["holes"]]))
-    got = sorted(tuple(h["center"][:2]) for h in d["holes"])
+    real = [h for h in d["holes"] if h["kind"] == "hole"]
+    big = [h for h in real if abs(h["diameter"] - 6.6) < 0.01]
+    check("Ø6.6 구멍 4개", len(big) == 4 and d["holes_total"] == 6, f"holes_total={d['holes_total']}, Ø6.6={len(big)}")
+    got = sorted(tuple(h["center"][:2]) for h in big)
     check("중심 위치 ±0.01", got == [(10.0, 10.0), (10.0, 50.0), (90.0, 10.0), (90.0, 50.0)], str(got))
-    check("전부 관통", all(h["through"] for h in d["holes"]))
-    check("패턴 pitch [40, 80]", d["patterns"] and d["patterns"][0]["pitch"] == [40.0, 80.0], str(d["patterns"]))
+    check("Ø6.6 전부 관통", all(h["through"] for h in big))
+    p66 = next((p for p in d["patterns"] if abs(p["diameter"] - 6.6) < 0.01), None)
+    check("패턴 pitch [40, 80]", p66 and p66["pitch"] == [40.0, 80.0], str(p66))
+    fil = [h for h in d["holes"] if h["kind"] == "fillet"]
+    check("각창 모서리 R2 → fillet 4개, 구멍 아님", len(fil) == 4 and d["partial_total"] == 4 and all(abs(h["arc_deg"] - 90) < 1 for h in fil), str([(h['kind'], h['arc_deg']) for h in d['holes']]))
+    small = [h for h in real if abs(h["diameter"] - 4.0) < 0.01]
+    check("같은 축 양쪽 자리파기 → 구멍 2개, 깊이 1, 관통 아님", len(small) == 2 and all(abs(h["depth"] - 1.0) < 0.01 and h["through"] is False for h in small), str(small))
     check("10초 이내", r["elapsed_ms"] < 10000, f"{r['elapsed_ms']} ms")
     r = shape_features.find_holes(doc="T6_step", name=block)
     check("블록 관통 구멍 Ø6 1개", r["data"]["holes_total"] == 1 and abs(r["data"]["holes"][0]["diameter"] - 6.0) < 0.01)
@@ -302,10 +308,14 @@ def test_step_tools():
 
     r = measure("get_mass_properties", "판, 밀도 2.7", shape_features.get_mass_properties(doc="T6_step", name=plate, density=2.7))
     d = r["data"]
-    expected_v = 100 * 60 * 8 - 4 * 3.141592653589793 * 3.3 ** 2 * 8
+    pi = 3.141592653589793
+    expected_v = (100 * 60 * 8 - 4 * pi * 3.3 ** 2 * 8          # 판 − Ø6.6×4
+                  - 20 * 20 * 8 + 4 * (4 - pi) * 8                 # − 각창 + R2 필렛이 되돌리는 살
+                  - 2 * pi * 2.0 ** 2 * 1.0)                        # − Ø4 자리파기 2개
     check("부피 = 판 − 구멍 4개", abs(d["volume_mm3"] - expected_v) < 0.5, f"{d['volume_mm3']} vs {expected_v:.2f}")
     check("질량 g = 부피/1000 × 2.7", abs(d["mass_g"] - expected_v / 1000 * 2.7) < 0.01, str(d["mass_g"]))
-    check("무게중심 [50, 30, 4]", d["center_of_mass"] == [50.0, 30.0, 4.0], str(d["center_of_mass"]))
+    cm = d["center_of_mass"]  # 자리파기 2개가 x=75에 있어 x가 50에서 아주 조금 밀린다
+    check("무게중심 ≈ [50, 30, 4]", abs(cm[0] - 50) < 0.05 and cm[1] == 30.0 and cm[2] == 4.0, str(cm))
     check("principal 있음", "principal" in d and len(d["principal"]["moments"]) == 3)
 
     r = measure("import_step", "insert(13객체)", step_import.import_step(path, doc="T6_step"))

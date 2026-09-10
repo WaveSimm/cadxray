@@ -186,6 +186,19 @@ def T6_step():
     plate_shape = Part.makeBox(100, 60, 8)
     for x, y in ((10, 10), (90, 10), (10, 50), (90, 50)):
         plate_shape = plate_shape.cut(Part.makeCylinder(3.3, 8, Vec(x, y, 0)))
+    # 20×20 각창 + 안쪽 모서리 R2 → 오목 원통면 4개가 '구멍'이 아니라 필렛으로 분류돼야 한다
+    plate_shape = plate_shape.cut(Part.makeBox(20, 20, 8, Vec(40, 20, 0)))
+    corner_edges = [
+        e for e in plate_shape.Edges
+        if type(e.Curve).__name__ == "Line"
+        and abs(e.Vertexes[0].Point.x - e.Vertexes[1].Point.x) < 1e-6
+        and abs(e.Vertexes[0].Point.y - e.Vertexes[1].Point.y) < 1e-6
+        and round(e.Vertexes[0].Point.x) in (40, 60) and round(e.Vertexes[0].Point.y) in (20, 40)
+    ]
+    plate_shape = plate_shape.makeFillet(2.0, corner_edges)
+    # 위 벽 양쪽에서 Ø4 자리파기 1 mm씩 (같은 축, 떨어져 있음 → 구멍 2개로 세야 한다)
+    for y0, sign in ((60.0, -1), (0.0, 1)):
+        plate_shape = plate_shape.cut(Part.makeCylinder(2.0, 1.0, Vec(75, y0, 4), Vec(0, sign, 0)))
     plate = src.addObject("Part::Feature", "Plate")
     plate.Label = "Plate"
     plate.Shape = plate_shape
