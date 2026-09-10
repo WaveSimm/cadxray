@@ -238,6 +238,7 @@
 - `Cylinder` 표면 속성: `Radius`, `Axis`, `Center` (+ `UPeriod`, `VPeriod`, `Rotation`). `Center`는 축 위의 한 점.
 - **구멍/보스 판정**: 면 중앙 `p = face.valueAt(u, v)`, `n = face.normalAt(u, v)`, 축 위 발 `foot`에 대해 `(foot - p)·n > 0`이면 오목(구멍). `normalAt`이 면의 `Orientation`(구멍면은 `Reversed`)을 반영하므로 따로 뒤집지 않는다. 구멍 → True, 보스 → False 확인.
 - `Part.makeCylinder`로 뺀 구멍은 원통면 **1개**, 스케치 원으로 Pocket한 구멍은 보통 반원통 **2개** → 축·반지름·축선으로 묶어야 한다.
+- **원뿔면** `[라이브 1.1.3, 벤더 어셈블리 원뿔 302개]`: `type(face.Surface).__name__ == "Cone"`, 속성 `Apex`, `Axis`(꼭짓점에서 넓어지는 방향), `Center`, `Radius`(기준 반지름), `SemiAngle`(**라디안**, 반각). 45° 챔퍼는 SemiAngle π/4, 90° 카운터싱크는 π/4, 118° 드릴 끝은 59°. 오목/볼록 판정은 원통과 같은 방법(`normalAt`이 축을 향하면 오목)이 그대로 통한다. 반지름은 축 위치에 선형이므로 면 꼭짓점의 축 거리로 양 끝 반지름을 구한다.
 - 원통면 `face.ParameterRange`의 `(u0, u1)`은 **각도(라디안)**. 온전한 구멍은 합이 2π, 내부 모서리 필렛은 π/2(90°), 슬롯 끝은 π. `[벤더 STEP 실측]` 각기둥 내부 R1 필렛 4개가 처음엔 "Ø2 막힌 구멍"으로 잡혔다 → `arc_deg`로 `kind`를 나눈다.
 - 같은 축선·같은 반지름이라도 **축 방향으로 떨어진** 면은 다른 구멍이다. `[벤더 STEP 실측]` ±X 벽의 1 mm 자리파기 2개가 40 mm 관통 하나로 묶였다 → 면별 축 구간을 구해 겹치는 것끼리만 묶는다.
 - `Solid.Mass == Solid.Volume` (밀도 1). `PrincipalProperties` 키: `Moments`, `RadiusOfGyration`, `FirstAxisOfInertia`, `SecondAxisOfInertia`, `ThirdAxisOfInertia`, `SymmetryAxis`, `SymmetryPoint`. `MatrixOfInertia`는 `Base.Matrix`(`A11`~`A33`), 전역 원점 기준.

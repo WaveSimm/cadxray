@@ -279,7 +279,18 @@ def test_step_tools():
     check("find_holes ok", r["ok"], str(r.get("error")))
     real = [h for h in d["holes"] if h["kind"] == "hole"]
     big = [h for h in real if abs(h["diameter"] - 6.6) < 0.01]
-    check("Ø6.6 구멍 4개", len(big) == 4 and d["holes_total"] == 6, f"holes_total={d['holes_total']}, Ø6.6={len(big)}")
+    check("Ø6.6 구멍 4개 (전체 8: +자리파기 2 +접시 1 +카운터보어 1)", len(big) == 4 and d["holes_total"] == 8, f"holes_total={d['holes_total']}, Ø6.6={len(big)}")
+    m3 = [h for h in real if abs(h["diameter"] - 3.4) < 0.01]
+    cs = next((h for h in m3 if "countersink" in h), None)
+    check("Ø3.4 + 90° 카운터싱크 입구 Ø6.5 깊이 1.55", cs is not None and abs(cs["countersink"]["top_diameter"] - 6.5) < 0.02
+          and abs(cs["countersink"]["angle_deg"] - 90) < 0.5 and abs(cs["countersink"]["depth"] - 1.55) < 0.02
+          and cs["countersink"]["type"] == "countersink" and cs["through"] is True, str(cs))
+    cb = next((h for h in m3 if "counterbore" in h), None)
+    check("Ø3.4 + Ø5.6 카운터보어 깊이 3 → 구멍 하나로 합침", cb is not None and abs(cb["counterbore"]["diameter"] - 5.6) < 0.02
+          and abs(cb["counterbore"]["depth"] - 3) < 0.02 and cb["through"] is True
+          and not any(abs(h["diameter"] - 5.6) < 0.01 for h in real), str(cb))
+    p34 = next((p for p in d["patterns"] if abs(p["diameter"] - 3.4) < 0.01), None)
+    check("Ø3.4 패턴에 countersink 1·counterbore 1 표시", p34 and p34.get("countersink") == 1 and p34.get("counterbore") == 1, str(p34))
     got = sorted(tuple(h["center"][:2]) for h in big)
     check("중심 위치 ±0.01", got == [(10.0, 10.0), (10.0, 50.0), (90.0, 10.0), (90.0, 50.0)], str(got))
     check("Ø6.6 전부 관통", all(h["through"] for h in big))
@@ -313,13 +324,17 @@ def test_step_tools():
     r = measure("get_mass_properties", "판, 밀도 2.7", shape_features.get_mass_properties(doc="T6_step", name=plate, density=2.7))
     d = r["data"]
     pi = 3.141592653589793
+    frustum = pi * 1.55 / 3 * (1.7 ** 2 + 1.7 * 3.25 + 3.25 ** 2)   # 카운터싱크 원뿔대
     expected_v = (100 * 60 * 8 - 4 * pi * 3.3 ** 2 * 8          # 판 − Ø6.6×4
                   - 20 * 20 * 8 + 4 * (4 - pi) * 8                 # − 각창 + R2 필렛이 되돌리는 살
-                  - 2 * pi * 2.0 ** 2 * 1.0)                        # − Ø4 자리파기 2개
+                  - 2 * pi * 2.0 ** 2 * 1.0                        # − Ø4 자리파기 2개
+                  - 2 * pi * 1.7 ** 2 * 8                          # − Ø3.4 관통 2개
+                  - (frustum - pi * 1.7 ** 2 * 1.55)               # − 카운터싱크가 더 깎는 살
+                  - pi * (2.8 ** 2 - 1.7 ** 2) * 3)                # − 카운터보어가 더 깎는 살
     check("부피 = 판 − 구멍 4개", abs(d["volume_mm3"] - expected_v) < 0.5, f"{d['volume_mm3']} vs {expected_v:.2f}")
     check("질량 g = 부피/1000 × 2.7", abs(d["mass_g"] - expected_v / 1000 * 2.7) < 0.01, str(d["mass_g"]))
-    cm = d["center_of_mass"]  # 자리파기 2개가 x=75에 있어 x가 50에서 아주 조금 밀린다
-    check("무게중심 ≈ [50, 30, 4]", abs(cm[0] - 50) < 0.05 and cm[1] == 30.0 and cm[2] == 4.0, str(cm))
+    cm = d["center_of_mass"]  # 자리파기·접시·카운터보어가 한쪽에 있어 중심이 조금 밀린다
+    check("무게중심 ≈ [50, 30, 4]", abs(cm[0] - 50) < 0.05 and abs(cm[1] - 30) < 0.1 and abs(cm[2] - 4) < 0.01, str(cm))
     check("principal 있음", "principal" in d and len(d["principal"]["moments"]) == 3)
 
     r = measure("import_step", "insert(13객체)", step_import.import_step(path, doc="T6_step"))

@@ -126,7 +126,7 @@ def _canonical_axis(axis):
 
 
 def _is_concave(face, center, axis):
-    """면 중앙의 법선이 축을 향하면 구멍(오목). [라이브 1.1.3 확인]"""
+    """면 중앙의 법선이 축을 향하면 구멍(오목). 원통·원뿔 모두 같은 판정. [라이브 1.1.3 확인]"""
     u0, u1, v0, v1 = face.ParameterRange
     um, vm = (u0 + u1) / 2.0, (v0 + v1) / 2.0
     p = face.valueAt(um, vm)
@@ -135,40 +135,55 @@ def _is_concave(face, center, axis):
     return (foot - p).dot(n) > 0
 
 
-def _hole_entry(shape, faces, tmin, tmax, axis, foot, r, tol):
-    depth = tmax - tmin
-    # 원통면 각도 합. 360°에 못 미치면 구멍이 아니라 필렛·슬롯 끝일 수 있다
+def _arc_deg(faces):
+    """원통·원뿔면의 u 파라미터는 각도(라디안). 합이 360°면 온전한 구멍. [api-notes 12장]"""
     arc = 0.0
     for _, f in faces:
         try:
-            u0, u1, _, _ = f.ParameterRange  # 원통면의 u는 라디안 [api-notes 12장]
+            u0, u1, _, _ = f.ParameterRange
             arc += abs(u1 - u0)
         except Exception:
             pass
-    arc_deg = round(min(math.degrees(arc), 360.0), 1)
+    return round(min(math.degrees(arc), 360.0), 1)
+
+
+def _kind(arc_deg):
+    # 360° 미만이면 온전한 구멍이 아니다: 90°는 내부 모서리 필렛, 180°는 슬롯 끝
+    return "hole" if arc_deg >= 350 else ("fillet" if arc_deg <= 100 else "partial")
+
+
+def _line_key(axis, foot, tol):
+    return (
+        round(axis.x / tol), round(axis.y / tol), round(axis.z / tol),
+        round(foot.x / tol), round(foot.y / tol), round(foot.z / tol),
+    )
+
+
+def _split_along_axis(items, tol):
+    """같은 축선이라도 축 방향으로 떨어져 있으면 다른 구멍이다 (예: 양쪽 벽의 자리파기).
+    items = [(tmin, tmax, i, face, extra)] → 겹치는 구간끼리 묶는다."""
+    items = sorted(items, key=lambda x: (x[0], x[1]))
+    clusters = []
+    for lo, hi, i, f, extra in items:
+        if clusters and lo <= clusters[-1]["hi"] + tol:
+            c = clusters[-1]
+            c["hi"] = max(c["hi"], hi)
+            c["faces"].append((i, f))
+            c["extra"].append(extra)
+        else:
+            clusters.append({"lo": lo, "hi": hi, "faces": [(i, f)], "extra": [extra]})
+    return clusters
+
+
+def _through(shape, p_lo, p_hi, axis, depth):
+    """관통 판정(휴리스틱): 구멍 양 끝 바로 바깥이 재료가 아니면 관통."""
     eps = max(min(0.5, depth * 0.05), 1e-3)
-    p_lo, p_hi = foot + axis * tmin, foot + axis * tmax
-    # 관통 판정(휴리스틱): 구멍 양 끝 바로 바깥이 재료가 아니면 관통
     try:
         open_lo = not shape.isInside(p_lo - axis * eps, 1e-6, True)
         open_hi = not shape.isInside(p_hi + axis * eps, 1e-6, True)
-        through = bool(open_lo and open_hi)
+        return bool(open_lo and open_hi)
     except Exception:
-        through = None
-    return {
-        "diameter": round(2 * r, 4),
-        "radius": round(r, 4),
-        "axis": util.round_vec(axis),
-        "center": util.round_vec(foot + axis * ((tmin + tmax) / 2.0)),
-        "start": util.round_vec(p_lo),
-        "end": util.round_vec(p_hi),
-        "depth": round(depth, 4),
-        "through": through,
-        "arc_deg": arc_deg,
-        # 360° 미만이면 온전한 구멍이 아니다: 90°는 내부 모서리 필렛, 180°는 슬롯 끝
-        "kind": "hole" if arc_deg >= 350 else ("fillet" if arc_deg <= 100 else "partial"),
-        "faces": [i for i, _ in faces],
-    }
+        return None
 
 
 def find_holes(
@@ -179,7 +194,11 @@ def find_holes(
     max_holes=100,
     group_tolerance=0.01,
 ):
-    """원통면을 축·중심·반지름으로 묶어 구멍 직경·위치·깊이·관통 여부를 뽑는다."""
+    """원통면을 축·중심·반지름으로 묶어 구멍 직경·위치·깊이·관통 여부를 뽑는다.
+
+    같은 축에 붙은 원뿔면은 countersink(카운터싱크·챔퍼)/drill_point로, 더 큰 원통은
+    counterbore로 그 구멍에 붙인다. 필렛·슬롯 끝(호 < 360°)은 구멍으로 세지 않는다.
+    """
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
@@ -190,62 +209,180 @@ def find_holes(
 
     warnings = []
     tol = max(float(group_tolerance), 1e-6)
-    groups = {}  # key → {"r", "axis", "foot", "faces": [(i, face)]}
+    cyl_groups = {}   # (r, 축선) → 면 구간들
+    cone_groups = {}  # 축선 → 면 구간들
     skipped_convex = 0
-    cyl_faces = 0
+    cyl_faces = cone_faces = 0
+
     for i, f in enumerate(shape.Faces):
         try:
             surf = f.Surface
-            if type(surf).__name__ != "Cylinder":
-                continue
-            cyl_faces += 1
-            r = float(surf.Radius)
-            if r < min_radius or r > max_radius:
+            stype = type(surf).__name__
+            if stype not in ("Cylinder", "Cone"):
                 continue
             axis = _canonical_axis(surf.Axis)
             if axis is None:
                 continue
-            center = Vec(surf.Center)
-            if not _is_concave(f, center, axis):
-                skipped_convex += 1
-                continue
-            foot = center - axis * center.dot(axis)  # 축선이 원점에 가장 가까운 점
-            key = (
-                round(r / tol),
-                round(axis.x / tol), round(axis.y / tol), round(axis.z / tol),
-                round(foot.x / tol), round(foot.y / tol), round(foot.z / tol),
-            )
-            g = groups.setdefault(key, {"r": r, "axis": axis, "foot": foot, "faces": []})
-            g["faces"].append((i, f))
+            if stype == "Cylinder":
+                cyl_faces += 1
+                r = float(surf.Radius)
+                if r < min_radius or r > max_radius:
+                    continue
+                center = Vec(surf.Center)
+                if not _is_concave(f, center, axis):
+                    skipped_convex += 1
+                    continue
+                foot = center - axis * center.dot(axis)  # 축선이 원점에 가장 가까운 점
+                ts = [(Vec(v.Point) - foot).dot(axis) for v in f.Vertexes]
+                if not ts:
+                    continue
+                key = (round(r / tol),) + _line_key(axis, foot, tol)
+                cyl_groups.setdefault(key, {"r": r, "axis": axis, "foot": foot, "items": []})
+                cyl_groups[key]["items"].append((min(ts), max(ts), i, f, None))
+            else:
+                cone_faces += 1
+                apex = Vec(surf.Apex)
+                if not _is_concave(f, apex, axis):
+                    skipped_convex += 1
+                    continue
+                foot = apex - axis * apex.dot(axis)
+                pts = [Vec(v.Point) for v in f.Vertexes]
+                if not pts:
+                    continue
+                ts = [(p - foot).dot(axis) for p in pts]
+                rs = [((p - foot) - axis * (p - foot).dot(axis)).Length for p in pts]
+                r_lo, r_hi = min(rs), max(rs)
+                if r_hi < min_radius or r_lo > max_radius:
+                    continue
+                key = _line_key(axis, foot, tol)
+                cone_groups.setdefault(key, {"axis": axis, "foot": foot, "items": []})
+                cone_groups[key]["items"].append(
+                    (min(ts), max(ts), i, f, {"r_lo": r_lo, "r_hi": r_hi, "semi": float(surf.SemiAngle)})
+                )
         except Exception as e:
             warnings.append(f"면 {i} 처리 실패: {e}")
 
-    def _split_along_axis(faces, axis, foot):
-        """같은 축선이라도 축 방향으로 떨어져 있으면 다른 구멍이다 (예: 양쪽 벽의 자리파기).
-        면마다 축 방향 구간을 구해 겹치는 것끼리 묶는다."""
-        spans = []
-        for i, f in faces:
-            ts = [(Vec(v.Point) - foot).dot(axis) for v in f.Vertexes]
-            if ts:
-                spans.append((min(ts), max(ts), i, f))
-        spans.sort()
-        clusters = []
-        for lo, hi, i, f in spans:
-            if clusters and lo <= clusters[-1]["hi"] + tol:
-                c = clusters[-1]
-                c["hi"] = max(c["hi"], hi)
-                c["faces"].append((i, f))
+    # 원통 → 구멍 레코드
+    records = []
+    for g in cyl_groups.values():
+        for cl in _split_along_axis(g["items"], tol):
+            rec = {"axis": g["axis"], "foot": g["foot"], "r": g["r"], "lo": cl["lo"], "hi": cl["hi"],
+                   "faces": cl["faces"], "arc": _arc_deg(cl["faces"]),
+                   "line": _line_key(g["axis"], g["foot"], tol)}
+            rec["kind"] = _kind(rec["arc"])
+            records.append(rec)
+
+    # 원뿔 레코드
+    cones = []
+    for g in cone_groups.values():
+        for cl in _split_along_axis(g["items"], tol):
+            ex = cl["extra"]
+            cones.append({"axis": g["axis"], "foot": g["foot"], "lo": cl["lo"], "hi": cl["hi"],
+                          "faces": cl["faces"], "arc": _arc_deg(cl["faces"]),
+                          "line": _line_key(g["axis"], g["foot"], tol),
+                          "r_lo": min(e["r_lo"] for e in ex), "r_hi": max(e["r_hi"] for e in ex),
+                          "semi": ex[0]["semi"], "used": False})
+
+    near = tol * 10
+
+    def _adjacent(a_lo, a_hi, b_lo, b_hi):
+        return abs(a_hi - b_lo) <= near or abs(b_hi - a_lo) <= near
+
+    # 카운터보어: 같은 축선에 이어진 더 큰 원통 → 작은 구멍에 붙이고 목록에서 뺀다
+    holes_rec = [r for r in records if r["kind"] == "hole"]
+    merged = set()
+    for small in holes_rec:
+        for big in holes_rec:
+            if big is small or id(big) in merged or big["r"] <= small["r"] + tol:
+                continue
+            if big["line"] == small["line"] and _adjacent(small["lo"], small["hi"], big["lo"], big["hi"]):
+                small["counterbore"] = {
+                    "diameter": round(2 * big["r"], 4),
+                    "depth": round(big["hi"] - big["lo"], 4),
+                    "at": "end" if big["lo"] >= small["hi"] - near else "start",
+                    "faces": [i for i, _ in big["faces"]],
+                }
+                small["lo"] = min(small["lo"], big["lo"])
+                small["hi"] = max(small["hi"], big["hi"])
+                merged.add(id(big))
+                break
+    records = [r for r in records if id(r) not in merged]
+
+    # 원뿔 붙이기: 좁은 쪽이 구멍 반지름이면 카운터싱크/챔퍼, 넓은 쪽이 구멍이고 좁은 쪽이 0에 가까우면 드릴 끝
+    for rec in records:
+        if rec["kind"] != "hole":
+            continue
+        for c in cones:
+            if c["used"] or c["line"] != rec["line"] or c["arc"] < 350:
+                continue
+            if not _adjacent(rec["lo"], rec["hi"], c["lo"], c["hi"]):
+                continue
+            angle = round(math.degrees(2 * c["semi"]), 1)
+            depth = round(c["hi"] - c["lo"], 4)
+            at = "end" if c["lo"] >= rec["hi"] - near else "start"
+            fit = max(near, rec["r"] * 0.05)
+            if abs(c["r_lo"] - rec["r"]) <= fit:
+                rec["countersink"] = {
+                    "type": "chamfer" if depth < 1.0 else "countersink",
+                    "top_diameter": round(2 * c["r_hi"], 4),
+                    "angle_deg": angle, "depth": depth, "at": at,
+                    "faces": [i for i, _ in c["faces"]],
+                }
+            elif abs(c["r_hi"] - rec["r"]) <= fit and c["r_lo"] < rec["r"] * 0.2:
+                rec["drill_point"] = {"angle_deg": angle, "depth": depth, "at": at,
+                                      "faces": [i for i, _ in c["faces"]]}
             else:
-                clusters.append({"lo": lo, "hi": hi, "faces": [(i, f)]})
-        return clusters
+                continue
+            c["used"] = True
+            rec["lo"] = min(rec["lo"], c["lo"])
+            rec["hi"] = max(rec["hi"], c["hi"])
 
+    # 공개 항목
     holes = []
-    for g in groups.values():
-        axis, foot, r = g["axis"], g["foot"], g["r"]
-        for cl in _split_along_axis(g["faces"], axis, foot):
-            holes.append(_hole_entry(shape, cl["faces"], cl["lo"], cl["hi"], axis, foot, r, tol))
+    for rec in records:
+        axis, foot = rec["axis"], rec["foot"]
+        depth = rec["hi"] - rec["lo"]
+        p_lo, p_hi = foot + axis * rec["lo"], foot + axis * rec["hi"]
+        h = {
+            "diameter": round(2 * rec["r"], 4),
+            "radius": round(rec["r"], 4),
+            "axis": util.round_vec(axis),
+            "center": util.round_vec(foot + axis * ((rec["lo"] + rec["hi"]) / 2.0)),
+            "start": util.round_vec(p_lo),
+            "end": util.round_vec(p_hi),
+            "depth": round(depth, 4),
+            "through": _through(shape, p_lo, p_hi, axis, depth) if rec["kind"] == "hole" else None,
+            "arc_deg": rec["arc"],
+            "kind": rec["kind"],
+            "faces": [i for i, _ in rec["faces"]],
+        }
+        for extra in ("counterbore", "countersink", "drill_point"):
+            if extra in rec:
+                h[extra] = rec[extra]
+        holes.append(h)
 
-    fillets = [h for h in holes if h["kind"] != "hole"]
+    # 어느 구멍에도 안 붙은 온전한 오목 원뿔 (원뿔 자리만 있는 경우)
+    for c in cones:
+        if c["used"] or c["arc"] < 350:
+            continue
+        axis, foot = c["axis"], c["foot"]
+        holes.append({
+            "diameter": round(2 * c["r_hi"], 4),
+            "radius": round(c["r_hi"], 4),
+            "diameter_small": round(2 * c["r_lo"], 4),
+            "axis": util.round_vec(axis),
+            "center": util.round_vec(foot + axis * ((c["lo"] + c["hi"]) / 2.0)),
+            "start": util.round_vec(foot + axis * c["lo"]),
+            "end": util.round_vec(foot + axis * c["hi"]),
+            "depth": round(c["hi"] - c["lo"], 4),
+            "through": False,
+            "arc_deg": c["arc"],
+            "angle_deg": round(math.degrees(2 * c["semi"]), 1),
+            "kind": "cone",
+            "faces": [i for i, _ in c["faces"]],
+        })
+
+    fillets = [h for h in holes if h["kind"] not in ("hole", "cone")]
     holes.sort(key=lambda h: (h["kind"] != "hole", -h["diameter"], h["center"]))
     for i, h in enumerate(holes):
         h["i"] = i
@@ -265,36 +402,43 @@ def find_holes(
                 if math.dist(a, b) > tol
             }
         )
-        patterns.append(
-            {
-                "diameter": dia,
-                "axis": list(axis),
-                "count": len(hs),
-                "through": sum(1 for h in hs if h["through"]),
-                "centers": centers,
-                "pitch": dists[:2],
-            }
-        )
+        pat = {
+            "diameter": dia,
+            "axis": list(axis),
+            "count": len(hs),
+            "through": sum(1 for h in hs if h["through"]),
+            "centers": centers,
+            "pitch": dists[:2],
+        }
+        n_cb = sum(1 for h in hs if "counterbore" in h)
+        n_cs = sum(1 for h in hs if "countersink" in h)
+        if n_cb:
+            pat["counterbore"] = n_cb
+        if n_cs:
+            pat["countersink"] = n_cs
+        patterns.append(pat)
 
+    n_holes = sum(1 for h in holes if h["kind"] == "hole")
     truncated = len(holes) > max_holes
     data = {
         "document": d.Name,
         "object": obj.Name,
         "label": util.label(obj),
         "cylindrical_faces": cyl_faces,
+        "conical_faces": cone_faces,
         "convex_skipped": skipped_convex,
-        "holes_total": sum(1 for h in holes if h["kind"] == "hole"),
+        "holes_total": n_holes,
         "partial_total": len(fillets),
         "holes": holes[:max_holes],
         "patterns": patterns,
         "through_method": "heuristic",
         "radius_range": [min_radius, max_radius],
     }
-    if cyl_faces == 0:
-        warnings.append("원통면이 없습니다. 메시(STL)에서 온 형상이거나 구멍이 없는 부품입니다.")
-    elif not holes:
+    if cyl_faces == 0 and cone_faces == 0:
+        warnings.append("원통면·원뿔면이 없습니다. 메시(STL)에서 온 형상이거나 구멍이 없는 부품입니다.")
+    elif n_holes == 0:
         warnings.append(
-            f"원통면 {cyl_faces}개가 있지만 조건에 맞는 구멍이 없습니다"
+            f"원통면 {cyl_faces}개·원뿔면 {cone_faces}개가 있지만 조건에 맞는 구멍이 없습니다"
             f"(볼록 {skipped_convex}개 제외, 반지름 {min_radius}~{max_radius})."
         )
     if fillets:
@@ -304,7 +448,7 @@ def find_holes(
         )
     warnings.append("through는 구멍 양 끝 바깥 지점이 재료 밖인지로 판정한 휴리스틱입니다. 포켓으로 뚫린 구멍은 관통으로 보일 수 있습니다.")
     if truncated:
-        warnings.append(f"구멍 {len(holes)}개 중 {max_holes}개만 담았습니다. patterns는 전체 기준입니다.")
+        warnings.append(f"항목 {len(holes)}개 중 {max_holes}개만 담았습니다. patterns는 전체 기준입니다.")
     if util.fit_cap(data, "holes", warnings):
         truncated = True
     return util.envelope(data, warnings=warnings, truncated=truncated, t0=t0)

@@ -199,6 +199,12 @@ def T6_step():
     # 위 벽 양쪽에서 Ø4 자리파기 1 mm씩 (같은 축, 떨어져 있음 → 구멍 2개로 세야 한다)
     for y0, sign in ((60.0, -1), (0.0, 1)):
         plate_shape = plate_shape.cut(Part.makeCylinder(2.0, 1.0, Vec(75, y0, 4), Vec(0, sign, 0)))
+    # M3 접시머리 자리: Ø3.4 관통 + 윗면에 90° 카운터싱크(입구 Ø6.5, 깊이 1.55)
+    plate_shape = plate_shape.cut(Part.makeCylinder(1.7, 8, Vec(75, 45, 0)))
+    plate_shape = plate_shape.cut(Part.makeCone(1.7, 3.25, 1.55, Vec(75, 45, 6.45), Vec(0, 0, 1)))
+    # M3 카운터보어: Ø3.4 관통 + 윗면에서 Ø5.6 깊이 3
+    plate_shape = plate_shape.cut(Part.makeCylinder(1.7, 8, Vec(25, 45, 0)))
+    plate_shape = plate_shape.cut(Part.makeCylinder(2.8, 3, Vec(25, 45, 5)))
     plate = src.addObject("Part::Feature", "Plate")
     plate.Label = "Plate"
     plate.Shape = plate_shape

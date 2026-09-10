@@ -92,7 +92,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `execute_code` | FreeCAD 안에서 Python 실행 (수정용) |
 | `reload_handlers` | 애드온 코드 다시 읽기 (개발용) |
 | `import_step` | STEP/IGES 가져오기 + 생긴 부품 요약 |
-| `find_holes` | 구멍 직경·중심·깊이·관통 여부, 같은 직경끼리 패턴·피치 |
+| `find_holes` | 구멍 직경·중심·깊이·관통 여부, 카운터보어·카운터싱크·챔퍼·드릴 끝을 구멍에 붙여서, 같은 직경끼리 패턴·피치 |
 | `check_interference` | 부품 쌍 최소 거리·간섭 부피. 기본은 문제 쌍만 담고, 바운딩박스가 떨어진 쌍은 계산 없이 건너뜀 |
 | `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
 
