@@ -119,8 +119,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `get_screenshot` | 2400×1800, 320객체 | 194 KB | 470 ms |
 | `import_step` | 부품 4개 STEP (새 문서 / 기존 문서) | 1.7 KB | 85 / 41 ms |
 | `find_holes` | Ø6.6 × 4 판 | 1.4 KB | 3 ms |
+| `find_holes` | **벤더 STEP** 58면(BSpline 49) / 46면(원통 28) | 1.6 / 5.6 KB | **422 / 44 ms** |
 | `check_interference` | 부품 4개 = 6쌍 | 1.4 KB | 31 ms |
-| `get_mass_properties` | 구멍 뚫린 판 | 0.7 KB | 2 ms |
+| `check_interference` | 벤더 STEP 2개 (겹침 → `common()` 호출) | 0.8 KB | 838 ms |
+| `get_mass_properties` | 구멍 뚫린 판 / 벤더 STEP | 0.7 KB | 2 / 135 ms |
 
 응답 하드캡은 100 KB입니다(스크린샷 제외). 넘으면 핸들러가 목록을 먼저 줄이고 `warnings`에 알립니다.
 
