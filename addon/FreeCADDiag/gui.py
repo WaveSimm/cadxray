@@ -56,6 +56,40 @@ class DiagToggleAutoStart:
         log(f"자동시작 {'켜짐' if new_value else '꺼짐'}")
 
 
+class DiagSetPort:
+    def GetResources(self):
+        return {
+            "MenuText": "Set Port…",
+            "ToolTip": "서버 포트를 바꾼다 (기본 9877). 바꾸면 브릿지 설정도 같이 바꿔야 한다",
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from PySide import QtWidgets
+
+        current = settings.get_port()
+        value, ok = QtWidgets.QInputDialog.getInt(
+            None,
+            "FreeCAD Diag",
+            "서버 포트 (기본 9877)\n\n"
+            "바꾸면 Claude Code의 .mcp.json에도 --port를 같은 값으로 넣어야 합니다.",
+            current,
+            1024,
+            65535,
+        )
+        if not ok or value == current:
+            return
+        settings.set_port(value)
+        log(f"포트를 {value}로 바꿨습니다.")
+        if rpc_server.is_running():
+            rpc_server.stop()
+            rpc_server.start(settings.get_host(), value)
+        else:
+            log("Start Server를 누르면 새 포트로 시작합니다.")
+
+
 class FreeCADDiagWorkbench(FreeCADGui.Workbench):
     MenuText = "FreeCAD Diag"
     ToolTip = "FreeCAD 모델 진단용 MCP 서버"
@@ -64,7 +98,13 @@ class FreeCADDiagWorkbench(FreeCADGui.Workbench):
         FreeCADGui.addCommand("Diag_StartServer", DiagStartServer())
         FreeCADGui.addCommand("Diag_StopServer", DiagStopServer())
         FreeCADGui.addCommand("Diag_ToggleAutoStart", DiagToggleAutoStart())
-        cmds = ["Diag_StartServer", "Diag_StopServer", "Diag_ToggleAutoStart"]
+        FreeCADGui.addCommand("Diag_SetPort", DiagSetPort())
+        cmds = [
+            "Diag_StartServer",
+            "Diag_StopServer",
+            "Diag_ToggleAutoStart",
+            "Diag_SetPort",
+        ]
         self.appendToolbar("FreeCAD Diag", cmds)
         self.appendMenu("FreeCAD Diag", cmds)
 

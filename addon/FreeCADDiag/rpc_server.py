@@ -36,12 +36,15 @@ def _timeout_for(tool, params):
     if tool == "analyze_shape":
         # bop_check=True는 큰 형상에서 오래 걸린다 [api-notes 12장]
         return 120 if params.get("bop_check") else _DEFAULT_TIMEOUT
+    if tool == "tracked_recompute":
+        # 큰 문서의 전체 재계산은 오래 걸릴 수 있다
+        return 300
     return _DEFAULT_TIMEOUT
 
 
-def _dump(obj):
+def _dump(obj, capped=True):
     text = json.dumps(obj, ensure_ascii=False, default=str)
-    if len(text.encode("utf-8")) > util.HARD_CAP_BYTES:
+    if capped and len(text.encode("utf-8")) > util.HARD_CAP_BYTES:
         return json.dumps(
             {
                 "ok": False,
@@ -88,7 +91,8 @@ def call(tool_name, params_json="{}"):
 
     if not isinstance(result, dict):
         result = util.envelope(result)
-    return _dump(result)
+    # get_screenshot처럼 base64를 담는 툴은 하드캡에서 제외한다(핸들러가 선언).
+    return _dump(result, capped=not getattr(fn, "no_size_cap", False))
 
 
 def list_tools():

@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import json
 
 from . import client
-from ._mcp_compat import Server
+from ._mcp_compat import Image, Server
 
 mcp = Server("freecad-diag")
 
@@ -156,6 +158,76 @@ def execute_code(code: str, doc: str | None = None, timeout: int = 300) -> str:
         {"code": code, "doc": doc, "timeout": timeout},
         timeout=timeout + 15,
     )
+
+
+@mcp.tool()
+def tracked_recompute(
+    doc: str | None = None,
+    objects: list[str] | None = None,
+    force: bool = False,
+) -> str:
+    """재계산하고 **무엇이 고쳐졌고 무엇이 새로 깨졌는지**를 돌려준다.
+
+    execute_code로 모델을 고친 **뒤에 반드시 호출**해서 결과를 확인한다.
+    - resolved: 이번에 고쳐진 객체
+    - new_errors: 이번 수정 때문에 새로 깨진 객체 (status에 원인)
+    - persistent: 아직 안 고쳐진 객체
+    objects를 주면 그 객체만 재계산한다. 전체를 강제로 다시 계산하려면 force=True.
+    """
+    return client.call(
+        "tracked_recompute",
+        {"doc": doc, "objects": objects, "force": force},
+        timeout=310,
+    )
+
+
+@mcp.tool()
+def get_screenshot(
+    doc: str | None = None,
+    view: str = "current",
+    width: int = 1024,
+    height: int = 768,
+    fit: bool = True,
+    background: str = "White",
+):
+    """3D 뷰를 PNG로 캡처해 이미지로 돌려준다.
+
+    수정 결과를 눈으로 확인할 때, 또는 사용자가 "지금 어떻게 생겼는지 보여줘"라고 할 때.
+    view: current | iso | front | rear | top | bottom | left | right |
+          axonometric | dimetric | trimetric
+    GUI 없이 실행 중이면(FreeCADCmd) 에러를 돌려준다.
+    """
+    raw = client.call_raw(
+        "get_screenshot",
+        {
+            "doc": doc,
+            "view": view,
+            "width": width,
+            "height": height,
+            "fit": fit,
+            "background": background,
+        },
+        timeout=120,
+    )
+    if not raw.get("ok"):
+        return json.dumps(raw, ensure_ascii=False, indent=2)
+    try:
+        png = base64.b64decode(raw["data"]["png_base64"])
+    except Exception as e:
+        return json.dumps(
+            {"ok": False, "error": f"PNG 디코딩 실패: {e}"}, ensure_ascii=False
+        )
+    return Image(data=png, format="png")
+
+
+@mcp.tool()
+def reload_handlers() -> str:
+    """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
+
+    애드온의 handlers/*.py를 고친 뒤 호출한다. 새로 추가한 핸들러 파일도 집어 올린다.
+    InitGui.py·rpc_server.py·handlers/__init__.py를 고쳤을 때는 FreeCAD 재시작이 필요하다.
+    """
+    return client.call("reload_handlers", timeout=60)
 
 
 def main() -> None:

@@ -41,6 +41,9 @@
 ## 3. `App.Document` `[1.0.2][1.1.3]`
 
 - `recompute(objs=None) -> int` — 재계산된 피처 수 반환. 실패 객체는 예외가 아니라 `State`에 `Invalid`가 들어간다.
+  - `[라이브 1.1.3 확인, 2026-09-10]` 두 번째 인자로 강제 재계산 플래그를 받는다: `doc.recompute(None, False)`, `doc.recompute([obj], False)` 모두 동작. 이미 Up-to-date인 객체만 주면 `0`을 돌려준다.
+  - 실패한 객체는 `Invalid`와 함께 **`Touched`도 남는다**. 그래서 `still_touched`가 비지 않는 것이 정상 — 에러 판단은 `Invalid`로 한다.
+  - 에러 설명 예 `[라이브 1.1.3]`: `Pad.Length = 0` → `getStatusString()`이 `"Cannot create a pad with a total length of zero."`
 - `mustExecute()`, `purgeTouched()`, `Objects`, `RootObjects`, `getObject(name)`, `FileName`, `Name`, `Label`
 - **정정** `[라이브 1.1.3 확인, 2026-09-10]`: `Document.Modified` 속성은 **없다**(`AttributeError`). 저장 여부는 `isSaved() -> bool`, 변경 여부는 `isTouched() -> bool`. 두 메서드는 1.0.2 `DocumentPy.xml`·1.1.3 `Document.pyi` 양쪽에 있다. `Modified`는 GUI 쪽(`Gui.Document`) 이름이다. → `list_documents`는 `saved`/`modified`(=`not isSaved()`)/`touched`를 준다.
 - 그 밖에 실제로 있는 것 `[라이브 1.1.3]`: `Temporary`, `Uid`, `Id`, `TransientDir`, `LastModifiedDate`, `LastModifiedBy`, `CreatedBy`, `CreationDate`, `RecomputesFrozen`, `Recomputing`, `DependencyGraph`, `TopologicalSortedObjects`, `findObjects()`, `getObjectsByLabel()`
@@ -180,6 +183,12 @@
 - 얻기: `FreeCADGui.getDocument(name).ActiveView` 또는 `FreeCADGui.ActiveDocument.ActiveView`. GUI가 없으면(FreeCADCmd) 불가.
 - 뷰 프리셋: `viewIsometric()`, `viewFront()`, `viewTop()`, `viewRight()`, `viewRear()`, `viewBottom()`, `viewLeft()`, `viewAxonometric()`, `viewDimetric()`, `viewTrimetric()`, `fitAll()`, `zoomIn()`, `zoomOut()`, `viewPosition(...)`, `getCamera()/setCamera()`, `getCameraType()/setCameraType()`, `getSize()`
 - `saveImage(filename, width=-1, height=-1, background="Current", comment="$MIBA", samples=<기본>)` — `PyArg_ParseTuple("et|iissi")`. `background`는 `"Current"` 또는 QColor가 이해하는 이름/hex(`"White"`, `"Black"`, `"#ffffff"`, `"Transparent"`). **저장 디렉토리가 없으면 RuntimeError**. 오프스크린 렌더러라 창이 가려져 있어도 된다.
+
+`[라이브 1.1.3 확인, 2026-09-10]`
+- `FreeCADGui.getDocument(name).ActiveView` + `viewIsometric()` + `fitAll()` + `saveImage(path, w, h, "White")` 조합이 그대로 동작한다. 400×300~2400×1800까지 확인.
+- 소요 시간은 크기와 무관하게 대략 **350~470 ms**(뷰 전환·fitAll 포함).
+- PNG 크기 실측: 단순 모델 800×600 ≈ 8.6 KB, 2400×1800 ≈ 33 KB. 박스 320개 모델 2400×1800 ≈ **145 KB** → base64로 194 KB.
+  → 스크린샷 응답은 하드캡(100 KB)을 넘길 수 있다. `get_screenshot.no_size_cap = True`로 표시하고 `rpc_server._dump`가 그 툴만 캡을 건너뛴다.
 
 ---
 
