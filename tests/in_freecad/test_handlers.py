@@ -704,6 +704,30 @@ def test_fem_tools():
     check("외팔보(납작): 전도각 > 45°", r["ok"] and st.get("tip_over_deg", 0) > 45, str(st))
 
 
+def test_fem_m16():
+    section("M16: 여러 부품 접합 해석 / 고유진동수 / 어셈블리 질량")
+    load = [{"type": "force", "faces": ["xmax"], "value": 10, "direction": [0, 0, -1]}]
+    r = measure("setup_analysis", "T16 A(강)+B(PETG)", fem.setup_analysis(names=["A", "B"], doc="T16_multi", material={"A": "STEEL", "B": "PETG"}, fixed=["xmin"], loads=load, mesh_size=3))
+    check("setup ok, 부품 2, 재질 2(솔리드 번호 다름)", r["ok"] and r["data"]["parts"] == ["A", "B"] and len(r["data"]["materials"]) == 2 and r["data"]["materials"][0]["solid"] != r["data"]["materials"][1]["solid"], str(r.get("error") or r["data"].get("materials")))
+    check("고정면은 x=0 (A), 하중면은 x=100 (B)", r["ok"] and r["data"]["fixed"][0]["area"] == 50.0 and r["data"]["loads"][0]["area"] == 50.0, str(r.get("data", {}).get("fixed")))
+    r = measure("run_analysis", "T16 접합", fem.run_analysis(analysis="Analysis", doc="T16_multi"))
+    check("run ok, 변위 최대 ≈ 2.1 mm(±15 %), 약한 재질(PETG) 기준 안전율", r["ok"] and abs(r["data"]["summary"]["displacement"]["max"] - 2.1) < 0.35 and r["data"]["material"]["name"] == "PETG", str(r.get("error") or r["data"]["summary"].get("displacement")))
+    r = fem.inspect_results(analysis="Analysis", doc="T16_multi", field="displacement", top_n=3)
+    check("변위 최대는 자유단 x≈100", r["ok"] and all(t["at"][0] > 90 for t in r["data"]["top"]), str(r.get("error") or r["data"]["top"]))
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material="STEEL", fixed=["xmin"], loads=[], analysis_type="frequency", modes=2, mesh_size=4)
+    check("frequency setup ok(하중 없음 경고 없음)", r["ok"] and r["data"]["analysis_type"] == "frequency" and not any("하중이 없습니다" in w for w in r["warnings"]), str(r.get("error") or r["warnings"]))
+    r = measure("run_analysis", "T13 frequency", fem.run_analysis(analysis="Analysis", doc="T13_fem"))
+    check("1차 고유진동수 ≈ 417.7 Hz (±3 %), 모드 2개", r["ok"] and r["data"]["analysis_type"] == "frequency" and abs(r["data"]["summary"]["first_frequency_hz"] - 417.7) < 12.5 and len(r["data"]["summary"]["modes"]) == 2, str(r.get("error") or r["data"]["summary"]))
+    r = fem.suggest_reinforcement(analysis="Analysis", doc="T13_fem")
+    check("frequency 결과에 보강 제안 → 오류", not r["ok"] and "static" in r["error"])
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material="STEEL", fixed=["xmin"], loads=[], analysis_type="buckling")
+    check("buckling → 지원 안 함 오류", not r["ok"] and "buckling" in r["error"])
+    r = measure("get_mass_properties", "T16 어셈블리", shape_features.get_mass_properties(names=["A", "B"], doc="T16_multi", densities={"A": 7.85, "B": 1.27}))
+    check("총 질량 22.8 g, 질량 가중 무게중심 x≈31.96", r["ok"] and abs(r["data"]["mass_g"] - 22.8) < 0.01 and abs(r["data"]["center_of_mass"][0] - 31.96) < 0.05 and r["data"]["center_of_mass_basis"] == "mass", str(r.get("error") or r["data"]))
+    r = shape_features.get_mass_properties(names=["A", "B"], doc="T16_multi", densities={"A": 7.85})
+    check("밀도 빠진 부품 → 경고 + 부피 가중", r["ok"] and r["data"]["center_of_mass_basis"] == "volume" and any("밀도가 없는" in w for w in r["warnings"]), str(r.get("warnings")))
+
+
 def test_link_tools():
     section("M14: trace_links")
     r = measure("trace_links", "T14 asm", links.trace_links(doc="T14_asm"))
@@ -955,6 +979,7 @@ def main():
         ("print_tools", test_print_tools),
         ("print_fixes_m15", test_print_fixes_m15),
         ("fem_tools", test_fem_tools),
+        ("fem_m16", test_fem_m16),
         ("link_tools", test_link_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):

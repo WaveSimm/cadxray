@@ -313,19 +313,23 @@ def check_interference(
 
 @mcp.tool()
 def get_mass_properties(
-    name: str,
+    name: str | None = None,
     doc: str | None = None,
     density: float | None = None,
     stability: bool = False,
+    names: list[str] | None = None,
+    densities: dict | None = None,
 ) -> str:
     """부피(mm³)·표면적·무게중심·관성 행렬. density(g/cm³)를 주면 질량(g)도 계산한다.
+
+    어셈블리(M16): names=["A","B"] + densities={"A": 7.85, "B": 1.27}(이름 또는 라벨)로 부품별 밀도를 주면 총 질량과 질량 가중 무게중심, 부품별 표(parts)를 준다.
 
     예: 알루미늄 2.7, 강 7.85, 스테인리스 7.9, ABS 1.04, PLA 1.24.
     stability=True면 무게중심이 바닥 접지(볼록껍질) 안에 있는지, 여유(margin_mm), 넘어지는 기울기(tip_over_deg), verdict(stable/tippy/unstable)도 준다(+Z가 위).
     """
     return client.call(
         "get_mass_properties",
-        {"name": name, "doc": doc, "density": density, "stability": stability},
+        {"name": name, "doc": doc, "density": density, "stability": stability, "names": names, "densities": densities},
         timeout=60,
     )
 
@@ -599,15 +603,16 @@ def apply_sketch_fixes(
 
 
 @mcp.tool()
-def check_printability(name: str, doc: str | None = None, profile: dict | None = None, samples: int = 2000) -> str:
+def check_printability(name: str, doc: str | None = None, profile: dict | None = None, samples: int = 2000, paint: bool | None = None) -> str:
     """3D 프린트 **출력 가능성 검사** (M12). 출력 방향은 +Z(바닥 = 형상의 가장 낮은 면).
 
     profile: {"material": "PLA|PETG|ABS|ASA|TPU|Nylon", "nozzle": 0.4, "layer": 0.2, "bed": [220,220,250], "walls": 3, "infill": 20,
               "min_wall"|"overhang_deg"|"bridge_max"|"hole_comp"|"density": 재질 표 값 덮어쓰기}.
     검사: 얇은 벽(노즐×2 미만), 오버행(한계각 초과·아래가 빈 면 → 서포트 면적), 브릿지, 작은 구멍(노즐×2 미만), 수평 구멍, 베드 적합, 첫 층 접지.
     결과의 issues(번호·심각도·fix 힌트)를 사용자에게 번호 목록으로 보여 주고, fixes는 apply_print_fixes 후보다.
+    paint=True면 3D 뷰의 면을 결과 색으로 칠한다(빨강 얇은 벽·주황 서포트·노랑 브릿지·초록 접지), paint=False면 되돌린다.
     """
-    return client.call("check_printability", {"name": name, "doc": doc, "profile": profile, "samples": samples}, timeout=190)
+    return client.call("check_printability", {"name": name, "doc": doc, "profile": profile, "samples": samples, "paint": paint}, timeout=190)
 
 
 @mcp.tool()
@@ -637,6 +642,50 @@ def apply_print_fixes(name: str, fixes: list[dict], doc: str | None = None, prof
     split = 베드보다 큰 형상을 축 방향으로 잘라 Part::Feature 조각으로(M15, 원본은 숨김). 사용자가 고른 것만 적용한다.
     """
     return client.call("apply_print_fixes", {"name": name, "fixes": fixes, "doc": doc, "profile": profile}, timeout=190)
+
+
+@mcp.tool()
+def setup_analysis(name: str | None = None, fixed: list | None = None, loads: list[dict] | None = None, material: str | dict = "PLA", doc: str | None = None,
+                   mesh_size: float | None = None, order: str = "2nd", analysis: str = "Analysis", names: list[str] | None = None,
+                   analysis_type: str = "static", modes: int = 5) -> str:
+    """FEM **구조 해석 구성** (M13): 해석 컨테이너 + 재질 + 고정 + 하중 + Gmsh 메시 + CalculiX 솔버를 한 번에. 이어서 run_analysis.
+
+    material: "PLA|PETG|ABS|ASA|TPU|NYLON|PMMA|POM|ALUMINUM|STEEL|STAINLESS|BRASS" 또는 {"name", "E"(MPa), "nu", "density"(g/cm³), "yield"(MPa)}.
+    면 선택자(fixed·loads.faces): "Face12" | "bottom"/"top"/"xmin"/"xmax"/"ymin"/"ymax" | {"near": [x,y,z]} | {"normal": [0,0,1]} | 목록.
+    loads: [{"type": "force", "faces": [...], "value": N, "direction": [0,0,-1]}, {"type": "pressure", "faces": [...], "value": MPa, "reversed": false}, {"type": "self_weight", "direction": [0,0,-1]}].
+    direction을 비우면 면 법선 방향. mesh_size(mm)는 비우면 bbox 대각선/30. 같은 이름의 해석이 있으면 지우고 다시 만든다.
+    여러 부품(M16): names=["A","B"]로 주면 Compound로 묶어 맞닿은 면을 공유 절점으로 접합해 푼다(마찰·미끄러짐 없음). material을 {"A": "STEEL", "B": "PETG"}처럼 부품별로 줄 수 있다.
+    analysis_type: "static"(기본) | "frequency"(고유진동수, modes개; 하중 불필요). 좌굴은 지원하지 않는다(CalculiX 멈춤 확인).
+    """
+    return client.call("setup_analysis", {"name": name, "fixed": fixed, "loads": loads, "material": material, "doc": doc, "mesh_size": mesh_size,
+                                          "order": order, "analysis": analysis, "names": names, "analysis_type": analysis_type, "modes": modes}, timeout=910)
+
+
+@mcp.tool()
+def run_analysis(analysis: str | None = None, doc: str | None = None, show: str = "von_mises") -> str:
+    """CalculiX **해석 실행** (M13) → static: summary(최대 von Mises 응력·위치·면, 최대 변위, 주응력, 안전율 = 항복강도/최대응력, verdict ok/marginal/fail).
+    frequency(M16): summary.modes = [{mode, frequency_hz}], first_frequency_hz — 가진 주파수가 이 근처면 공진. 재질이 여럿이면 안전율은 가장 약한 재질 기준.
+
+    끝나면 결과 컬러맵(후처리 파이프라인, show: von_mises|displacement|principal_max|principal_min|max_shear)을 3D 뷰에 켠다 → get_screenshot(view="iso")로 보여 준다.
+    warnings의 특이점(최대 ≫ p99) 경고가 있으면 safety_factor_p99를 함께 본다. 실패하면 error에 CalculiX 메시지(nonpositive jacobian이면 mesh_size를 줄여 setup_analysis 다시).
+    """
+    return client.call("run_analysis", {"analysis": analysis, "doc": doc, "show": show}, timeout=910)
+
+
+@mcp.tool()
+def inspect_results(analysis: str | None = None, doc: str | None = None, field: str = "von_mises", top_n: int = 10, show: str | None = None,
+                    max_faces: int = 10) -> str:
+    """해석 결과 상세 (M13): field(von_mises|displacement|principal_max|principal_min|max_shear)의 상위 top_n 절점(값·좌표·가까운 면)과 면별 최대값. show를 주면 컬러맵 필드를 바꾼다."""
+    return client.call("inspect_results", {"analysis": analysis, "doc": doc, "field": field, "top_n": top_n, "show": show, "max_faces": max_faces}, timeout=190)
+
+
+@mcp.tool()
+def suggest_reinforcement(analysis: str | None = None, doc: str | None = None, target_safety: float = 2.0, max_items: int = 10) -> str:
+    """안전율이 목표 미만이면 **보강 후보**를 번호 목록으로 (M13): 핫스팟 두께 키우기·오목 모서리 필렛·리브·재질 변경·하중 축소·메시 세분화(특이점).
+
+    자동 적용하지 않는다 — 사용자가 고른 것을 build_features/execute_code로 반영하고 run_analysis로 다시 확인한다. 안전율이 충분하면 candidates가 비고 note에 여유를 적는다.
+    """
+    return client.call("suggest_reinforcement", {"analysis": analysis, "doc": doc, "target_safety": target_safety, "max_items": max_items}, timeout=190)
 
 
 @mcp.tool()

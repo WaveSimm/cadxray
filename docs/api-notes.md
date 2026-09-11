@@ -418,6 +418,11 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 결과 `Fem::FemResultObjectPython`(`CCX_Results`, 해석 Group 안): `NodeNumbers`, `vonMises`, `DisplacementLengths`, `DisplacementVectors`, `PrincipalMax/Med/Min`, `MaxShear`, `NodeStressXX..`, `Stats`(26개), `Mesh`(결과 메시; 절점 좌표 `res.Mesh.FemMesh.Nodes[id]`). purge_results는 결과·파이프라인을 지운다
 - 컬러맵: `pipe = ObjectsFem.makePostVtkResult(doc, [res], name)` → `pipe.ViewObject.Field` enum: None, Displacement, Displacement Magnitude, Tresca Stress, Strain/Stress 성분, Major/Intermediate/Minor Principal Stress, von Mises Stress. `Component`는 벡터 필드일 때만. 범례가 3D 뷰 오른쪽에 그려지고 `get_screenshot`에 찍힌다. 대상 형상·메시 객체는 숨겨야 컬러맵이 보인다
 - 외팔보 100×10×5, 20 N, 2차 요소 3 mm: 메시 0.3 s + 해석 0.7 s
+- **여러 부품**: `Part::Compound`(Links=[A, B])를 메시하면 Gmsh(CoherenceMesh)가 맞닿은 면의 절점을 공유시켜 그대로 접합(bonded)이 된다 — 강+PETG 외팔보의 이음 절점 변위가 양쪽 같음(0.047). 부품별 재질은 `MaterialSolid.References = [(comp, "SolidN")]`(PropertyLinkSubListGlobal). Solid 번호는 Links 순서와 같았지만 무게중심으로 대응시킨다
+- **`ConstraintTie`를 공유 절점 면에 걸면 CalculiX가 멈춘다**(inp의 TIE_DEP·TIE_IND 표면이 같은 요소 — ccx.exe 11 MB에서 무한 대기, frd 7바이트). taskkill로 ccx를 죽여야 FreeCAD가 돌아온다. 접합에는 Tie가 필요 없다
+- **`AnalysisType = "buckling"`은 CalculiX가 멈추고 FreeCAD 메모리가 8 GB까지 올라 죽었다**(외팔보 2차 요소, 1 N 압축) → 지원하지 않는다
+- `AnalysisType = "frequency"` + `EigenmodesCount`: 결과 객체가 모드마다 하나(`CCX_EigenMode_N_Results`, `Eigenmode` int, `EigenmodeFrequency` float Hz), 변위는 정규화(최대 ≈ 320). 강 외팔보 100×10×5 4 mm 2차: 419.5 / 832.4 / 2601.5 Hz(이론 1차 굽힘 417.7, 넓은 방향 835.4), 6.4 s
+- FreeCAD 재시작 뒤 첫 ccx 실행이 `WinError 2`로 실패한 적이 있다(현재 폴더가 지워진 임시 폴더). `os.chdir(작업 폴더)` 후 실행
 
 ## 19. 외부 Link(App::PropertyXLink) `[라이브 1.1.3 확인, 2026-09-11]`
 

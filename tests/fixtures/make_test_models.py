@@ -411,7 +411,19 @@ def T14_links():
     return ad
 
 
+def T16_multi():
+    """두 부품 접합 (M16): A 50×10×5 (x 0~50, 강) + B 50×10×5 (x 50~100, PETG). 왼쪽 고정, 오른쪽 끝 10 N −Z."""
+    doc = _fresh("T16_multi")
+    a = doc.addObject("Part::Feature", "A")
+    a.Shape = Part.makeBox(50, 10, 5)
+    b = doc.addObject("Part::Feature", "B")
+    b.Shape = Part.makeBox(50, 10, 5, Vec(50, 0, 0))
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T16_multi": T16_multi,
     "T14_links": T14_links,
     "T13_fem": T13_fem,
     "T12_print": T12_print,

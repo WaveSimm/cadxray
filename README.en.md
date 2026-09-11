@@ -50,7 +50,7 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `import_step` | import STEP/IGES and summarize the parts created |
 | `find_holes` | hole diameter/center/depth/through, with counterbore, countersink, chamfer and drill-point attached; fillets and slot ends separated by arc angle; bolt patterns with pitch; ISO metric **thread hints** (tap drill / clearance) |
 | `check_interference` | min distance and interference volume per pair; bbox prefilter (80 parts = 3,160 pairs in 6.5 s); only problem pairs returned by default |
-| `get_mass_properties` | volume, area, center of mass, inertia; mass if you pass a density; `stability` for footprint margin and tip-over angle |
+| `get_mass_properties` | volume, area, center of mass, inertia; mass if you pass a density; `stability` for footprint margin and tip-over angle; `names` + `densities` for assembly totals (M16) |
 | `classify_faces` | **STEP → parametric, step 1**: what each face really is (plane / cylinder / cone / sphere / free_form) — BSpline faces are sampled and fitted, so "fake free-form" faces are resolved; main axis, band levels, radii, rebuild verdict |
 | `section_profile` | cross-section at a height as sketch-ready lines/arcs/circles in sketch-local 2D; holes, counterbores and chamfers filled in 3D first so only the outline remains; BSpline curves re-identified |
 | `build_features` | stacks sketch + Pad / Pocket / Groove / Revolution / Fillet / Chamfer on a Body, one feature at a time with recompute and validation; `profile.section` traces the original directly (no coordinates through the LLM); Block / point-anchored arcs / axis construction line rules built in; `params` go to a Spreadsheet |
@@ -69,8 +69,8 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `estimate_print` | material volume, mass, filament length, rough time and cost (material density table) |
 | `suggest_orientation` | scores 6 orientations plus the current one by support area, bed contact and height; applies the chosen one |
 | `apply_print_fixes` | design-for-print edits as PartDesign features: elephant-foot chamfer, vertical hole compensation, teardrop for horizontal holes, thicken thin faces, 45° fill under overhangs, split oversize parts (M15) |
-| `setup_analysis` | **structural FEM (M13)**: material (table or E/ν/density/yield) + fixed faces + loads (force, pressure, self-weight) + Gmsh 2nd-order mesh + CalculiX solver in one call |
-| `run_analysis` | CalculiX static run → max von Mises stress and where, max displacement, safety factor (yield/max), verdict, stress colormap in the 3D view |
+| `setup_analysis` | **structural FEM (M13)**: material (table or E/ν/density/yield) + fixed faces + loads (force, pressure, self-weight) + Gmsh 2nd-order mesh + CalculiX solver in one call; multi-part bonded assemblies with per-part materials and modal analysis (`analysis_type="frequency"`) (M16) |
+| `run_analysis` | CalculiX static run → max von Mises stress and where, max displacement, safety factor (yield/max), verdict, stress colormap in the 3D view; natural frequencies per mode for frequency runs |
 | `inspect_results` | top nodes and per-face maxima for stress/displacement fields, switch the colormap field |
 | `suggest_reinforcement` | if the safety factor is below target: numbered candidates (thicken, fillet, rib, material, load) — nothing applied automatically |
 | `trace_links` | **assembly link tracing (M14)**: follows Links, link arrays and binders into other files — document chain, broken links (missing file), invalid objects in linked documents |
@@ -79,7 +79,7 @@ Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_
 
 ## What it has been tested on
 
-- 277 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
+- 287 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.

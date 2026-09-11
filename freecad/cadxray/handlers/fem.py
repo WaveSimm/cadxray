@@ -213,10 +213,24 @@ def _members(an):
     grp = list(an.Group)
     mesh = next((o for o in grp if o.isDerivedFrom("Fem::FemMeshObject")), None)
     solver = next((o for o in grp if "Solver" in o.TypeId or o.Name.startswith("Solver")), None)
-    mat = next((o for o in grp if o.isDerivedFrom("App::MaterialObjectPython") or o.TypeId.startswith("App::MaterialObject")), None)
+    mats = [o for o in grp if o.isDerivedFrom("App::MaterialObjectPython") or o.TypeId.startswith("App::MaterialObject")]
+    mat = mats[0] if mats else None
     results = [o for o in grp if o.isDerivedFrom("Fem::FemResultObject")]
     pipes = [o for o in grp if o.TypeId == "Fem::FemPostPipeline"]
     return mesh, solver, mat, results, pipes
+
+
+def _materials(an):
+    return [o for o in an.Group if o.isDerivedFrom("App::MaterialObjectPython") or o.TypeId.startswith("App::MaterialObject")]
+
+
+def _weakest_material(an):
+    """여러 재질이면 항복강도가 가장 낮은 것(보수적). 안전율 계산용."""
+    mats = [_read_material(m) for m in _materials(an)]
+    mats = [m for m in mats if m.get("yield")]
+    if not mats:
+        return None
+    return min(mats, key=lambda m: m["yield"])
 
 
 def _find_analysis(d, analysis):
@@ -256,25 +270,44 @@ def _run_gmsh(mesh_obj):
 
 # ---------------------------------------------------------------- 7.36 setup_analysis
 
-def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, mesh_size=None, order="2nd", analysis="Analysis"):
-    """해석 컨테이너 + 재질 + 고정 + 하중 + Gmsh 메시 + CalculiX 솔버 (명세 7.36)."""
+_ANALYSIS_TYPES = ("static", "frequency")
+
+
+def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, mesh_size=None, order="2nd", analysis="Analysis",
+                   names=None, analysis_type="static", modes=5):
+    """해석 컨테이너 + 재질 + 고정 + 하중 + Gmsh 메시 + CalculiX 솔버 (명세 7.36). names=[...]면 여러 부품을 Compound로 묶어 접합(공유 절점) 해석."""
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
         return util.error(err)
-    obj, shape, err = _shape_or_error(d, name)
-    if err:
-        return util.error(err)
+    parts = []
+    if names:
+        if isinstance(names, str):
+            names = [names]
+        for nm in names:
+            o, _, e = _shape_or_error(d, nm)
+            if e:
+                return util.error(e)
+            parts.append(o)
+        obj, shape = None, None
+    else:
+        obj, shape, err = _shape_or_error(d, name)
+        if err:
+            return util.error(err)
+    analysis_type = str(analysis_type or "static").lower()
+    if analysis_type not in _ANALYSIS_TYPES:
+        return util.error(f"analysis_type은 {' / '.join(_ANALYSIS_TYPES)} 중 하나입니다. (buckling은 CalculiX가 멈춰 FreeCAD가 죽는 것을 확인해 뺐다)")
     warnings = []
     try:
         import ObjectsFem
 
-        mat = resolve_material(material)
+        per_part = bool(parts) and isinstance(material, dict) and any(k in [o.Name for o in parts] + [util.label(o) for o in parts] for k in material)
+        mat = None if per_part else resolve_material(material)
         fixed_sel = fixed if isinstance(fixed, list) else ([fixed] if fixed else [])
         if not fixed_sel:
             raise _FemError("fixed(고정 면)가 필요합니다. 예: [\"bottom\"] 또는 [{\"near\": [x,y,z]}]")
         loads = loads or []
-        if not loads:
+        if not loads and analysis_type == "static":
             warnings.append("하중이 없습니다. self_weight라도 넣어야 의미 있는 결과가 나옵니다.")
 
         # 기존 같은 이름의 해석은 지운다(구성 재현)
@@ -285,7 +318,7 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
             for o in list(old.Group):
                 if o.Name in [x.Name for x in d.Objects]:
                     d.removeObject(o.Name)
-            for o in [x for x in d.Objects if x.Name.startswith(analysis + "_dir")]:
+            for o in [x for x in d.Objects if x.Name.startswith(analysis + "_dir") or x.Name == analysis + "_Parts"]:
                 d.removeObject(o.Name)
             d.removeObject(old.Name)
             warnings.append(f"기존 '{analysis}'를 지우고 다시 만들었습니다.")
@@ -293,10 +326,51 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
         an = ObjectsFem.makeAnalysis(d, analysis)
         created = [an.Name]
 
-        mo = ObjectsFem.makeMaterialSolid(d, "Material")
-        mo.Material = _fem_material_dict(mat)
-        an.addObject(mo)
-        created.append(mo.Name)
+        mats_out = []
+        if parts:
+            # 여러 부품 → Compound. Gmsh가 맞닿은 면의 절점을 공유시켜 접합(bonded)으로 푼다 [api-notes §18]
+            comp = d.addObject("Part::Compound", analysis + "_Parts")
+            comp.Links = parts
+            comp.Label = f"{analysis} 부품 묶음"
+            d.recompute()
+            if comp.ViewObject:
+                comp.ViewObject.Visibility = False
+            obj, shape = comp, comp.Shape
+            created.append(comp.Name)
+            # 부품 → Compound 솔리드 번호 (무게중심으로 대응)
+            solid_of = {}
+            for o in parts:
+                c = o.Shape.CenterOfMass
+                idx = min(range(len(shape.Solids)), key=lambda i: (shape.Solids[i].CenterOfMass - c).Length)
+                solid_of[o.Name] = idx + 1
+            if per_part:
+                for o in parts:
+                    spec = material.get(o.Name, material.get(util.label(o), material.get("default", "PLA")))
+                    m = resolve_material(spec)
+                    mo = ObjectsFem.makeMaterialSolid(d, f"Material_{o.Name}")
+                    mo.Material = _fem_material_dict(m)
+                    mo.References = [(comp, f"Solid{solid_of[o.Name]}")]
+                    an.addObject(mo)
+                    created.append(mo.Name)
+                    mats_out.append(dict(m, part=o.Name, solid=solid_of[o.Name]))
+                mat = min(mats_out, key=lambda m: m["yield"])
+            touching = 0
+            sols = shape.Solids
+            for i in range(len(sols)):
+                for j in range(i + 1, len(sols)):
+                    try:
+                        if sols[i].distToShape(sols[j])[0] < 1e-6:
+                            touching += 1
+                    except Exception:  # noqa: BLE001
+                        pass
+            if touching == 0 and len(parts) > 1:
+                warnings.append("부품끼리 맞닿은 곳이 없습니다 — 따로 노는 부품은 고정이 없으면 해석이 실패합니다.")
+        if not per_part:
+            mo = ObjectsFem.makeMaterialSolid(d, "Material")
+            mo.Material = _fem_material_dict(mat)
+            an.addObject(mo)
+            created.append(mo.Name)
+            mats_out = [mat]
 
         fixed_out = []
         for k, sel in enumerate(fixed_sel):
@@ -384,7 +458,9 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
             warnings.append(f"절점 {mesh_info['nodes']}개 — 해석이 수 분 걸릴 수 있습니다. mesh_size를 키우세요.")
 
         sol = ObjectsFem.makeSolverCalculiXCcxTools(d, "Solver")
-        sol.AnalysisType = "static"
+        sol.AnalysisType = analysis_type
+        if analysis_type == "frequency":
+            sol.EigenmodesCount = max(1, int(modes))
         sol.WorkingDir = _working_dir(d, an)
         an.addObject(sol)
         created.append(sol.Name)
@@ -393,9 +469,13 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
         return util.error(str(e))
     except Exception as e:  # noqa: BLE001
         return util.error(f"해석 구성 실패: {e}", e)
-    data = {"document": d.Name, "object": obj.Name, "label": util.label(obj), "analysis": an.Name, "created": created,
-            "material": mat, "fixed": fixed_out, "loads": loads_out, "mesh": mesh_info, "solver": "CalculiX static (2nd-order tets)" if mesh.ElementOrder == "2nd" else "CalculiX static (1st-order tets)",
+    data = {"document": d.Name, "object": obj.Name, "label": util.label(obj), "analysis": an.Name, "created": created, "analysis_type": analysis_type,
+            "material": mat, "materials": mats_out, "parts": [o.Name for o in parts] if parts else None,
+            "fixed": fixed_out, "loads": loads_out, "mesh": mesh_info,
+            "solver": f"CalculiX {analysis_type} ({mesh.ElementOrder}-order tets)" + (f", modes {int(modes)}" if analysis_type == "frequency" else ""),
             "next": f"run_analysis(analysis='{an.Name}')"}
+    if parts and len(parts) > 1:
+        warnings.append("부품 사이는 완전 접합(절점 공유)으로 풉니다. 미끄러짐·마찰 접촉은 지원하지 않습니다.")
     warnings.append("재질 표는 경험값입니다(FDM 출력물은 층 방향으로 더 약함). material dict로 덮어쓸 수 있습니다.")
     return util.envelope(data, warnings=warnings, t0=t0)
 
@@ -530,6 +610,13 @@ def run_analysis(analysis=None, doc=None, show="von_mises"):
         t1 = time.time()
         if FreeCAD.ActiveDocument is None or FreeCAD.ActiveDocument.Name != d.Name:
             FreeCAD.setActiveDocument(d.Name)      # ccxtools가 ActiveDocument를 본다 [헤드리스 1.1.3: None이면 getObject 오류]
+        try:
+            os.chdir(wd)                            # 현재 폴더가 지워진 곳이면 ccx 실행이 WinError 2로 실패한다 [라이브 1.1.3]
+        except Exception:  # noqa: BLE001
+            pass
+        atype = str(getattr(sol, "AnalysisType", "static"))
+        if atype not in _ANALYSIS_TYPES:
+            raise _FemError(f"AnalysisType '{atype}'는 지원하지 않습니다 (static / frequency).")
         fea = ccxtools.FemToolsCcx(an, sol)
         fea.purge_results()
         fea.update_objects()
@@ -551,16 +638,28 @@ def run_analysis(analysis=None, doc=None, show="von_mises"):
         if not results:
             raise _FemError("결과 객체가 만들어지지 않았습니다. 작업 폴더의 .frd를 확인하세요: " + wd)
         res = results[0]
-        mat = _read_material(mat_obj) if mat_obj is not None else None
-        summary, w2 = _summarize(res, shape, mat)
-        warnings.extend(w2)
-        pipe, shown = _show_pipeline(d, an, res, show or "von_mises")
+        mat = _weakest_material(an)
+        if atype == "frequency":
+            modes = []
+            for o in sorted(results, key=lambda r: int(getattr(r, "Eigenmode", 0) or 0)):
+                dl = list(o.DisplacementLengths)
+                modes.append({"mode": int(getattr(o, "Eigenmode", 0) or 0), "frequency_hz": round(float(getattr(o, "EigenmodeFrequency", 0.0)), 2),
+                              "result": o.Name, "shape_max_rel": round(max(dl), 3) if dl else None})
+            summary = {"nodes": len(list(res.NodeNumbers)), "modes": modes, "first_frequency_hz": modes[0]["frequency_hz"] if modes else None,
+                       "note": "고유진동수(Hz). 모드 변위는 정규화된 상대값이라 크기는 의미 없고 모양만 본다. 가진 주파수가 1차 고유진동수 근처면 공진"}
+            pipe, shown = _show_pipeline(d, an, res, "displacement")
+        else:
+            summary, w2 = _summarize(res, shape, mat)
+            warnings.extend(w2)
+            if len(_materials(an)) > 1:
+                summary["safety_note"] = f"재질이 여럿이라 항복강도는 가장 낮은 {mat['name']}({mat['yield']} MPa) 기준"
+            pipe, shown = _show_pipeline(d, an, res, show or "von_mises")
         d.recompute()
     except _FemError as e:
         return util.error(str(e))
     except Exception as e:  # noqa: BLE001
         return util.error(f"해석 실행 실패: {e}", e)
-    data = {"document": d.Name, "analysis": an.Name, "object": target.Name, "material": mat, "result": res.Name, "pipeline": pipe.Name,
+    data = {"document": d.Name, "analysis": an.Name, "analysis_type": atype, "object": target.Name, "material": mat, "result": res.Name, "pipeline": pipe.Name,
             "shown_field": shown, "solve_seconds": solve_s, "working_dir": wd, "summary": summary}
     if mesh_info:
         data["mesh"] = mesh_info
@@ -685,9 +784,11 @@ def suggest_reinforcement(analysis=None, doc=None, target_safety=2.0, max_items=
         if not results:
             raise _FemError("결과가 없습니다. run_analysis를 먼저 부르세요.")
         res = results[0]
+        if str(getattr(sol, "AnalysisType", "static")) != "static":
+            raise _FemError("보강 제안은 정적(static) 해석 결과에서만 됩니다.")
         target = mesh.Shape
         shape = target.Shape
-        mat = _read_material(mat_obj) if mat_obj is not None else {}
+        mat = _weakest_material(an) or {}
         if not mat.get("yield"):
             raise _FemError("재질에 항복강도가 없어 안전율을 계산할 수 없습니다.")
         summary, w2 = _summarize(res, shape, mat)

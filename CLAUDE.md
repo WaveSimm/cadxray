@@ -76,7 +76,9 @@
 3. `run_analysis` → `summary.safety_factor`·`verdict`·핫스팟 `face`/`at`를 한 문장으로. 곧바로 `get_screenshot(view="iso")`로 컬러맵을 보여 준다. warnings에 특이점 경고가 있으면 `safety_factor_p99`를 같이 말한다
 4. 안전율이 목표(기본 2) 미만이면 `suggest_reinforcement` → 후보를 **번호 목록**으로(종류·기대 안전율·확신도). 사용자가 고르면 `build_features`/`execute_code`로 반영하고 3번을 다시 한다
 5. 변위를 보고 싶으면 `inspect_results(field="displacement", show="displacement")`. 해석 객체는 문서에 남는다(같은 이름으로 setup하면 지우고 다시 만든다)
-6. 한계를 항상 붙인다: 선형 정적·등방성, FDM 출력물은 층 방향으로 더 약함, 재질 표는 경험값
+6. 여러 부품이면 `setup_analysis(names=[...], material={"A": "STEEL", "B": "PETG"})` — 맞닿은 면은 완전 접합으로 푼다(볼트·접촉·마찰 없음). 공진이 걱정이면 `analysis_type="frequency"`(하중 불필요) → `summary.modes`의 1차 고유진동수와 가진 주파수(모터 rpm/60)를 비교. 좌굴은 지원하지 않는다
+7. 어셈블리 무게·무게중심은 `get_mass_properties(names=[...], densities={...})`
+8. 한계를 항상 붙인다: 선형 정적·등방성, FDM 출력물은 층 방향으로 더 약함, 재질 표는 경험값
 
 ### 어셈블리(Link) 문서 추적 워크플로 (M14)
 1. `get_document_graph`의 `by_type`에 `App::Link`가 있거나 Link가 Invalid면 `trace_links(doc)` → `problems`를 번호 목록으로(깨진 링크 = 파일 없음, 연결 문서의 Invalid)

@@ -85,12 +85,73 @@ def _stability(shape, com):
             "verdict": "unstable" if not inside else ("tippy" if tip < 10 else "stable")}
 
 
-def get_mass_properties(name=None, doc=None, density=None, stability=False):
-    """부피·면적·무게중심·관성. density(g/cm³)를 주면 질량(g)도. stability=True면 접지·전도각(+Z 위)."""
+def _assembly_mass(d, names, densities, density, stability, t0):
+    """여러 객체의 부피·질량·무게중심 합산 (M16). densities={이름|라벨: g/cm³}, 없으면 density, 그것도 없으면 부피 가중."""
+    import Part
+
+    warnings = []
+    parts = []
+    total_v = total_m = 0.0
+    com_v = Vec(0, 0, 0)
+    com_m = Vec(0, 0, 0)
+    shapes = []
+    missing_density = []
+    for nm in names:
+        obj, shape, err = _shape_or_error(d, nm)
+        if err:
+            return util.error(err)
+        v = sum(s_.Volume for s_ in shape.Solids)
+        c = Vec(0, 0, 0)
+        for s_ in shape.Solids:
+            c += s_.CenterOfMass * s_.Volume
+        c = c * (1.0 / v) if v > 0 else shape.BoundBox.Center
+        dens = None
+        if densities:
+            dens = densities.get(obj.Name, densities.get(util.label(obj)))
+        if dens is None and density is not None:
+            dens = density
+        rec = {"name": obj.Name, "label": util.label(obj), "volume_mm3": round(v, 3), "center_of_mass": util.round_vec(c)}
+        if dens is not None:
+            dens = float(dens)
+            m = v / 1000.0 * dens
+            rec.update({"density_g_cm3": dens, "mass_g": round(m, 3)})
+            total_m += m
+            com_m += c * m
+        else:
+            missing_density.append(obj.Name)
+        total_v += v
+        com_v += c * v
+        shapes.append(shape)
+        parts.append(rec)
+    use_mass = total_m > 0 and not missing_density
+    com = (com_m * (1.0 / total_m)) if use_mass else (com_v * (1.0 / total_v) if total_v > 0 else Vec(0, 0, 0))
+    if missing_density and densities:
+        warnings.append(f"밀도가 없는 부품 {', '.join(missing_density)} — 무게중심은 부피 가중으로 계산했습니다.")
+    comp = Part.makeCompound(shapes)
+    data = {"document": d.Name, "parts": parts, "count": len(parts), "volume_mm3": round(total_v, 3), "volume_cm3": round(total_v / 1000.0, 6),
+            "center_of_mass": util.round_vec(com), "center_of_mass_basis": "mass" if use_mass else "volume", "bbox": util.serialize(comp.BoundBox)}
+    if use_mass:
+        data["mass_g"] = round(total_m, 3)
+    if stability:
+        try:
+            data["stability"] = _stability(comp, com)
+            data["stability"]["offset_from_bbox_center"] = util.round_vec(com - comp.BoundBox.Center, 3)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"안정성 계산 실패: {e}")
+    return util.envelope(data, warnings=warnings, t0=t0)
+
+
+def get_mass_properties(name=None, doc=None, density=None, stability=False, names=None, densities=None):
+    """부피·면적·무게중심·관성. density(g/cm³)를 주면 질량(g)도. stability=True면 접지·전도각(+Z 위).
+    names=[...]면 여러 부품을 합산(densities={이름: g/cm³}로 부품별 밀도, 질량 가중 무게중심)."""
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
         return util.error(err)
+    if names:
+        if isinstance(names, str):
+            names = [names]
+        return _assembly_mass(d, names, densities or {}, density, stability, t0)
     obj, shape, err = _shape_or_error(d, name)
     if err:
         return util.error(err)
