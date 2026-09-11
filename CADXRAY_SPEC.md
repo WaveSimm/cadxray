@@ -658,7 +658,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 
 ## 12. 이후 확장 후보 (v1 이후, 지금은 구현하지 않음)
 
-- 헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)
+- ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
 - 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
 - 제약 오류 자동 수정 제안(`autoconstraint`, `detectMissingPointOnPointConstraints` 활용)
 - 원격 호스트 접속(허용 IP 목록)
