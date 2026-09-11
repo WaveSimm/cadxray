@@ -33,7 +33,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 31개)`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 35개)`). 끝입니다.
 
 이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
 
@@ -133,7 +133,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `import_step` | STEP/IGES 가져오기 + 생긴 부품 요약 |
 | `find_holes` | 구멍 직경·중심·깊이·관통 여부, 카운터보어·카운터싱크·챔퍼·드릴 끝을 구멍에 붙여서, 같은 직경끼리 패턴·피치. 지름을 ISO 미터나사 표와 대조해 `thread_hint`(M3 탭 드릴 / M6 관통 …)를 **추정**으로 붙임 |
 | `check_interference` | 부품 쌍 최소 거리·간섭 부피. 기본은 문제 쌍만 담고, 바운딩박스가 떨어진 쌍은 계산 없이 건너뜀 |
-| `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량 |
+| `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도를 주면 질량, `stability`로 접지·전도각 |
 | `classify_faces` | **STEP → 파라메트릭 1단계.** 면마다 정체(평면/원통/원뿔/구/자유곡면). BSpline 면도 표본을 찍어 맞춰 보므로 "가짜 자유곡면"이 걸러짐. 주축·띠 높이(`levels`)·반지름 목록·재구성 판정(`verdict`) |
 | `section_profile` | 높이의 단면 윤곽을 스케치용 선분·호·원으로(스케치 로컬 2D). 구멍·카운터보어·챔퍼 자리는 3D에서 메운 뒤 잘라 바깥 윤곽만. BSpline 곡선도 직선·원으로 다시 판별 |
 | `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓고 피처마다 검증**. `profile.section`이면 원본을 직접 트레이스해 좌표가 대화를 오가지 않음. Block·구성점 고정·구성선 축 규칙 내장, `params`는 Spreadsheet로 |
@@ -148,10 +148,14 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `open_document` / `save_document` | FCStd 열기·저장(다른 파일 덮어쓰기는 overwrite 필요) |
 | `suggest_sketch_fixes` | **제약 수정 후보(M10)**: 가까운/열린 끝점 잇기, 빠진 수평·수직·같음, 중복·잘못된·충돌 제약 삭제, 남은 자유도용 치수. 후보마다 사본에 적용해 본 효과(DoF·상태)와 확신도. 자동으로 고치지 않음 |
 | `apply_sketch_fixes` | 사용자가 고른 후보 id만 적용, 나빠지면 되돌림. 스케치가 그사이 바뀌었으면(fingerprint) 거부 |
-| `check_printability` | **3D 프린트(M12)**: 재질·노즐·베드 프로파일로 얇은 벽, 오버행/브릿지(서포트 면적), 작은·수평 구멍, 베드 적합, 첫 층 접지를 검사 → 점수·issues·fix 후보 |
+| `check_printability` | **3D 프린트(M12)**: 재질·노즐·베드 프로파일로 얇은 벽, 오버행/브릿지(서포트 면적), 작은·수평 구멍, 베드 적합, 첫 층 접지를 검사 → 점수·issues·fix 후보. `paint=True`면 면을 결과 색으로 |
 | `estimate_print` | 재료 부피·무게·필라멘트 길이·대략 시간·비용(재질 밀도 표) |
 | `suggest_orientation` | 출력 방향 6개 + 현재를 서포트·접지·높이로 채점, 고르면 Placement 적용 |
 | `apply_print_fixes` | 출력용 설계 수정을 PartDesign 피처로: 코끼리발 챔퍼, 수직 구멍 지름 보정, 수평 구멍 눈물방울 |
+| `setup_analysis` | **구조 해석(M13)**: 재질(표 또는 E·ν·밀도·항복) + 고정 면 + 하중(힘·압력·자중) + Gmsh 2차 메시 + CalculiX 솔버를 한 번에 |
+| `run_analysis` | CalculiX 정적 해석 → 최대 von Mises 응력·위치, 최대 변위, 안전율(항복/최대), verdict, 3D 뷰에 응력 컬러맵 |
+| `inspect_results` | 응력·변위 상위 절점과 면별 최대, 컬러맵 필드 전환 |
+| `suggest_reinforcement` | 안전율 미달이면 두께·필렛·리브·재질·하중 후보를 번호 목록으로(자동 적용 없음) |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 

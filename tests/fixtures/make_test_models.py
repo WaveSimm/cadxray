@@ -360,7 +360,18 @@ def T12_print():
     return doc
 
 
+def T13_fem():
+    """외팔보 100×10×5 (M13). 왼쪽 끝(Face1, x=0) 고정, 오른쪽 끝(Face2, x=100)에 20 N −Z.
+    이론값(PETG E 2000 MPa): σ = M·c/I = 20·100·2.5/(10·5³/12) = 48 MPa, δ = F·L³/(3·E·I) = 32 mm."""
+    doc = _fresh("T13_fem")
+    beam = doc.addObject("Part::Feature", "Beam")
+    beam.Shape = Part.makeBox(100, 10, 5)
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T13_fem": T13_fem,
     "T12_print": T12_print,
     "T10_fixes": T10_fixes,
     "T9_mesh": T9_mesh,

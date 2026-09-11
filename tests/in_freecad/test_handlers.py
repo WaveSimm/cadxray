@@ -55,6 +55,7 @@ from freecad.cadxray import rpc_server  # noqa: E402
 from freecad.cadxray.handlers import (  # noqa: E402
     documents,
     drawing,
+    fem,
     mesh as mesh_mod,
     printing,
     sketch_fix,
@@ -616,6 +617,63 @@ def test_print_tools():
     check("Body가 아니면 오류", not r["ok"] and "Body" in r["error"])
 
 
+def test_fem_tools():
+    section("M13: setup_analysis / run_analysis / inspect_results / suggest_reinforcement (+ paint, stability)")
+    load = [{"type": "force", "faces": ["xmax"], "value": 20, "direction": [0, 0, -1]}]
+    r = measure("setup_analysis", "T13 외팔보", fem.setup_analysis(name="Beam", doc="T13_fem", material="PETG", fixed=["xmin"], loads=load, mesh_size=3))
+    check("setup ok", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        d = r["data"]
+        check("고정 = Face1(x=0), 하중 = Face2(x=100) −Z", d["fixed"][0]["faces"] == ["Face1"] and d["loads"][0]["faces"] == ["Face2"] and d["loads"][0]["direction"] == [0.0, 0.0, -1.0], str((d["fixed"], d["loads"])))
+        check("Gmsh 2차 메시, 절점 > 500", d["mesh"]["order"] == "2nd" and d["mesh"]["nodes"] > 500, str(d["mesh"]))
+        check("재질 PETG E 2000·항복 45", d["material"]["E"] == 2000.0 and d["material"]["yield"] == 45.0, str(d["material"]))
+    r = measure("run_analysis", "T13", fem.run_analysis(analysis="Analysis", doc="T13_fem"))
+    check("run ok", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        sm = r["data"]["summary"]
+        check("최대 von Mises ≈ 48 MPa (±10 %)", abs(sm["von_mises"]["max"] - 48.0) < 4.8, str(sm["von_mises"]))
+        check("최대 변위 ≈ 32 mm (±5 %), 자유단 x=100", abs(sm["displacement"]["max"] - 32.0) < 1.6 and abs(sm["displacement"]["at"][0] - 100.0) < 1e-6, str(sm["displacement"]))
+        check("안전율 = 45/σmax < 1 → fail", sm["safety_factor"] < 1.0 and sm["verdict"] == "fail", str((sm.get("safety_factor"), sm.get("verdict"))))
+        check("응력 핫스팟은 고정단(x < 5)", sm["von_mises"]["at"][0] < 5.0, str(sm["von_mises"]["at"]))
+    r = measure("inspect_results", "T13 변위 상위 3", fem.inspect_results(analysis="Analysis", doc="T13_fem", field="displacement", top_n=3))
+    check("inspect ok, 상위 절점이 자유단", r["ok"] and len(r["data"]["top"]) == 3 and all(abs(t["at"][0] - 100.0) < 3.0 for t in r["data"]["top"]), str(r.get("error") or r["data"]["top"]))
+    r = fem.inspect_results(analysis="Analysis", doc="T13_fem", field="bogus")
+    check("모르는 field → 오류", not r["ok"] and "field" in r["error"])
+    r = measure("suggest_reinforcement", "T13", fem.suggest_reinforcement(analysis="Analysis", doc="T13_fem", target_safety=2.0))
+    check("suggest ok", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        kinds = [c["kind"] for c in r["data"]["candidates"]]
+        check("후보에 thicken·material·load, id 1..n", {"thicken", "material", "load"} <= set(kinds) and [c["id"] for c in r["data"]["candidates"]] == list(range(1, len(kinds) + 1)), str(kinds))
+        th = next(c for c in r["data"]["candidates"] if c["kind"] == "thicken")
+        check("두께 후보: 현재 5 mm, 굽힘 √(2/SF)배", "5.0 mm" in th["detail"], th["detail"])
+    r = fem.suggest_reinforcement(analysis="Analysis", doc="T13_fem", target_safety=0.5)
+    check("목표 안전율 충족 → 후보 없음 + note", r["ok"] and r["data"]["candidates"] == [] and "보강이 필요 없습니다" in r["data"]["note"], str(r.get("error") or r["data"].get("note")))
+    # 오류 경로
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material="PETG", fixed=[], loads=load)
+    check("fixed 없음 → 오류", not r["ok"] and "fixed" in r["error"])
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material="Unobtainium", fixed=["xmin"], loads=load)
+    check("모르는 재질 → 오류", not r["ok"] and "재질" in r["error"])
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material="PETG", fixed=["Face99"], loads=load)
+    check("없는 면 → 오류", not r["ok"] and "Face99" in r["error"])
+    r = fem.run_analysis(analysis="NoSuch", doc="T13_fem")
+    check("없는 해석 → 오류", not r["ok"])
+    # 같은 이름으로 다시 구성하면 기존 것을 지운다
+    r = fem.setup_analysis(name="Beam", doc="T13_fem", material={"name": "custom", "E": 70000, "nu": 0.33, "density": 2.7, "yield": 240}, fixed=["xmin"], loads=load, mesh_size=4)
+    check("재구성 ok(재질 dict), 경고에 '지우고'", r["ok"] and any("지우고" in w for w in r["warnings"]) and r["data"]["material"]["E"] == 70000.0, str(r.get("error") or r["warnings"]))
+    n_an = len([o for o in FreeCAD.getDocument("T13_fem").Objects if o.TypeId == "Fem::FemAnalysis"])
+    check("해석 컨테이너 1개", n_an == 1, str(n_an))
+
+    # M13 부가: check_printability paint, get_mass_properties stability
+    r = printing.check_printability(name="Part", doc="T12_print", profile={"material": "PLA"}, paint=True)
+    check("paint=True 허용(헤드리스는 None)", r["ok"] and "paint" in r["data"] and not any(k.startswith("_") for k in r["data"]), str(r.get("error") or list(r["data"])))
+    r = shape_features.get_mass_properties(name="Part", doc="T12_print", stability=True)
+    st = r["data"].get("stability", {}) if r["ok"] else {}
+    check("stability: 무게중심이 접지 안, stable", r["ok"] and st.get("com_inside_footprint") is True and st.get("verdict") == "stable", str(st or r.get("error")))
+    r = shape_features.get_mass_properties(name="Beam", doc="T13_fem", stability=True)
+    st = r["data"].get("stability", {}) if r["ok"] else {}
+    check("외팔보(납작): 전도각 > 45°", r["ok"] and st.get("tip_over_deg", 0) > 45, str(st))
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -832,6 +890,7 @@ def main():
         ("mesh_tools", test_mesh_tools),
         ("sketch_fix_tools", test_sketch_fix_tools),
         ("print_tools", test_print_tools),
+        ("fem_tools", test_fem_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

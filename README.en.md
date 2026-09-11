@@ -19,7 +19,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 31개)`; addon messages are in Korean for now). Done.
+The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 35개)`; addon messages are in Korean for now). Done.
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
@@ -50,7 +50,7 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `import_step` | import STEP/IGES and summarize the parts created |
 | `find_holes` | hole diameter/center/depth/through, with counterbore, countersink, chamfer and drill-point attached; fillets and slot ends separated by arc angle; bolt patterns with pitch; ISO metric **thread hints** (tap drill / clearance) |
 | `check_interference` | min distance and interference volume per pair; bbox prefilter (80 parts = 3,160 pairs in 6.5 s); only problem pairs returned by default |
-| `get_mass_properties` | volume, area, center of mass, inertia; mass if you pass a density |
+| `get_mass_properties` | volume, area, center of mass, inertia; mass if you pass a density; `stability` for footprint margin and tip-over angle |
 | `classify_faces` | **STEP → parametric, step 1**: what each face really is (plane / cylinder / cone / sphere / free_form) — BSpline faces are sampled and fitted, so "fake free-form" faces are resolved; main axis, band levels, radii, rebuild verdict |
 | `section_profile` | cross-section at a height as sketch-ready lines/arcs/circles in sketch-local 2D; holes, counterbores and chamfers filled in 3D first so only the outline remains; BSpline curves re-identified |
 | `build_features` | stacks sketch + Pad / Pocket / Groove / Revolution / Fillet / Chamfer on a Body, one feature at a time with recompute and validation; `profile.section` traces the original directly (no coordinates through the LLM); Block / point-anchored arcs / axis construction line rules built in; `params` go to a Spreadsheet |
@@ -65,16 +65,20 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `open_document` / `save_document` | open and save FCStd (overwriting another file needs `overwrite`) |
 | `suggest_sketch_fixes` | **constraint fix proposals (M10)**: join near/open endpoints, missing horizontal/vertical/equal, delete redundant/malformed/conflicting constraints, dimensions for leftover DoF — each tried on a copy with its effect (DoF, status) and a confidence; nothing is changed automatically |
 | `apply_sketch_fixes` | apply only the ids the user picked, revert if the sketch gets worse, refuse if the sketch changed meanwhile (fingerprint) |
-| `check_printability` | **3D printing (M12)**: with a material/nozzle/bed profile, checks thin walls, overhangs and bridges (support area), small and horizontal holes, bed fit, first-layer contact → score, issues, fix candidates |
+| `check_printability` | **3D printing (M12)**: with a material/nozzle/bed profile, checks thin walls, overhangs and bridges (support area), small and horizontal holes, bed fit, first-layer contact → score, issues, fix candidates; `paint=True` colors the faces by result |
 | `estimate_print` | material volume, mass, filament length, rough time and cost (material density table) |
 | `suggest_orientation` | scores 6 orientations plus the current one by support area, bed contact and height; applies the chosen one |
 | `apply_print_fixes` | design-for-print edits as PartDesign features: elephant-foot chamfer, vertical hole compensation, teardrop for horizontal holes |
+| `setup_analysis` | **structural FEM (M13)**: material (table or E/ν/density/yield) + fixed faces + loads (force, pressure, self-weight) + Gmsh 2nd-order mesh + CalculiX solver in one call |
+| `run_analysis` | CalculiX static run → max von Mises stress and where, max displacement, safety factor (yield/max), verdict, stress colormap in the 3D view |
+| `inspect_results` | top nodes and per-face maxima for stress/displacement fields, switch the colormap field |
+| `suggest_reinforcement` | if the safety factor is below target: numbered candidates (thicken, fillet, rib, material, load) — nothing applied automatically |
 
 Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_ms"}`. List-type responses take `max_*` limits; summaries and `invalid_objects` are always computed over the whole document even when the list is truncated. Hard cap 100 KB (screenshots excepted).
 
 ## What it has been tested on
 
-- 232 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
+- 256 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.

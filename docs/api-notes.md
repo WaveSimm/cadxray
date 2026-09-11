@@ -402,3 +402,19 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `sk.OpenVertices`는 **Shape 기준**이라 `solve()`만으로는 갱신되지 않는다 → `sk.recompute()`(객체 단위) 뒤에 읽는다
 - `doc.copyObject(sk, False)`로 스케치 사본을 만들어 후보를 적용·solve해 보면 원본이 안 바뀐다(Body 밖에 생김, 쓰고 `removeObject`). 헤드리스 콘솔에 "Importing project files" 진행 메시지가 찍힌다
 - 제약을 값으로 저장해 되돌리기: `(Type, First, FirstPos, Second, SecondPos, Third, ThirdPos, Value, Name, Driving)` → `deleteAllConstraints()` 후 `addConstraint` 재생성 + `renameConstraint`·`setDriving`
+
+## 18. FEM 스크립팅 (CalculiX·Gmsh) `[라이브 1.1.3 확인, 2026-09-11]`
+
+`handlers/fem.py`에서 사용. FreeCAD 1.1 Windows 번들에 `bin/ccx.exe`·`bin/gmsh.exe`가 들어 있다(Netgen 파이썬 모듈은 없음).
+
+- 객체 생성은 `ObjectsFem.make*(doc, name)`: `makeAnalysis`, `makeMaterialSolid`, `makeConstraintFixed/Force/Pressure/SelfWeight/Displacement`, `makeMeshGmsh`, `makeSolverCalculiXCcxTools`, `makePostVtkResult(doc, [result], name)`. 해석 구성원은 `analysis.addObject(obj)`
+- 재질: `mat.Material = {"Name", "YoungsModulus": "2000 MPa", "PoissonRatio": "0.38", "Density": "1270 kg/m^3", "YieldStrength": "45 MPa"}` — 단위 문자열. 기본 dict는 비어 있다
+- 구속 참조: `c.References = [(obj, "Face1"), ...]` (PartDesign Body도 된다). `ConstraintForce.Force`는 `App::PropertyForce`(문자열 "20 N" 가능), `Direction`은 `PropertyLinkSub` — 임의 방향은 `Part::Feature`에 `Part.makeLine(0, v)` 을 넣고 `(ln, ["Edge1"])`로. `DirectionVector`(읽기)로 확인. `Reversed`로 뒤집기. 비우면 면 법선
+- `ConstraintSelfWeight.GravityDirection`(벡터)·`GravityAcceleration`. `ConstraintPressure.Pressure`는 `PropertyPressure`("0.5 MPa")
+- Gmsh: `femmesh.gmshtools.GmshTools(mesh_obj).create_mesh()` → 오류 문자열 또는 None. `CharacteristicLengthMax`(Quantity), `ElementOrder` "1st"/"2nd", `SecondOrderLinear`(bool), `HighOrderOptimize` None/Optimization/Elastic+Optimization/Elastic/Fast curving. 외팔보 2691 절점 0.3 s, 스풀 가이드(200 mm, 나사) 10k 절점 1.3 s
+- **1차 요소(C3D4)는 굽힘에 너무 뻣뻣하다**: 외팔보 이론 σ 48 / δ 32 → 1차 24 / 12, 2차 48.6 / 31.6. 기본을 2차로
+- **곡면(나사)에서 휜 2차 요소는 CalculiX가 `*ERROR in e_c3d: nonpositive jacobian`으로 실패한다** → `mesh.SecondOrderLinear = True`(중간 절점을 직선 변에)로 해결. HighOrderOptimize는 도움이 안 됐다
+- 솔버 실행: `femtools.ccxtools.FemToolsCcx(analysis, solver)` (QObject) → `purge_results()` → `update_objects()` → `setup_working_dir(path)` → `setup_ccx(ccx_binary=...)` → `check_prerequisites()`(빈 문자열이면 OK; "Working directory not set"은 setup_working_dir 전에 불렀을 때) → `write_inp_file()` → `ccx_run()`(리턴 코드, `fea.ccx_stdout`/`ccx_stderr`) → `load_results()`. `setup_ccx`는 환경설정 `Mod/Fem/Ccx/ccxBinaryPath`가 비면 `shutil.which("ccx")`만 보므로 번들 경로를 직접 넘긴다(안 넘기면 WinError 2). `solver.WorkingDir`도 같이 둔다
+- 결과 `Fem::FemResultObjectPython`(`CCX_Results`, 해석 Group 안): `NodeNumbers`, `vonMises`, `DisplacementLengths`, `DisplacementVectors`, `PrincipalMax/Med/Min`, `MaxShear`, `NodeStressXX..`, `Stats`(26개), `Mesh`(결과 메시; 절점 좌표 `res.Mesh.FemMesh.Nodes[id]`). purge_results는 결과·파이프라인을 지운다
+- 컬러맵: `pipe = ObjectsFem.makePostVtkResult(doc, [res], name)` → `pipe.ViewObject.Field` enum: None, Displacement, Displacement Magnitude, Tresca Stress, Strain/Stress 성분, Major/Intermediate/Minor Principal Stress, von Mises Stress. `Component`는 벡터 필드일 때만. 범례가 3D 뷰 오른쪽에 그려지고 `get_screenshot`에 찍힌다. 대상 형상·메시 객체는 숨겨야 컬러맵이 보인다
+- 외팔보 100×10×5, 20 N, 2차 요소 3 mm: 메시 0.3 s + 해석 0.7 s

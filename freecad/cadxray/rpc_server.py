@@ -54,6 +54,11 @@ def _timeout_for(tool, params):
     if tool in ("check_printability", "suggest_orientation", "apply_print_fixes"):
         # 메시화 + 광선 표본 수천 개, 방향 6개 (M12)
         return 180
+    if tool in ("setup_analysis", "run_analysis"):
+        # Gmsh 메시 + CalculiX 실행 — 절점 수만 개면 수 분 (M13)
+        return 900
+    if tool in ("inspect_results", "suggest_reinforcement"):
+        return 180
     if tool == "make_drawing":
         # 뷰 투영(Link 27개 어셈블리 5면 ≈ 20초) + PDF 내보내기 (M8)
         return 300

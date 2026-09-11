@@ -273,11 +273,42 @@ def _analyze(shape, prof, samples=2000, max_items=30, with_holes=True, doc=None,
                       "faces": [o for o in over_faces if o["kind"] not in ("bottom", "minor")][:max_items], "faces_total": len([o for o in over_faces if o["kind"] not in ("bottom", "minor")])},
         "holes": {"small": small[:max_items], "horizontal": horizontal[:max_items], "vertical": len(vertical)},
         "score": int(round(max(0.0, score))), "issues": issues, "fixes": fixes,
+        "_over_faces": over_faces, "_thin_all": thin_spots,
     }
 
 
-def check_printability(name=None, doc=None, profile=None, samples=2000, max_items=30):
-    """출력 가능성 검사 (명세 7.32)."""
+_PAINT = {"thin": (0.90, 0.15, 0.15), "overhang": (1.00, 0.55, 0.10), "bridge": (0.95, 0.85, 0.20), "bottom": (0.20, 0.75, 0.30), "ok": (0.80, 0.80, 0.82)}
+
+
+def _paint_faces(obj, shape, data, on):
+    """검사 결과를 면 색으로. on=False면 단색으로 되돌린다 [ShapeAppearance 면별 Material, 라이브 1.1.3]."""
+    vo = getattr(obj, "ViewObject", None)
+    if vo is None or "ShapeAppearance" not in vo.PropertiesList:
+        return None
+    base = vo.ShapeAppearance[0] if vo.ShapeAppearance else FreeCAD.Material()
+    if not on:
+        vo.ShapeAppearance = (base,)
+        return {"painted": False}
+    kinds = {}
+    for o in data["_over_faces"]:
+        if o["kind"] in ("overhang", "bridge", "bottom"):
+            kinds[o["face"]] = o["kind"]
+    for t in data["_thin_all"]:
+        kinds[t["face"]] = "thin"                     # 얇은 벽이 우선
+    mats = []
+    counts = {}
+    for i in range(1, len(shape.Faces) + 1):
+        k = kinds.get(f"Face{i}", "ok")
+        counts[k] = counts.get(k, 0) + 1
+        m = FreeCAD.Material()             # Material(other)는 없다 — 새로 만들고 색만 준다 [라이브 1.1.3]
+        m.DiffuseColor = _PAINT[k] + (0.0,)
+        mats.append(m)
+    vo.ShapeAppearance = tuple(mats)
+    return {"painted": True, "legend": {"thin": "빨강 = 얇은 벽", "overhang": "주황 = 서포트 필요", "bridge": "노랑 = 브릿지", "bottom": "초록 = 바닥 접지", "ok": "회색"}, "counts": counts}
+
+
+def check_printability(name=None, doc=None, profile=None, samples=2000, max_items=30, paint=None):
+    """출력 가능성 검사 (명세 7.32). paint=True면 면을 결과 색으로 칠하고, False면 되돌린다."""
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
@@ -288,10 +319,14 @@ def check_printability(name=None, doc=None, profile=None, samples=2000, max_item
     try:
         prof = resolve_profile(profile)
         data = _analyze(shape, prof, samples=int(samples), max_items=int(max_items), doc=d, obj=obj)
+        if paint is not None:
+            data["paint"] = _paint_faces(obj, shape, data, bool(paint))
     except _PrintError as e:
         return util.error(str(e))
     except Exception as e:  # noqa: BLE001
         return util.error(f"검사 실패: {e}", e)
+    data.pop("_over_faces", None)
+    data.pop("_thin_all", None)
     data.update({"document": d.Name, "object": obj.Name, "label": util.label(obj)})
     warnings = ["재질 표 값은 경험값입니다(슬라이서 기본값 수준). profile로 덮어쓰세요."]
     truncated = data["thin_walls"]["spots_total"] > max_items or data["overhangs"]["faces_total"] > max_items

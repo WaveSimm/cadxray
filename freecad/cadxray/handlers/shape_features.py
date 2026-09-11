@@ -38,8 +38,55 @@ def _matrix3(m):
     ]
 
 
-def get_mass_properties(name=None, doc=None, density=None):
-    """부피·면적·무게중심·관성. density(g/cm³)를 주면 질량(g)도."""
+def _stability(shape, com):
+    """무게중심이 바닥 접지 볼록껍질 안에 있는지, 넘어지기까지 기울기 (M13 부가, +Z 위)."""
+    bb = shape.BoundBox
+    zmin = bb.ZMin
+    pts = []
+    for f in shape.Faces:
+        fb = f.BoundBox
+        if abs(fb.ZMin - zmin) < 1e-3 and abs(fb.ZMax - zmin) < 1e-3:
+            pts.extend((v.Point.x, v.Point.y) for v in f.Vertexes)
+    if len(pts) < 3:
+        return {"bottom_points": len(pts), "note": "바닥에 평평한 면이 없어 판단하지 않았습니다."}
+    pts = sorted(set((round(x, 4), round(y, 4)) for x, y in pts))
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower, upper = [], []
+    for q in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], q) <= 0:
+            lower.pop()
+        lower.append(q)
+    for q in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], q) <= 0:
+            upper.pop()
+        upper.append(q)
+    hull = lower[:-1] + upper[:-1]          # 반시계
+    if len(hull) < 3:
+        return {"bottom_points": len(pts), "note": "접지 면이 선 위에 있습니다."}
+    cx, cy = com.x, com.y
+    inside = True
+    margin = None
+    for i in range(len(hull)):
+        a, b = hull[i], hull[(i + 1) % len(hull)]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(ex, ey) or 1e-12
+        dist = (ex * (cy - a[1]) - ey * (cx - a[0])) / length     # 반시계 껍질의 왼쪽(안쪽)이 양수
+        if dist < 0:
+            inside = False
+        if margin is None or dist < margin:
+            margin = dist
+    h = com.z - zmin
+    tip = math.degrees(math.atan2(max(margin, 0.0), h)) if h > 1e-9 else 90.0
+    return {"bottom_points": len(pts), "hull_points": len(hull), "com_inside_footprint": inside, "margin_mm": round(margin, 3),
+            "com_height_mm": round(h, 3), "tip_over_deg": round(tip, 1) if inside else 0.0,
+            "verdict": "unstable" if not inside else ("tippy" if tip < 10 else "stable")}
+
+
+def get_mass_properties(name=None, doc=None, density=None, stability=False):
+    """부피·면적·무게중심·관성. density(g/cm³)를 주면 질량(g)도. stability=True면 접지·전도각(+Z 위)."""
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
@@ -96,6 +143,12 @@ def get_mass_properties(name=None, doc=None, density=None):
     else:
         warnings.append(f"솔리드가 {len(solids)}개라 주축(principal)은 생략했습니다. 부피·무게중심은 합산 값입니다.")
 
+    if stability:
+        try:
+            data["stability"] = _stability(shape, com)
+            data["stability"]["offset_from_bbox_center"] = util.round_vec(com - shape.BoundBox.Center, 3)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"안정성 계산 실패: {e}")
     if density is not None:
         try:
             density = float(density)

@@ -70,6 +70,14 @@
 4. `fixes` 중 사용자가 고른 것만 `apply_print_fixes(fixes=[...])` (Body만). 오버행 챔퍼·얇은 벽·분할은 `fix: manual` — `build_features`로 손으로
 5. 다시 `check_printability`로 확인, `estimate_print`로 무게·시간·비용
 
+### 구조 해석(FEM) 워크플로 (M13)
+1. 사용자에게 셋을 확인한다: 재질(표 이름 또는 E·항복강도), 어디를 잡는지(고정 면), 어디에 얼마(힘 N·방향, 압력 MPa, 자중). 면은 "bottom"/"top" 같은 극단 이름이나 `{"near": [x,y,z]}`(구멍·돌기 좌표는 `find_holes`·`analyze_shape` bbox에서)로 지정한다. 모르면 PLA·자중만으로 시작한다고 말한다
+2. `setup_analysis(name, material, fixed, loads)` → `fixed[].faces`·`loads[].faces`가 의도한 면인지 면적으로 확인. 절점이 30만 개를 넘으면 `mesh_size`를 키운다
+3. `run_analysis` → `summary.safety_factor`·`verdict`·핫스팟 `face`/`at`를 한 문장으로. 곧바로 `get_screenshot(view="iso")`로 컬러맵을 보여 준다. warnings에 특이점 경고가 있으면 `safety_factor_p99`를 같이 말한다
+4. 안전율이 목표(기본 2) 미만이면 `suggest_reinforcement` → 후보를 **번호 목록**으로(종류·기대 안전율·확신도). 사용자가 고르면 `build_features`/`execute_code`로 반영하고 3번을 다시 한다
+5. 변위를 보고 싶으면 `inspect_results(field="displacement", show="displacement")`. 해석 객체는 문서에 남는다(같은 이름으로 setup하면 지우고 다시 만든다)
+6. 한계를 항상 붙인다: 선형 정적·등방성, FDM 출력물은 층 방향으로 더 약함, 재질 표는 경험값
+
 ### 읽을 때 주의
 - `suggest_sketch_fixes`의 `effect`는 사본에서 잰 값이다. `add_dimension`(low)은 현재 값을 치수로 굳히는 것이라 설계 치수인지 사용자에게 확인한다. `open_vertices`는 Shape 기준이라 solve만으로는 안 바뀐다(툴이 recompute한다)
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
@@ -84,6 +92,7 @@
 - `analyze_mesh`의 `thread.center`·`center`는 단면 좌표(축이 Z면 X,Y)다. `levels[].facets`는 개수뿐이다
 - `open_document`로 다시 연 문서의 이름은 파일명이다(원래 문서 이름은 남지 않는다)
 - `make_drawing`의 치수는 Projected 모드라 DistanceX/Y가 뷰 축을 따른다. 상세 뷰(`view`에 `ref` 글자)에서도 같은 방식으로 잰다
+- `run_analysis`가 "nonpositive jacobian"으로 실패하면 메시가 찌그러진 것 — `setup_analysis(mesh_size=더 작게)`. 결과 절점 좌표는 변형 전 좌표다
 - `compare_shapes`에서 `boolean_failed`가 true면 `missing/extra`는 무시하고 `volume_diff`·`area_diff`로만 판단한다
 
 ### 수정 코드 작성 시 주의

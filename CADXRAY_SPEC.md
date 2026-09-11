@@ -566,6 +566,35 @@ STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 �
 - PartDesign 피처로 쌓는다(되돌리기 = 피처 삭제): `elephant_foot` = 바닥 바깥 모서리 Chamfer, `hole_comp` = 수직 구멍을 보정값만큼 키우는 Pocket(`find_holes` 값), `teardrop` = 수평 구멍 위에 45° 눈물방울 Pocket. 오버행 아래 챔퍼·얇은 벽 두껍게·분할은 v1에서 제안만 한다(issues에 "manual").
 - 출력: `{"applied": [{"fix", "feature", "status"}], "skipped": [...], "volume_before", "volume_after"}`. Body가 아니면 오류.
 
+### 7.36 `setup_analysis` (M13)
+- 입력: `name, doc=None, material="PLA", fixed=[면 선택자...], loads=[...], mesh_size=None, order="2nd", analysis="Analysis"`
+- 면 선택자: `"FaceN"` | `"bottom"|"top"|"xmin"|"xmax"|"ymin"|"ymax"`(그 극단에 납작하게 놓인 평면 전부) | `{"near": [x,y,z]}`(가장 가까운 면 하나) | `{"normal": [nx,ny,nz]}`(법선 일치 면 전부) | 목록. 좌표는 모델 좌표
+- `material`: 표 이름(PLA·PETG·ABS·ASA·TPU·NYLON·PMMA·POM·ALUMINUM·STEEL·STAINLESS·BRASS, `handlers/fem.py` 상단, 경험값) 또는 `{"name", "E"(MPa), "nu", "density"(g/cm³), "yield"(MPa)}`
+- `loads`: `{"type": "force", "faces", "value"(N), "direction": [..]|None(면 법선)}` / `{"type": "pressure", "faces", "value"(MPa), "reversed"}` / `{"type": "self_weight", "direction": [0,0,-1]}`. force 방향은 숨긴 `Part::Feature` 선(`<analysis>_dirN`)을 `Direction`에 링크해 준다
+- 만드는 것: `Fem::FemAnalysis` + `MaterialSolid` + `ConstraintFixed`(+ Force/Pressure/SelfWeight) + `FemMeshGmsh`(CharacteristicLengthMax = mesh_size, 비우면 bbox 대각선/30을 0.5~10으로 클램프; ElementOrder 2nd; **SecondOrderLinear=True**) + `SolverCalculiXCcxTools`(static, WorkingDir = `%TEMP%/cadxray_fem/<doc>/<analysis>`). Gmsh를 바로 돌려 절점·요소 수를 돌려준다. 같은 이름의 해석이 있으면 구성원과 함께 지우고 다시 만든다
+- 출력: `{"analysis", "created", "material", "fixed": [{"selector", "faces", "area"}], "loads": [...], "mesh": {"nodes", "elements", "seconds", "size", "order"}, "next"}`
+
+### 7.37 `run_analysis` (M13)
+- 입력: `analysis=None(문서에 하나면 자동), doc=None, show="von_mises"`
+- CalculiX 실행(`femtools.ccxtools.FemToolsCcx`: purge_results → update_objects → setup_working_dir → setup_ccx(경로: 환경설정 → PATH → FreeCAD bin/ccx.exe) → check_prerequisites → write_inp_file → ccx_run → load_results). ret≠0 또는 stdout에 `*ERROR`면 오류 봉투(마지막 600자)
+- 출력 `summary`: `von_mises {max, p99, mean, node, at, face}`, `displacement {max, node, at, direction, percent_of_size}`, `principal_max/min`, `safety_factor` = 항복강도/최대 vM, `safety_factor_p99`, `verdict` ok(≥2)/marginal(≥1)/fail. 최대가 p99의 3배를 넘으면 특이점 경고
+- 후처리: `ObjectsFem.makePostVtkResult(doc, [result])` 파이프라인을 만들고 `ViewObject.Field`를 show에 맞춰 켠다(대상 형상·메시는 숨김). 스크린샷은 `get_screenshot`
+
+### 7.38 `inspect_results` (M13)
+- 입력: `analysis, doc, field="von_mises"|"displacement"|"principal_max"|"principal_min"|"max_shear", top_n=10, show=None, max_faces=10`
+- 출력: `{"stats": {max, min, mean, p99}, "top": [{"node", "value", "at", "face"}], "faces": [{"face", "max", "count"}], "faces_total", "shown_field"}`. `show`를 주면 컬러맵 필드를 바꾼다
+
+### 7.39 `suggest_reinforcement` (M13)
+- 입력: `analysis, doc, target_safety=2.0, max_items=10`
+- 안전율 ≥ 목표면 `candidates=[]` + `note`(여유). 미달이면 후보(자동 적용 없음): `thicken`(핫스팟 두께를 광선으로 재서 굽힘 √k배 / 인장 k배), `fillet`(핫스팟 근처 오목 모서리가 있으면 R), `rib`(처짐 방향이 핫스팟 면 법선과 나란하면), `material`(표에서 목표를 만족하는 재질), `load`(허용 응력 대비 하중 %), `mesh`(특이점 의심 시 절반 크기로 재해석). 각 `{"id", "kind", "detail", "expected_safety", "confidence", "how"}`
+- 출력: `{"safety_factor", "target", "stress_reduction_needed", "hotspot", "candidates", "candidates_total"}`
+
+### 7.40 `check_printability`의 `paint` (M13 부가)
+- `paint=True`: 대상의 `ViewObject.ShapeAppearance`를 면 수만큼의 `App.Material` 튜플로 바꿔 결과 색(얇은 벽 빨강 > 서포트 주황 > 브릿지 노랑 > 접지 초록, 나머지 회색)을 칠한다. `paint=False`: 첫 재질 하나로 되돌린다. 응답 `paint: {"painted", "legend", "counts"}`. 헤드리스(ViewObject 없음)는 `null`
+
+### 7.41 `get_mass_properties`의 `stability` (M13 부가)
+- `stability=True`: 바닥(bbox ZMin에 납작한 면)의 정점으로 볼록껍질을 만들고 무게중심 XY가 그 안에 있는지, 가장 가까운 변까지 거리 `margin_mm`, 무게중심 높이로 `tip_over_deg = atan(margin/h)`, `verdict` stable(≥10°)/tippy/unstable(밖). `offset_from_bbox_center`로 편심도 준다
+
 ---
 
 ## 8. Claude Code 연결
@@ -681,6 +710,16 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 5. CLAUDE.md 워크플로: 프로파일 확인 → check → 번호 목록(issues·fixes) → 사용자 선택 → apply → check 재확인
 6. **완료 기준**: `T12_print`(40×30×20 상자 + 0.6 mm 리브 + 10 mm 캔틸레버 + 70° 기운 면 + Ø3 수직 구멍 + Ø6 수평 구멍)에서 check가 얇은 벽(0.6 < 0.8)·캔틸레버 오버행·70° 면·작은 구멍·수평 구멍을 모두 잡고 바닥면·35° 면은 잡지 않는다. estimate의 mass = 재료 부피×밀도. suggest_orientation이 7개 후보를 주고 최상위가 캔틸레버를 없애는 방향. apply(elephant_foot·hole_comp·teardrop) 뒤 Body 유효, 구멍 지름이 보정값만큼 커지고, 수평 구멍 위에 눈물방울이 생긴다.
 
+### M13 — FEM 구조 해석 (M12 이후, 2026-09-11 추가)
+FreeCAD 1.1은 CalculiX(ccx)·Gmsh를 동봉한다(bin/). FEM 워크벤치를 직접 쓰려면 재질·구속·하중·메시를 손으로 만들어야 하는 것을 툴 하나로 감싼다. 선형 정적·등방성만.
+1. `setup_analysis` (7.36) — `handlers/fem.py`, 재질 표
+2. `run_analysis` (7.37) + 후처리 파이프라인 컬러맵
+3. `inspect_results` (7.38)
+4. `suggest_reinforcement` (7.39)
+5. 부가: `check_printability(paint=)` (7.40), `get_mass_properties(stability=)` (7.41)
+6. CLAUDE.md 워크플로: 재질·고정·하중 확인 → setup → run → 스크린샷 + 안전율 → 미달이면 suggest 번호 목록 → 사용자 선택 → build_features → run 재확인
+7. **완료 기준**: `T13_fem`(외팔보 100×10×5, PETG, 자유단 20 N −Z)에서 최대 von Mises가 이론 48 MPa ±10 %, 최대 변위가 32 mm ±5 %(2차 요소; 1차는 절반 수준으로 나와 기본값이 아니다), 핫스팟이 고정단, 안전율 <1 → fail, suggest에 thicken·material·load. 스풀 가이드(나사 있는 실물)에서 Gmsh 2차 메시가 CalculiX "nonpositive jacobian"을 내지 않는다(SecondOrderLinear)
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -698,6 +737,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 | `T8_drawing` | T1(PartDesign 판 + 구멍)과 pole_frame(Link 27개, `examples/pole_frame_from_dxf.py`) (M8) | `make_drawing(T1)`: 뷰 3개·치수 4개 값이 모델과 같음, PDF A4 1장. `inspect_drawing`이 치수 값을 그대로 돌려줌 |
 | `T9_mesh` | T7의 "Plate"를 `MeshPart.meshFromShape`(LinearDeflection 0.02)로 STL에 내보내 `Mesh.insert`로 다시 읽은 `Mesh::Feature` "PlateMesh" (M9) | `import_mesh`: is_solid. `analyze_mesh`: levels [0, 6, 10], verdict prismatic. `section_profile(PlateMesh, z=3)`: 선분 4개. `build_features` → `compare_shapes(PlateMesh, Body)` max 편차 < 0.05 |
 | `T10_fixes` | 0.02 mm 벌어진 사각형(끝점 3곳만 일치) + 0.3° 기운 선 + 길이 같은 선 2개 + 반지름 같은 원 2개 (M10) | `suggest_sketch_fixes`: add_coincident 1, add_horizontal/vertical ≥ 4, add_equal 2(선·반지름), effect 있음. `apply_sketch_fixes(recommended)` 뒤 open_vertices 0, DoF 감소 |
+| `T13_fem` | 외팔보 100×10×5 `Part::Feature` (M13) | `setup_analysis` xmin 고정·xmax 20 N −Z → Gmsh 2차. `run_analysis` σmax 48±10 %, δmax 32±5 %, verdict fail. `inspect_results` 자유단. `suggest_reinforcement` thicken·material·load; 목표 0.5면 후보 없음. `get_mass_properties(stability)` 전도각 > 45° |
 | `T12_print` | 40×30×20 상자 + 0.6 mm 리브 + 10 mm 캔틸레버(z 10) + 70° 기운 면 + Ø3 수직 관통 구멍 + Ø6 수평 관통 구멍 (M12) | `check_printability`: thin 1(0.6), overhang 캔틸레버·70° 면, small hole Ø3, horizontal hole Ø6. `estimate_print` mass. `suggest_orientation` 7후보. `apply_print_fixes` 3종 유효 |
 
 ### CLAUDE.md에 넣을 진단 워크플로 (이 MCP를 사용하는 AI용)

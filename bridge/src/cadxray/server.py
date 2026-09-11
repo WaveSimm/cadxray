@@ -316,14 +316,16 @@ def get_mass_properties(
     name: str,
     doc: str | None = None,
     density: float | None = None,
+    stability: bool = False,
 ) -> str:
     """부피(mm³)·표면적·무게중심·관성 행렬. density(g/cm³)를 주면 질량(g)도 계산한다.
 
     예: 알루미늄 2.7, 강 7.85, 스테인리스 7.9, ABS 1.04, PLA 1.24.
+    stability=True면 무게중심이 바닥 접지(볼록껍질) 안에 있는지, 여유(margin_mm), 넘어지는 기울기(tip_over_deg), verdict(stable/tippy/unstable)도 준다(+Z가 위).
     """
     return client.call(
         "get_mass_properties",
-        {"name": name, "doc": doc, "density": density},
+        {"name": name, "doc": doc, "density": density, "stability": stability},
         timeout=60,
     )
 
