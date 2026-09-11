@@ -344,3 +344,19 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 문서 이름이 숫자로 시작하면 FreeCAD가 앞에 `_`를 붙인다(`2C1_tools` → `_2C1_tools`) → 스크립트가 문서를 못 찾는다.
 - `section` `clip` 상자는 형상의 로컬 2D 범위 전체를 덮어야 한다. 원점 기준 ±대각선으로 잡으면 원점에서 먼 부품(2C2, y 45~80)은 일부만 잘려 앞 귀 복원이 전체 단면을 다시 더해 립 쐐기를 메웠다.
 - 스크립트를 '기록 모드'(build_features 가로채기)로 다시 실행해 피처 목록만 모을 때, 스크립트 안의 `reload_handlers()`가 가로채기를 되돌린다 → 그 줄을 빼고 exec.
+
+## 14. TechDraw 스크립팅 `[라이브 1.1.3 확인, 2026-09-11]`
+
+`examples/techdraw_page_from_assembly.py`로 확인. 전용 툴(M8)은 아직 명세에 없어 `execute_code`로 만든다.
+
+- `TechDraw::DrawViewPart.Source`에 `App::Link`를 직접 넣으면 뷰가 "Valid"인데 `getVisibleEdges()`가 0개 — 형상을 못 뽑는다. Link들을 `Part::Compound(Links=[…])`로 묶어 Source로 준다. 컴파운드를 숨겨도(`ViewObject.Visibility=False`) 투영된다
+- 뷰 `X`/`Y`는 `page.addView(view)` **뒤에** 넣는다. 앞에 넣으면 addView가 페이지 중앙(148.5, 105)으로 되돌린다
+- `TechDraw.makeDistanceDim3d(view, 'DistanceY', p1, p2)`: 페이지 창이 열려 있지 않으면 "DDH::makeDistDim - dim not found" 또는 Access violation. 열려 있으면 치수를 만들지만 **반환값은 None**이고, 만든 코스메틱 정점이 축척과 맞지 않아 값이 50배 등으로 틀린다. 쓰지 않는다
+- 치수는 `TechDraw::DrawViewDimension`을 직접 만든다: `Type='DistanceX|DistanceY|Distance'`, `References3D=[(compound,'VertexN'),(compound,'VertexM')]`, `References2D=[(view,'')]`, `MeasureType='Projected'`. `'True'`는 두 정점의 3D 직선거리라 DistanceX/Y 구분이 무시된다(6000 → 6087). 정점 번호는 `compound.Shape.Vertexes`에서 좌표로 찾는다(1-based)
+- 정점이 없는 거리(원통 실루엣 사이)는 `References2D=[(view, ('EdgeA','EdgeB'))]`로 세로 모서리 두 개를 참조한다. 모서리 번호는 `view.getVisibleEdges()`의 인덱스(0-based)와 같았다. 재투영·축척 변경으로 바뀔 수 있으니 매번 찾는다
+- 치수 `ScaleType`은 기본 'Page'(=1.0). 뷰 축척과 다르면 값이 틀리므로 `ScaleType='Custom'`, `Scale=view.getScale()`로 맞춘다. 뷰 축척을 바꾸면 치수도 다시 맞춘다(안 맞추면 2500이 2000으로)
+- `DrawViewDetail`: `BaseView`, `Source`(=BaseView.Source), `AnchorPoint`(BaseView 좌표 = 축척 전 모델 mm, 뷰 기하 중심 `getGeometricCenter()` 기준), `Radius`(모델 mm), `Reference`('A'), `ScaleType/Scale`
+- `DrawViewAnnotation`: `Text`(줄 목록), `TextSize`, X/Y (addView 뒤)
+- 기본 템플릿 `Templates/Default_Template_A4_Landscape.svg`는 11줄짜리 빈 페이지(테두리·표제란·EditableTexts 없음). 표제란은 `Templates/ISO/A3_Landscape_TD.svg` 등(EditableTexts: FC-Title, Subtitle, AuthorName, CreationDate, SupervisorName, CheckDate, scale, Weight, drawing_number, SheetNumber, copyright). 다른 크기는 `ISO/A?_Landscape_ISO5457_advanced|minimal|notitleblock.svg`, `ASME/`
+- 페이지 창 열기: `Gui.getDocument(doc).getObject(page).doubleClicked()` (반환 True). 내보내기 `TechDrawGui.exportPageAsPdf(page, path)` / `exportPageAsSvg` — 페이지 크기(A3=1191×842 pt)로 나온다
+- 뷰 방향: 정면 `Direction (0,-1,0)`, `XDirection (1,0,0)`; 우측면 `(1,0,0)` / `(0,1,0)`; 평면 `(0,0,1)` / `(1,0,0)`
