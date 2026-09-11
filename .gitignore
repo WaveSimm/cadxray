@@ -26,3 +26,6 @@ docs/.pdca-snapshots/
 site/node_modules/
 site/dist/
 site/.astro/
+
+# FreeCAD 자동 백업
+*.FCBak
