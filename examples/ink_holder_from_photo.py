@@ -86,5 +86,5 @@ def appearance(obj, rgb, specular=0.55, shininess=0.7, transparency=0.0):
             o.ViewObject.Transparency = int(transparency * 100)
 if App.GuiUp:
     appearance(doc.getObject("InkHolder"), (0.40, 0.05, 0.08))
-    appearance(doc.getObject("Vial"), (0.80, 0.90, 0.95), specular=0.9, shininess=0.95, transparency=0.70)
+    appearance(doc.getObject("Vial"), (0.80, 0.90, 0.95), specular=0.9, shininess=0.95, transparency=0.60)
     appearance(doc.getObject("Cap"), (0.06, 0.06, 0.07), specular=0.8, shininess=0.9)

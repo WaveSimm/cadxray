@@ -360,3 +360,10 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 기본 템플릿 `Templates/Default_Template_A4_Landscape.svg`는 11줄짜리 빈 페이지(테두리·표제란·EditableTexts 없음). 표제란은 `Templates/ISO/A3_Landscape_TD.svg` 등(EditableTexts: FC-Title, Subtitle, AuthorName, CreationDate, SupervisorName, CheckDate, scale, Weight, drawing_number, SheetNumber, copyright). 다른 크기는 `ISO/A?_Landscape_ISO5457_advanced|minimal|notitleblock.svg`, `ASME/`
 - 페이지 창 열기: `Gui.getDocument(doc).getObject(page).doubleClicked()` (반환 True). 내보내기 `TechDrawGui.exportPageAsPdf(page, path)` / `exportPageAsSvg` — 페이지 크기(A3=1191×842 pt)로 나온다
 - 뷰 방향: 정면 `Direction (0,-1,0)`, `XDirection (1,0,0)`; 우측면 `(1,0,0)` / `(0,1,0)`; 평면 `(0,0,1)` / `(1,0,0)`
+
+## 15. 외관(색·투명) `[라이브 1.1.3 확인, 2026-09-11]`
+
+- `ViewObject.ShapeAppearance = (App.Material,)` — `DiffuseColor`/`SpecularColor`/`AmbientColor`/`Shininess`. Body에 주면 Tip에도 적용되지만 피처마다 복사해 두는 편이 안전(`examples/ink_holder_from_photo.py`)
+- 면별 `Material.Transparency`(ShapeAppearance를 면 수만큼 준 경우)는 3D 뷰에서 투명으로 그려지지 않는다. 투명은 `ViewObject.Transparency = 0~100`(객체 전체)로만. 부분만 투명하려면 바디를 나눈다
+- `App::Link`는 `OverrideMaterial=False`(기본)면 원본 Body의 색·투명을 따른다. Link에 따로 `Transparency`를 주지 않아도 된다
+- **함정**: 피처를 지우고 `body.Tip`을 이전 피처로 되돌리면 그 피처의 `ViewObject.Visibility`가 False인 채 남아 Body(와 그 Link 전부)가 화면에서 사라진다. 형상은 멀쩡하다. `body.Tip.ViewObject.Visibility = True`로 켠다
