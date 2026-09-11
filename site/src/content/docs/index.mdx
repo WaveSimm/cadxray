@@ -1,0 +1,55 @@
+---
+title: FreeCAD AI 모델링 교육 포털
+description: AI 코딩 툴과 cadxray 로 FreeCAD 에서 3D 모델을 말로 만드는 법
+template: splash
+hero:
+  tagline: 치수를 말하면 모델이 나옵니다. 도면·사진·STEP·STL 을 파라메트릭 모델로 다시 그리고, 고치고, 검사하고, 도면과 해석까지.
+  actions:
+    - text: 5분 첫 모델 만들기
+      link: /cadxray/practice/01-plate-holes/
+      icon: right-arrow
+    - text: 설치부터 시작
+      link: /cadxray/setup/01-freecad/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 이 사이트는
+
+FreeCAD 1.1.3 에 **cadxray** 라는 연결 장치를 붙이면 Claude Code·Codex CLI·Gemini CLI 같은 AI 코딩 툴이 열려 있는 FreeCAD 문서를 직접 읽고 만들고 고칩니다. 이 사이트는 그 장치를 설명하는 곳이 아니라, **그것으로 3D 모델을 말로 만드는 법**을 배우는 곳입니다. 페이지마다 «이렇게 말한다» 상자의 문장을 복사해 AI 에 붙여 넣으면 됩니다.
+
+<CardGrid>
+  <Card title="설치" icon="setting">
+    FreeCAD 1.1.3, uv, git, AI 툴. 터미널 명령 두 줄이면 끝납니다. 막히면 진단 명령이 한글로 알려 줍니다. [시작 →](/cadxray/setup/01-freecad/)
+  </Card>
+  <Card title="AI 툴 연결" icon="rocket">
+    Claude Code · Codex CLI · Gemini CLI 각각의 등록 방법과 규칙 파일, 그리고 셋의 차이. [보기 →](/cadxray/ai/01-claude-code/)
+  </Card>
+  <Card title="할 수 있는 것" icon="open-book">
+    새로 만들기, 도면·사진에서 만들기, STEP·STL 다시 그리기, 고치기, 검사, 2D 도면, 3D 프린트, 구조해석. [보기 →](/cadxray/features/01-create/)
+  </Card>
+  <Card title="따라하기 실습" icon="pencil">
+    판에 구멍 4개부터 철봉 프레임까지 10개. 입력 파일, 프롬프트 원문, 확인 방법, 성공 기준. [시작 →](/cadxray/practice/01-plate-holes/)
+  </Card>
+  <Card title="프롬프트 작성법" icon="comment">
+    무엇을 넣어야 한 번에 되는지, AI 가 되물을 때 어떻게 답하는지, 좋은 예와 나쁜 예. [보기 →](/cadxray/prompt/01-structure/)
+  </Card>
+  <Card title="참고" icon="information">
+    기능 36개 표, 한계, 용어. 필요할 때만 찾아봅니다. [보기 →](/cadxray/ref/01-tools/)
+  </Card>
+</CardGrid>
+
+## 권하는 순서
+
+1. **설치**와 **AI 툴 연결**을 끝냅니다. 30분이면 됩니다.
+2. **실습 1** 로 판에 구멍 4개를 뚫어 봅니다. 모델이 나오면 준비는 끝입니다.
+3. 자기 일과 가까운 실습을 고릅니다. 도면이 있으면 실습 2·3·10, 벤더 부품이 있으면 4·5, 기존 모델이 자꾸 빨개지면 6.
+4. 막히면 **프롬프트 작성법**을 읽고 문장을 고쳐 다시 시킵니다. 질문은 [GitHub Issues](https://github.com/WaveSimm/cadxray/issues) 에 남깁니다.
+
+## 알아 둘 것
+
+- 모든 통신은 내 PC 안(127.0.0.1)에서만 오갑니다. 모델 파일이 외부로 나가지 않습니다. 다만 AI 툴 자체는 대화 내용을 각 회사 서버로 보냅니다.
+- AI 는 파일을 **시키기 전엔 저장하지 않습니다**. 마음에 들면 "저장해" 라고 말합니다.
+- 수정 후보는 항상 번호 목록으로 보여 주고, 고른 것만 적용합니다. 자동으로 고치지 않습니다.
+- 검증은 FreeCAD 1.1.3 · Windows 기준입니다. macOS·Linux 는 설치 경로만 다르고 절차는 같습니다.

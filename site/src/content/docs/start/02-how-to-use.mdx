@@ -1,0 +1,52 @@
+---
+title: 이 사이트 읽는 법
+description: 페이지 구성, 상자의 뜻, 실습 고르는 법, 질문하는 곳
+sidebar:
+  order: 2
+---
+
+## 상자의 뜻
+
+페이지에는 세 종류의 상자가 나옵니다.
+
+```text title="이렇게 말한다"
+AI 툴에 그대로 붙여 넣는 문장입니다. 오른쪽 위 복사 버튼을 누릅니다.
+```
+
+:::note[AI 는 이렇게 답합니다]
+AI 가 되묻거나 결과를 보고하는 예입니다. 문구는 매번 조금씩 다르지만 묻는 내용은 같습니다.
+:::
+
+:::caution[주의]
+잘못하면 시간을 잃거나 결과가 틀리는 지점입니다.
+:::
+
+## 실습 페이지의 구조
+
+실습은 전부 같은 순서입니다. 머리표(입력 파일·시간·결과물·배우는 것) → 준비 → 단계(말한다 → AI 가 하는 일 → 확인하기) → 결과 확인(성공 기준 수치) → 잘 안 될 때 → 더 해보기. 맨 끝에 뒤에서 도는 기능 이름과 원본 기록 링크가 있습니다. 기능 이름은 몰라도 됩니다.
+
+## 어느 실습부터
+
+| 상황 | 실습 |
+|---|---|
+| 처음 | [1. 판에 구멍 4개](/cadxray/practice/01-plate-holes/) |
+| PDF 도면이 있다 | [2. 커버 가공도](/cadxray/practice/02-cover-from-pdf/) |
+| DXF 가 있다 | [3. PCB 보드](/cadxray/practice/03-pcb-from-dxf/), [10. 철봉 프레임](/cadxray/practice/10-pole-frame/) |
+| 벤더 STEP 을 받았다 | [4. 클램프 조](/cadxray/practice/04-step-clamp/) |
+| STL 밖에 없다 | [5. 스풀 가이드](/cadxray/practice/05-stl-spool/) |
+| 기존 모델이 빨개진다 | [6. 빨간 스케치](/cadxray/practice/06-fix-sketch/) |
+| 도면을 내야 한다 | [7. 2D 도면 만들기](/cadxray/practice/07-drawing-pdf/) |
+| 3D 프린터로 뽑는다 | [8. 프린트 검토](/cadxray/practice/08-print-check/) |
+| 부러질지 걱정된다 | [9. 외팔보 해석](/cadxray/practice/09-fem-beam/) |
+
+## 입력 파일
+
+실습마다 «원본과 완성» 절이 있습니다. 원본(도면·STEP·STL)과 완성 파일(FCStd·STEP)을 그림으로 보여 주고 [GitHub Release](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1) 에서 내려받게 합니다. 완성 파일은 그 실습의 절차를 서버의 FreeCAD 1.1.3 에서 실제로 돌려 만든 것이라, 막히면 열어서 트리와 Params 를 비교하면 됩니다. 실습 1·6·8·9 는 입력 파일이 없고 말로 시작하며, 6·8·9 는 연습 모델도 내려받을 수 있습니다.
+
+## 질문과 의견
+
+질문과 의견은 cadxray 리포의 [GitHub Issues](https://github.com/WaveSimm/cadxray/issues) 에 남깁니다. 잘 된 프롬프트, 안 된 프롬프트를 남겨 주면 다음 사람이 덜 헤맵니다.
+
+## 검색
+
+위쪽 검색창(Ctrl+K)으로 "구멍", "간섭", "STEP" 같은 말을 찾으면 관련 페이지가 바로 나옵니다.

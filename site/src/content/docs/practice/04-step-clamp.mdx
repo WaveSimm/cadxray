@@ -1,0 +1,193 @@
+---
+title: 실습 4. 벤더 STEP 부품 분석하고 다시 그리기
+description: 벤더가 준 STEP 클램프 조(44면)를 읽어 구멍·피치를 뽑고, 면 측정값만으로 파라메트릭 Body 로 다시 그린 뒤 원본과 차집합으로 검증합니다.
+sidebar:
+  order: 4
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../assets/practice/04-clamp-original.png';
+
+import img1 from '../../../assets/practice/04-clamp-jaw-original.png';
+
+import img2 from '../../../assets/practice/04-clamp-final.png';
+
+| 항목 | 내용 |
+|---|---|
+| 입력 파일 | `04-clamp/tt_fractal_vise_assembly.step` (벤더 바이스 어셈블리 STEP, 80부품 20종. 이 중 클램프 조 **2B2**(44면, BSpline 전이면 포함)를 다시 그립니다) |
+| 걸리는 시간 | 5분 (STEP 열기 2초, 재구성 8초, 비교 1초) |
+| 결과물 | 새 문서 `jaw_2B2_tools` 에 Body 1개(피처 12개, 스케치 12개 전부 자유도 0, 파라미터 시트) |
+| 배우는 것 | STEP 에서 구멍·피치 읽기, 히스토리 없는 덩어리를 피처 있는 모델로 바꾸는 절차, 원본과의 차집합 검증 |
+
+벤더 STEP 은 피처가 없는 덩어리라 치수를 바꿀 수 없습니다. 이 실습은 그 덩어리를 **읽고 → 측정하고 → 피처로 다시 쌓고 → 원본과 비교**하는 전 과정을 말로 시킵니다. 원본 기록에서는 부피 차 +0.035 mm³(0.0004 %)로 identical 판정이 났습니다.
+
+## 원본과 완성
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="원본: 바이스 어셈블리 STEP" />
+    <figcaption><b>원본</b> tt_fractal_vise_assembly.step 을 가져온 등각 — 80부품 20종</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="원본: 클램프 조 2B2" />
+    <figcaption><b>원본 중 2B2</b> — 피처 없는 덩어리, 44면(BSpline 8)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="완성: 다시 그린 2B2" />
+    <figcaption><b>완성</b> jaw_2B2(참고용 Ref_2B2 숨김) — 피처 12개, 스케치 전부 자유도 0, 원본과 부피 차 0.000449 % (identical)</figcaption>
+  </figure>
+</div>
+
+| 구분 | 파일 | 설명 | 크기 |
+|---|---|---|---|
+| 원본 | [tt_fractal_vise_assembly.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-tt_fractal_vise_assembly.step) | 어셈블리 STEP | 3.1 MB |
+| 원본 | [원본-jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-original.step) | 2B2 만 뽑은 STEP | 75 KB |
+| 완성 | [완성-jaw_2B2.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.FCStd) | 다시 그린 2B2 (원본 사본 Ref_2B2 숨김 포함) | 398 KB |
+| 완성 | [완성-jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.step) | STEP | 98 KB |
+| 완성 | [완성-assembly.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-assembly-done.FCStd) | 어셈블리 80부품 → Body + 접지 조인트 변환본 | 4.5 MB |
+
+:::tip[완성 파일은 실제로 만든 것입니다]
+이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
+:::
+
+## 준비
+
+1. FreeCAD 1.1.3 을 켭니다. 리포트 뷰에 `[CAD X-ray] 서버 시작` 이 보이면 됩니다.
+2. STEP 을 `C:\cad\tt_fractal_vise_assembly.step` 에 둡니다.
+3. PowerShell 에서 `C:\cad` 로 이동해 `claude` 를 엽니다.
+4. 문서를 미리 열지 않습니다. AI 가 STEP 을 열면서 문서를 만듭니다.
+
+## 단계
+
+### 1. STEP 을 열고 구조를 본다
+
+```text title="이렇게 말한다"
+C:\cad\tt_fractal_vise_assembly.step 을 열고 부품이 몇 개인지, 종류별로 몇 개씩인지 요약해 줘. 그중 Label 이 2B2 인 클램프 조의 형상이 유효한지 봐 줘. 아직 아무것도 만들지 마.
+```
+
+**AI 가 하는 일** — STEP 을 새 문서로 열고 부품 계층을 읽습니다. 어셈블리라 부품이 80개 들어오며, STEP 으로 들어온 객체의 내부 이름은 `Part__Feature…` 이고 원래 이름은 Label 에 있습니다. 면 수·부피·크기가 같은 부품을 같은 종류로 묶어 세고, 지정한 2B2 의 형상 유효성(솔리드 수, 면 수, 자기 교차 여부)을 봅니다.
+
+:::note[AI 는 이렇게 답합니다]
+문서 Unnamed 에 부품 80개, 종류 20. 2B2 는 Part__Feature004 입니다. 솔리드 1, 면 44(그중 BSpline 8), 유효. 뒤판 x 는 20.34, 바닥 z 는 53.68 부근입니다.
+:::
+
+**확인하기** — 트리에 부품 80개가 보이고 리포트 뷰에 오류가 없어야 합니다. 이 뒤로는 모든 말에 "2B2" 를 붙여 대상을 못 박습니다. 다른 부품이 방해되면 "2B2 만 남기고 나머지는 숨겨 줘" 라고 합니다.
+
+### 2. 구멍과 피치를 뽑는다
+
+```text title="이렇게 말한다"
+이 부품의 구멍을 전부 찾아서 직경·깊이·관통 여부·카운터보어·챔퍼를 표로 보여 줘. 같은 직경끼리 피치도.
+```
+
+**AI 가 하는 일** — 오목 원통면을 축·중심으로 묶어 구멍을 세고, 같은 축의 카운터보어·챔퍼를 구멍에 붙입니다. 지름을 ISO 미터나사 표와 대조해 추정 나사 규격도 붙입니다.
+
+:::note[AI 는 이렇게 답합니다]
+Ø3.4 관통 1개(카운터보어 Ø5.6 깊이 4.0, 입구 챔퍼 0.5, M3 관통 추정), Ø2.2 깊이 5.0 핀 구멍 2개(중심 간격 28.5). 관통 판정은 휴리스틱입니다.
+:::
+
+**확인하기** — 구멍 3개(Ø3.4 하나 + Ø2.2 둘)가 나오면 됩니다. "관통 여부는 휴리스틱" 이라는 말이 붙는 것이 정상입니다.
+
+### 3. 면을 분류해 재구성 가능성을 본다
+
+```text title="이렇게 말한다"
+면을 분류해서 평면·원통·원뿔·자유곡면이 몇 개인지, 주축이 무엇인지, 띠 경계 높이와 반지름 목록을 보여 줘.
+다시 그릴 수 있는지 판정도.
+```
+
+**AI 가 하는 일** — 면마다 정체를 판정합니다. BSpline 면도 표본점을 찍어 원통·원뿔에 맞춰 보므로 "가짜 자유곡면" 이 걸러집니다. 원본 기록에서는 BSpline 전이면 8개가 원뿔(축 Z, 반각 59.63°)로, 원통 반지름은 35 / 33.620391 / 17.75 / 16.12127 로 나왔습니다.
+
+:::note[AI 는 이렇게 답합니다]
+판정 prismatic. 주축 Z. 평면 24·원통 16·원뿔 2·자유곡면 2 (면적 1 % 미만). 띠 경계 z: 53.68(바닥) / 57.39 / 57.97 / 65.39 / 65.97 / 69.68(윗면). 반지름: 35.0(배럴), 33.620391(더브테일 홈 바닥), 17.75(시트), 16.12127(립).
+:::
+
+**확인하기** — 판정이 `prismatic` 또는 `mixed` 면 진행합니다. `free_form` 이면 원본을 바닥에 깔고 그 위에 피처를 얹는 방식(BaseFeature)으로 가야 합니다.
+
+### 4. 띠 경계를 읽고 설계값을 정한다
+
+```text title="이렇게 말한다"
+단면을 뜰 높이 후보와 정점 z 좌표 분포를 보여 줘. 그걸로 띠·홈·립의 z 범위를 정리하고,
+기준점(뒤판 x, 중심 구멍 y, 바닥 z)은 정점에서 읽은 값으로, 두께·높이 같은 나머지는 설계값(정수)으로 표를 만들어 줘.
+```
+
+**AI 가 하는 일** — 정점 좌표 히스토그램에서 띠·홈·립의 z 경계를 읽습니다. 기준점 X0=20.343193, Y0=45.052724, Z0=53.679659 처럼 측정값은 그대로 두고, 두께 12·높이 16·구멍 높이 Z0+8 처럼 설계값은 정리합니다.
+
+:::caution[반지름과 기준점은 반올림하지 않습니다]
+33.620391 을 33.6204 로 쓰면 겹친 면이 9e-6 어긋나 fuse 가 0.6 mm³ 를 잃습니다. 측정값은 AI 가 준 자릿수 그대로 파라미터에 넣게 합니다.
+:::
+
+**확인하기** — 표에 측정값(소수 6자리)과 설계값(정수)이 구분돼 있으면 됩니다.
+
+### 5. 피처를 순서대로 쌓는다
+
+```text title="이렇게 말한다"
+새 문서 jaw_2B2_tools 에 Body 를 만들어 다시 그려 줘. 순서는
+1) 띠 세 개를 원본 단면 트레이스로 Pad (아래 → 가운데 → 위, 서로 겹치게)
+2) 배럴 더브테일 홈은 회전 절삭(groove), 홈이 깎아 버린 귀는 가운데 단면에서 홈 반지름 원 밖만 다시 Pad
+3) 시트 립 전이 쐐기 2개 회전 절삭, 앞판 귀 복원
+4) 구멍은 2단계 값으로 Pocket (Ø3.4 관통, Ø2.2 깊이 5 두 개, 카운터보어 Ø5.6 깊이 4), 입구 챔퍼 0.5
+치수는 전부 Params 에 넣고, 원통 반지름·기준점은 측정값 그대로. 피처 하나 끝날 때마다 검증하고 실패하면 멈춰서 알려 줘.
+```
+
+**AI 가 하는 일** — 피처 12개를 JSON 목록 하나로 만들어 순서대로 쌓습니다. 단면 트레이스는 원본을 직접 잘라 스케치에 옮기므로 좌표가 대화를 오가지 않습니다. 피처마다 재계산해 유효한지 보고, 실패하면 그 피처에서 멈춥니다.
+
+:::note[AI 는 이렇게 답합니다]
+PadBand1 → PadMid → PadBand2 → GrooveBarrel → PadEars → GrooveLip1 → GrooveLip2 → PadSeatEars → PocketHole → PocketPins → PocketCbore → ChamferHoles. 12개 전부 Valid, 스케치 12개 자유도 0. 부피는 원본과 같은 수준입니다.
+:::
+
+**확인하기** — 트리의 Body 아래 피처 12개가 전부 검은 글씨인지, `Params` 시트에 x_back·thickness·barrel_r·groove_r·hole_d·cbore_d 등이 들어갔는지 봅니다. 중간에 멈추면 멈춘 피처 이름과 상태 문자열을 AI 가 알려 주므로 그 피처만 고칩니다.
+
+### 6. 원본과 비교한다
+
+```text title="이렇게 말한다"
+원본 2B2 와 새 Body 를 비교해서 부피·면적 차이, 원본에만 있는 조각·새 모델에만 있는 조각의 위치를 알려 줘.
+```
+
+**AI 가 하는 일** — 두 형상의 퍼지 차집합을 떠서 부피 차와 빠진·남는 조각의 bbox 를 줍니다. 판정은 identical(0.001 % 미만) / match(0.1 % 미만) / different.
+
+:::note[AI 는 이렇게 답합니다]
+부피 차 +0.035 mm³ (0.0004 %), 판정 identical. missing_in_b 없음, extra_in_b 없음.
+:::
+
+**확인하기** — 판정이 `identical` 또는 `match` 면 성공입니다. `different` 면 조각의 bbox 위치가 곧 틀린 자리입니다. 그 자리의 피처만 고쳐 달라고 합니다.
+
+### 7. 저장한다
+
+```text title="이렇게 말한다"
+iso 스크린샷 보여 주고, 맞으면 C:\cad\jaw_2B2.FCStd 로 저장해 줘.
+```
+
+## 결과 확인
+
+| 기준 | 값 |
+|---|---|
+| 피처 | 12개(Pad 5, Groove 3, Pocket 3, Chamfer 1) 전부 Valid |
+| 스케치 자유도 | 12개 전부 0 |
+| 부피 차 | +0.035 mm³ (0.0004 %) |
+| 비교 판정 | identical |
+| 걸린 시간(재구성 툴 호출) | 약 2.0 초(단면 트레이스 5회 포함), 비교 0.78 초 |
+
+## 잘 안 될 때
+
+- **판정이 different 이고 조각이 배럴 홈 근처에 있다** — 홈 반지름을 반올림한 것입니다. "groove_r 을 측정값 33.620391 그대로 넣어 다시" 라고 합니다.
+- **Pad 가 "떨어져 있어 한 Body 에 못 넣는다"고 실패한다** — 띠 Pad 가 서로 겹치지 않은 것입니다. 각 띠의 높이를 옆 띠와 겹치게(전이 높이만큼) 늘려 달라고 합니다.
+- **자유곡면 면적이 크다고 한다** — 원본을 BaseFeature 로 깔고 구멍·홈만 피처로 얹는 하이브리드로 갑니다. "원본을 BaseFeature 로 두고 구멍만 파라메트릭으로" 라고 시킵니다.
+- **비교에서 boolean_failed 가 뜬다** — 면이 겹쳐 불리언이 안 된 것입니다. 이때는 조각 대신 부피 차·면적 차로만 판단합니다.
+- **STL/OBJ 를 받았다** — 면·솔리드가 없어 이 실습의 구멍·비교 방법이 안 됩니다. 실습 5(STL 다시 그리기)로 갑니다.
+
+## 더 해보기
+
+1. `Params.hole_d` 를 4.5(M4 관통)로 바꾸고 재계산해 카운터보어와 챔퍼가 따라오는지 봅니다.
+2. 어셈블리 전체로 "부품끼리 겹치는 쌍이 있는지 봐 줘" 라고 간섭 검사를 시켜 봅니다. 원본 기록에서는 80부품 3,160쌍을 6.5초에 검사해 간섭 0, 접촉 9쌍이었습니다.
+4. 나머지 19종도 같은 방법으로 다시 그리고, 종류당 Body 하나에 인스턴스 80개를 Link 로 배치해 어셈블리를 통째로 재구성해 봅니다(원본 기록 3.5분, 20종 중 identical 15 · match 4). 순서는 `examples/rebuild_*_with_tools.py` → `assemble_from_bodies.py`.
+3. "알루미늄(2.7 g/cm³)이면 무게가 얼마야?" 로 질량을 물어봅니다.
+
+---
+
+| 뒤에서 도는 기능 | |
+|---|---|
+| 읽기 | `import_step`, `get_document_graph`, `analyze_shape` |
+| 측정 | `find_holes`, `classify_faces`, `section_profile` |
+| 생성·검증 | `build_features`, `compare_shapes` |
+| 확인 | `get_screenshot`, `save_document` |
+
+원본 기록: https://github.com/WaveSimm/cadxray/blob/master/examples/rebuild_2b2_with_tools.py · 어셈블리 전체: https://github.com/WaveSimm/cadxray/blob/master/examples/assemble_from_bodies.py

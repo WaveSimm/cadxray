@@ -1,0 +1,75 @@
+---
+title: 2. cadxray 설치 — 명령 두 줄
+description: FreeCAD 애드온 설치, AI 툴 등록, 서버 시작 확인, 진단 명령
+sidebar:
+  order: 2
+---
+
+cadxray 는 두 조각입니다. FreeCAD 안에서 도는 **애드온**과, AI 툴이 띄우는 **브릿지**. 첫 줄이 애드온을 FreeCAD 에 넣고, 둘째 줄이 브릿지를 AI 툴에 등록합니다. 둘은 내 PC 안 `127.0.0.1:9877` 로만 통신합니다.
+
+## 첫 줄 — 애드온 설치 (모든 AI 툴 공통)
+
+```powershell title="터미널"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
+```
+
+처음엔 내려받느라 10–30초 걸립니다. 끝나면 FreeCAD Mod 폴더에 `cadxray` 가 생깁니다.
+
+## 둘째 줄 — AI 툴에 등록
+
+쓰는 툴에 맞는 한 줄을 고릅니다. 자세한 것은 [AI 툴 연결](/cadxray/ai/01-claude-code/) 장에 있습니다.
+
+```powershell title="Claude Code"
+claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+```powershell title="Codex CLI"
+codex mcp add cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+```powershell title="Gemini CLI"
+gemini mcp add cadxray uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+## FreeCAD 를 껐다 켭니다
+
+서버는 FreeCAD 를 켤 때 자동으로 시작됩니다. 리포트 뷰(보기 → 패널 → 리포트 뷰)에 이 줄이 보이면 됩니다.
+
+```text
+[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)
+```
+
+워크벤치 목록에 **CAD X-ray** 가 생깁니다. 보통은 만질 일이 없습니다.
+
+| 메뉴 | 용도 |
+|---|---|
+| Start / Stop Server | 수동 시작·중지 |
+| Auto Start | 자동시작 켜기/끄기 (기본 켜짐) |
+| Set Port… | 포트 변경 (기본 9877). 바꾸면 등록 명령 끝에 `--port 9878` 을 붙입니다 |
+
+## 막히면 — 진단 명령
+
+```powershell title="터미널"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
+```
+
+애드온이 어느 폴더에 설치됐는지, FreeCAD 서버에 연결되는지, 버전이 맞는지를 한글로 알려 줍니다. 문제가 있으면 [문제 해결](/cadxray/setup/03-troubleshoot/) 페이지의 같은 문구를 찾습니다.
+
+## 첫 대화
+
+FreeCAD 에서 새 문서를 하나 만들어 두고(파일 → 새로 만들기), 터미널에서 AI 툴을 엽니다. Claude Code 라면 아무 폴더에서나 `claude`. 그리고 말합니다.
+
+```text title="이렇게 말한다"
+FreeCAD 에 연결되는지 확인하고 버전 알려줘.
+```
+
+:::note[AI 는 이렇게 답합니다]
+연결됐습니다. FreeCAD 1.1.3, cadxray 0.12.0, 열린 문서 1개(Unnamed).
+:::
+
+여기까지 되면 [실습 1](/cadxray/practice/01-plate-holes/) 로 갑니다.
+
+## 다른 설치 방법
+
+- **FreeCAD Addon Manager**: 설정 → 사용자 저장소에 `https://github.com/WaveSimm/cadxray` 추가 → "CAD X-ray" 설치. 둘째 줄(AI 툴 등록)은 그대로 합니다.
+- **Flatpak·snap Linux**: Mod 폴더가 달라 `cadxray install --dest "<Mod 폴더>"` 로 지정합니다.

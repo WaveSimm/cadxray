@@ -1,0 +1,170 @@
+---
+title: 실습 2. 커버 가공도 PDF 에서 판 만들기
+description: 1:1 벡터 PDF 도면(데이터로거 커버·센서 확장 로거 커버)을 AI 에 읽혀 구멍 뚫린 커버 판 2장을 파라메트릭 Body 로 만듭니다.
+sidebar:
+  order: 2
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../assets/practice/02-cover-original.png';
+import img2 from '../../../assets/practice/02-cover-sensor-final.png';
+
+import img1 from '../../../assets/practice/02-cover-final.png';
+
+| 항목 | 내용 |
+|---|---|
+| 입력 파일 | `02-cover/커버가공_수치.pdf` (1:1 벡터 도면 2장, 데이터로거 커버 + 센서 확장 로거 커버) |
+| 걸리는 시간 | 3분 (판 2장 생성은 1초 미만) |
+| 결과물 | 문서 2개(`cover_logger`, `cover_sensor`), 각각 Body 1개 + Spreadsheet `Params` |
+| 배우는 것 | 도면 PDF 를 AI 에 읽히는 법, 축척 확인, 도면에 없는 치수(두께)를 가정으로 채우고 근거를 남기는 법 |
+
+실습 1에서는 치수를 전부 말로 불러 줬습니다. 이번에는 도면 파일을 주고 **AI 가 치수를 직접 읽게** 합니다. 벡터 PDF 는 그림 안에 원·사각형과 치수 글자가 좌표째 들어 있어, AI 가 그것을 뽑아 mm 로 환산할 수 있습니다.
+
+## 원본과 완성
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="원본: 커버 가공도 PDF" />
+    <figcaption><b>원본</b> 커버가공_수치.pdf — 1:1 벡터 도면 2장(데이터로거·센서 확장 로거). 이 그림만 PDF 1페이지를 그대로 그린 것(발주처 표시는 지움)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="완성: 데이터로거 커버 판" />
+    <figcaption><b>완성</b> Cover_DataLogger — Pad 1 + Pocket 3(Ø18·Ø25·Ø7), 자유도 0, 104,445 mm³</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="완성: 센서 확장 로거 커버 판" />
+    <figcaption><b>완성</b> Cover_SensorExt — Pad 1 + Pocket 1(Ø18 × 10), 자유도 0</figcaption>
+  </figure>
+</div>
+
+| 구분 | 파일 | 설명 | 크기 |
+|---|---|---|---|
+| 원본 | [커버가공_수치.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | PDF 도면 | 776 KB |
+| 완성 | [완성-cover_logger.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | 데이터로거 커버 | 32 KB |
+| 완성 | [완성-cover_sensor.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | 센서 확장 로거 커버 | 19 KB |
+| 완성 | [완성-Cover_DataLogger.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
+| 완성 | [완성-Cover_SensorExt.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
+
+:::tip[완성 파일은 실제로 만든 것입니다]
+이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
+:::
+
+## 준비
+
+1. FreeCAD 1.1.3 을 켭니다. 리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)` 가 보이면 됩니다.
+2. PDF 를 내려받아 경로가 짧은 폴더(예: `C:\cad\커버가공_수치.pdf`)에 둡니다. 한글 경로도 되지만 공백은 피합니다.
+3. PowerShell 에서 그 폴더로 이동한 뒤 `claude` 를 쳐서 AI 툴을 엽니다(Codex·Gemini CLI 도 같은 폴더에서 엽니다).
+4. FreeCAD 에 다른 문서가 열려 있으면 닫아 둡니다. AI 가 "어느 문서에 만들까요"를 묻는 일이 줄어듭니다.
+
+## 단계
+
+### 1. 도면을 읽히고 축척부터 확인한다
+
+```text title="이렇게 말한다"
+C:\cad\커버가공_수치.pdf 는 커버 판 가공 도면이야. 아직 모델은 만들지 말고,
+1) 페이지가 몇 장인지, 각 장이 무슨 부품인지
+2) 그림의 원·사각형 좌표와 치수 글자를 대조해서 1:1 축척이 맞는지
+3) 도면에 적힌 치수와 그려진 위치가 어긋나는 곳이 있는지
+먼저 표로 정리해 줘.
+```
+
+**AI 가 하는 일** — PDF 의 벡터 요소(원은 곡선 4개짜리 경로, 사각형은 `re`)와 치수 글자를 읽어 1 pt = 25.4/72 mm 로 환산합니다. 원본 기록에서는 치수 글자 36.38 과 원 중심 사이 거리 103.1 pt 가 일치해 1:1 로 확인됐습니다. 도면 2(센서 확장 로거)는 적힌 치수 27.40 / 23.80 과 그려진 원 위치 27.80 / 26.0 이 0.4 mm·2.2 mm 어긋난다는 것도 이 단계에서 나옵니다.
+
+:::note[AI 는 이렇게 답합니다]
+2장입니다. 1장 DATA LOGGER: 바깥 사각형 224.28×169.37, 안쪽 사각형 206.70×151.82(각 변 8.79 안쪽, 치수 기준선). Ø18 구멍 8개(x 27.40 부터 36.38 간격 4열 × y 23.80 / 74.20 2행), Ø25 2개, Ø7 4개. 2장 센서 확장 로거: Ø18 10개. 축척은 1:1 로 확인했습니다. 2장의 첫 구멍은 적힌 치수와 그려진 위치가 0.4 / 2.2 mm 다릅니다. 어느 쪽을 따를까요?
+:::
+
+**확인하기** — 표에 판 크기 224.28×169.37 과 구멍 종류(Ø18·Ø25·Ø7)가 나오면 도면을 제대로 읽은 것입니다. 축척이 1:1 이 아니라고 하면 PDF 가 축소 인쇄본일 수 있으니 원본 파일을 다시 받습니다.
+
+### 2. 어긋난 치수와 빠진 치수를 어떻게 할지 정해 준다
+
+도면에는 판 두께가 없고, 안테나 구멍(Ø7×4)의 높이도 치수가 없습니다. 이런 것을 AI 가 임의로 정하게 두지 말고 규칙을 줍니다.
+
+```text title="이렇게 말한다"
+규칙은 이렇게 해 줘.
+- 적힌 치수와 그려진 위치가 다르면 적힌 치수를 따른다.
+- 치수가 없는 위치(Ø7 구멍의 높이)는 벡터에서 잰 값을 쓰고, 그렇게 했다고 표시한다.
+- 판 두께는 도면에 없으니 3 mm 로 가정한다. 나중에 바꿀 수 있게 파라미터로 둔다.
+- 커넥터 플랜지 사각형과 그 안의 작은 구멍 4개는 치수가 없으니 가공하지 않는다.
+이 규칙으로 최종 치수표를 다시 보여 줘.
+```
+
+**AI 가 하는 일** — Ø7 구멍 높이 114.98 을 벡터에서 재고, 나머지는 적힌 치수로 정리합니다. 안테나 구멍 x 좌표 4개(120.40 / 138.10 / 165.30 / 183.00)는 안쪽 사각형 폭 206.70 에서 23.70 을 뺀 값과 간격 17.70 / 27.20 / 17.70 으로 역산됩니다.
+
+**확인하기** — 표에 "가정" 또는 "벡터 측정" 표시가 붙은 항목이 두께와 Ø7 높이 두 가지뿐이면 됩니다.
+
+### 3. 첫 번째 판(데이터로거 커버)을 만든다
+
+```text title="이렇게 말한다"
+정리한 치수로 데이터로거 커버를 만들어 줘.
+- 새 문서 cover_logger, Body 이름 Cover_DataLogger
+- 판은 XY 평면에 224.28×169.37, 두께 Params.thickness 로 Pad
+- 구멍 Ø18 8개, Ø25 2개, Ø7 4개는 각각 별도 Pocket 으로 관통. 지름은 Params 에 hole_d18, hole_d25, hole_d7 로
+- 구멍 중심 좌표는 안쪽 사각형 기준 치수에 8.79 를 더한 값
+끝나면 스케치 자유도, 부피, bbox 를 알려 줘.
+```
+
+**AI 가 하는 일** — 스케치 4개(판 사각형 + 구멍 그룹 3개)와 Pad 1개·Pocket 3개를 순서대로 쌓고, 피처마다 재계산해 유효한지 확인합니다. 치수는 Spreadsheet `Params` 에 별칭으로 들어가므로 나중에 두께만 바꿔도 전체가 따라옵니다.
+
+:::note[AI 는 이렇게 답합니다]
+Cover_DataLogger 완료. PadPlate → Pocket_D18(8) → Pocket_D25(2) → Pocket_D7(4). 스케치 4개 모두 자유도 0, 형상 유효. bbox 0–224.28 × 0–169.37 × 0–3.0. Params: plate_w, plate_h, inset, thickness, hole_d18, hole_d25, hole_d7.
+:::
+
+**확인하기** — FreeCAD 모델 트리에서 `Cover_DataLogger` 아래 `PadPlate`, `Pocket_D18`, `Pocket_D25`, `Pocket_D7` 이 보이고 빨간 표시가 없어야 합니다. `Params` 시트를 열어 `thickness` 를 5 로 바꾸고 재계산(F5 또는 Ctrl+R)하면 판이 두꺼워지는지 봅니다. 확인했으면 다시 3 으로 되돌립니다.
+
+### 4. 두 번째 판(센서 확장 로거 커버)을 만든다
+
+```text title="이렇게 말한다"
+같은 방법으로 센서 확장 로거 커버도 만들어 줘. 새 문서 cover_sensor, Body 이름 Cover_SensorExt.
+판 크기와 두께는 같고 Ø18 구멍 10개만 있어. x 는 27.40 부터 37.72, 그다음부터는 37.80 간격, y 는 23.80 과 74.30.
+```
+
+**AI 가 하는 일** — 첫 판과 같은 파라미터 구조로 Pad 1개 + Pocket 1개를 만듭니다. x 좌표는 27.40 / 65.12 / 102.92 / 140.72 / 178.52 다섯 열입니다.
+
+**확인하기** — 트리에 `Cover_SensorExt` 아래 `PadPlate`, `Pocket_D18` 두 피처. 구멍이 10개인지 위에서 내려다보며(숫자 키 2) 셉니다.
+
+### 5. 눈으로 보고 저장한다
+
+```text title="이렇게 말한다"
+두 문서 각각 top 뷰 스크린샷을 보여 줘. 맞으면 C:\cad\cover_logger.FCStd, C:\cad\cover_sensor.FCStd 로 저장해 줘.
+```
+
+**AI 가 하는 일** — 스크린샷을 대화에 띄우고, 사용자가 "맞다"고 한 뒤에만 저장합니다. AI 는 시키기 전에는 문서를 저장하지 않는 것이 규칙입니다.
+
+**확인하기** — 스크린샷의 구멍 배치를 도면과 겹쳐 봅니다. 특히 2장의 첫 구멍이 "적힌 치수" 위치에 있는지 봅니다.
+
+## 결과 확인
+
+| 기준 | 값 |
+|---|---|
+| 판 bbox | 224.28 × 169.37 × 3.0 |
+| 스케치 자유도 | 전부 0 |
+| 형상 유효성 | valid |
+| 피처 수 | 데이터로거 4개(Pad 1 + Pocket 3), 센서 확장 2개(Pad 1 + Pocket 1) |
+| 파라미터 | `Params` 에 plate_w, plate_h, inset, thickness, hole_d18 (+ hole_d25, hole_d7) |
+
+원본 STEP 이 없는 실습이라 부피 비교는 하지 않습니다. bbox·구멍 개수·스크린샷이 도면과 맞으면 성공입니다.
+
+## 잘 안 될 때
+
+- **"PDF 를 읽을 수 없다"** — 스캔본(이미지 PDF)이면 벡터가 없어 이 방법이 안 됩니다. 실습 1처럼 치수를 말로 불러 주거나 원본 CAD 도면을 받습니다.
+- **축척이 1:1 이 아니라고 한다** — 인쇄용으로 축소된 PDF 입니다. 치수 글자와 그려진 길이의 비율을 AI 가 알려 주므로, "그 배율로 환산해서 진행해" 라고 하면 됩니다.
+- **구멍이 판 밖으로 나간다** — 안쪽 사각형 기준(8.79 오프셋)을 빠뜨린 것입니다. "구멍 좌표에 inset 8.79 를 더했는지 확인해 줘" 라고 합니다.
+- **문서가 여러 개 열려 있어 AI 가 되묻는다** — 문서 이름을 말해 주면 됩니다. 처음부터 "새 문서 cover_logger 에" 처럼 이름을 붙여 시키면 묻지 않습니다.
+- **판이 만들어졌는데 빨간 피처가 있다** — "빨간 피처 원인 찾아서 고쳐 줘" 라고 합니다(실습 6 참고).
+
+## 더 해보기
+
+1. `Params.thickness` 를 2 로 바꾸고 재계산해 봅니다. 구멍 Pocket 이 여전히 관통인지 확인합니다.
+2. Ø7 안테나 구멍 4개에 0.5 mm 챔퍼를 말로 시켜 봅니다. "Ø7 구멍 윗모서리에 0.5 챔퍼" 처럼 모서리 조건을 말하면 됩니다.
+3. 두 판을 한 문서에 넣고 2D 도면을 만들어 봅니다(실습 7).
+
+---
+
+| 뒤에서 도는 기능 | |
+|---|---|
+| 도면 읽기 | AI 툴 자체(pymupdf 로 벡터·글자 추출) |
+| 모델 생성 | `build_features`(rect·circles 프로파일, Params 별칭) |
+| 확인 | `inspect_object`, `get_screenshot`, `save_document` |
+
+원본 기록: https://github.com/WaveSimm/cadxray/blob/master/examples/cover_from_pdf_drawing.py
