@@ -646,7 +646,8 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 3. 설치기(`cadxray install`)는 `freecad/`·`package.xml`·`LICENSE`만 Mod/cadxray에 복사, 0.6 이하의 Mod/CadXray는 치운다
 4. `release` 브랜치 + `v0.7.0` 태그. 개발은 master, 릴리스 때만 release로 merge하고 version·date를 올린다
 5. GitHub 토픽 `freecad`, `addon`. FreeCAD/Addons에 Addon-Addition 이슈(저장소 URL + 노트: localhost 전용 리스너 자동 시작, 브릿지는 별도 등록, 외부 전송 없음)
-6. **완료 기준**: `FreeCAD.Metadata("package.xml")`이 오류 없이 읽히고 content/workbench classname이 `gui.CadXrayWorkbench`와 같다. 새 Mod/cadxray로 FreeCAD를 재시작하면 서버가 뜨고 `ping`이 0.7.0을 준다. 헤드리스 테스트 전부 통과. 이슈가 올라가 있다(등재는 팀 검토 뒤).
+6. 2026-09-11 제출: https://github.com/FreeCAD/Addons/issues/145 (검토 대기)
+7. **완료 기준**: `FreeCAD.Metadata("package.xml")`이 오류 없이 읽히고 content/workbench classname이 `gui.CadXrayWorkbench`와 같다. 새 Mod/cadxray로 FreeCAD를 재시작하면 서버가 뜨고 `ping`이 0.7.0을 준다. 헤드리스 테스트 전부 통과. 이슈가 올라가 있다(등재는 팀 검토 뒤).
 
 ---
 
