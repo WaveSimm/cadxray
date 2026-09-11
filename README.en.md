@@ -19,7 +19,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 35개)`; addon messages are in Korean for now). Done.
+The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)`; addon messages are in Korean for now). Done.
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
@@ -73,12 +73,13 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `run_analysis` | CalculiX static run → max von Mises stress and where, max displacement, safety factor (yield/max), verdict, stress colormap in the 3D view |
 | `inspect_results` | top nodes and per-face maxima for stress/displacement fields, switch the colormap field |
 | `suggest_reinforcement` | if the safety factor is below target: numbered candidates (thicken, fillet, rib, material, load) — nothing applied automatically |
+| `trace_links` | **assembly link tracing (M14)**: follows Links, link arrays and binders into other files — document chain, broken links (missing file), invalid objects in linked documents |
 
 Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_ms"}`. List-type responses take `max_*` limits; summaries and `invalid_objects` are always computed over the whole document even when the list is truncated. Hard cap 100 KB (screenshots excepted).
 
 ## What it has been tested on
 
-- 256 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
+- 268 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.

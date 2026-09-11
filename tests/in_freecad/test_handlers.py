@@ -56,6 +56,7 @@ from freecad.cadxray.handlers import (  # noqa: E402
     documents,
     drawing,
     fem,
+    links,
     mesh as mesh_mod,
     printing,
     sketch_fix,
@@ -674,6 +675,39 @@ def test_fem_tools():
     check("외팔보(납작): 전도각 > 45°", r["ok"] and st.get("tip_over_deg", 0) > 45, str(st))
 
 
+def test_link_tools():
+    section("M14: trace_links")
+    r = measure("trace_links", "T14 asm", links.trace_links(doc="T14_asm"))
+    check("trace ok", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        d = r["data"]
+        names = {l["name"]: l for l in d["links"]}
+        check("외부 Link 3 (LinkBody·LinkOfLink·LinkArray), 로컬 Link는 기본 제외", set(names) == {"LinkBody", "LinkOfLink", "LinkArray"}, str(sorted(names)))
+        check("LinkBody → T14_part.Body, hops 1", names["LinkBody"]["target"]["document"] == "T14_part" and names["LinkBody"]["target"]["name"] == "Body" and names["LinkBody"]["hops"] == 1, str(names["LinkBody"]))
+        check("LinkOfLink: final_target Body(T14_part), hops 2", names["LinkOfLink"].get("final_target", {}).get("name") == "Body" and names["LinkOfLink"]["hops"] == 2, str(names["LinkOfLink"]))
+        check("LinkArray element_count 3, instances 5", names["LinkArray"]["element_count"] == 3 and d["summary"]["instances"] == 5, str((names["LinkArray"].get("element_count"), d["summary"])))
+        docs = {x["name"]: x for x in d["documents"]}
+        check("documents에 T14_asm(depth 0)·T14_part(depth 1, 파일 경로)", docs["T14_asm"]["depth"] == 0 and docs["T14_part"]["depth"] == 1 and docs["T14_part"]["file"].endswith("T14_part.FCStd"), str({k: (v["depth"], v["file"]) for k, v in docs.items()}))
+        check("연결 문서의 Invalid(BadExtrude) → problems invalid_in_linked", any(p["kind"] == "invalid_in_linked" and p["document"] == "T14_part" and "BadExtrude" in p["detail"] for p in d["problems"]), str(d["problems"]))
+        check("깨진 링크 없음", d["summary"]["broken"] == 0)
+    r = links.trace_links(doc="T14_asm", include_local=True)
+    check("include_local → LinkLocal 포함", r["ok"] and any(l["name"] == "LinkLocal" and not l["external"] for l in r["data"]["links"]))
+    r = links.trace_links(doc="T14_part")
+    check("외부 참조 없는 문서 → 링크 0 + 안내 경고", r["ok"] and r["data"]["summary"]["external_links"] == 0 and any("Link가 없습니다" in w for w in r["warnings"]), str(r.get("warnings")))
+    r = links.trace_links(doc="T14_asm", max_links=1)
+    check("max_links=1 → truncated, summary는 전체", r["ok"] and r["truncated"] and len(r["data"]["links"]) == 1 and r["data"]["summary"]["external_links"] == 3)
+    # 깨진 링크 문자열 파싱
+    class _Fake:
+        State = ["Touched", "Invalid"]
+        Name = "L"
+
+        def getStatusString(self):
+            return "Link not restored\nLinked object: Body\nLinked file: T14_part.FCStd"
+
+    b = links._broken_info(_Fake())
+    check("'Link not restored' 상태 파싱 → 객체·파일", b and b["object"] == "Body" and b["file"] == "T14_part.FCStd", str(b))
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -891,6 +925,7 @@ def main():
         ("sketch_fix_tools", test_sketch_fix_tools),
         ("print_tools", test_print_tools),
         ("fem_tools", test_fem_tools),
+        ("link_tools", test_link_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

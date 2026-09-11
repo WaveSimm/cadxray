@@ -418,3 +418,15 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 결과 `Fem::FemResultObjectPython`(`CCX_Results`, 해석 Group 안): `NodeNumbers`, `vonMises`, `DisplacementLengths`, `DisplacementVectors`, `PrincipalMax/Med/Min`, `MaxShear`, `NodeStressXX..`, `Stats`(26개), `Mesh`(결과 메시; 절점 좌표 `res.Mesh.FemMesh.Nodes[id]`). purge_results는 결과·파이프라인을 지운다
 - 컬러맵: `pipe = ObjectsFem.makePostVtkResult(doc, [res], name)` → `pipe.ViewObject.Field` enum: None, Displacement, Displacement Magnitude, Tresca Stress, Strain/Stress 성분, Major/Intermediate/Minor Principal Stress, von Mises Stress. `Component`는 벡터 필드일 때만. 범례가 3D 뷰 오른쪽에 그려지고 `get_screenshot`에 찍힌다. 대상 형상·메시 객체는 숨겨야 컬러맵이 보인다
 - 외팔보 100×10×5, 20 N, 2차 요소 3 mm: 메시 0.3 s + 해석 0.7 s
+
+## 19. 외부 Link(App::PropertyXLink) `[라이브 1.1.3 확인, 2026-09-11]`
+
+`handlers/links.py`에서 사용.
+
+- 다른 문서의 객체를 `App::Link.LinkedObject`에 넣으려면 **두 문서가 모두 저장돼 있어야** 한다(아니면 `RuntimeError: Owner document not saved`). 픽스처는 `saveAs`를 먼저 한다
+- `doc.getDependentDocuments(sort=True)` → 이 문서가 직간접으로 링크하는 문서 목록(**자기 자신 포함**)
+- 외부 객체는 `obj.OutList`에 그대로 들어온다(Document가 다르다) — Link뿐 아니라 SubShapeBinder·불리언·수식 참조도 이걸로 잡힌다
+- `obj.getLinkedObject(True)`는 Link의 Link를 끝까지 따라간 최종 객체. `LinkedObject`는 한 단계
+- Link 배열: `ElementCount=3, ShowElement=False`면 `ElementList`는 비어 있다(요소 객체를 안 만든다)
+- 부모 문서를 `openDocument`하면 링크된 문서가 자동으로 같이 열린다(`listDocuments`에 보임). 링크된 파일이 없으면 부모만 열리고 Link는 `State ['Touched','Invalid']`, `getStatusString()` = `"Link not restored\nLinked object: Body\nLinked file: T14_part.FCStd"`, `LinkedObject`는 None. 파일 이름은 상태 문자열에서만 읽을 수 있다
+- `doc.getLinksTo(obj, options, maxCount)`는 **그 문서 안**의 링크만 돌려준다(다른 문서에서 오는 링크는 안 잡힘)

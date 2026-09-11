@@ -370,7 +370,49 @@ def T13_fem():
     return doc
 
 
+def T14_links():
+    """외부 Link 어셈블리 (M14). T14_part.FCStd(Body + Invalid Extrusion)를 임시 폴더에 저장하고
+    T14_asm.FCStd에서 Link(외부)·Link의 Link·Link 배열 3개·같은 문서 Link로 참조한다. 외부 Link는 두 문서가 모두 저장돼 있어야 만들 수 있다."""
+    import os
+    import tempfile
+
+    tmp = os.path.join(tempfile.gettempdir(), "cadxray_t14")
+    os.makedirs(tmp, exist_ok=True)
+    for n in ("T14_asm", "T14_part"):
+        if n in FreeCAD.listDocuments():
+            FreeCAD.closeDocument(n)
+    pd = _fresh("T14_part")
+    body = pd.addObject("PartDesign::Body", "Body")
+    sk = body.newObject("Sketcher::SketchObject", "Sketch")
+    sk.AttachmentSupport = (pd.getObject("XY_Plane"), [""])
+    sk.MapMode = "FlatFace"
+    sk.addGeometry(Part.Circle(Vec(0, 0, 0), Vec(0, 0, 1), 5))
+    pad = body.newObject("PartDesign::Pad", "Pad")
+    pad.Profile = sk
+    pad.Length = 10
+    pd.addObject("Part::Extrusion", "BadExtrude")      # 베이스 없음 → Invalid
+    pd.recompute()
+    pd.saveAs(os.path.join(tmp, "T14_part.FCStd"))
+    ad = _fresh("T14_asm")
+    ad.saveAs(os.path.join(tmp, "T14_asm.FCStd"))
+    l1 = ad.addObject("App::Link", "LinkBody")
+    l1.LinkedObject = body
+    l2 = ad.addObject("App::Link", "LinkOfLink")
+    l2.LinkedObject = l1
+    l3 = ad.addObject("App::Link", "LinkArray")
+    l3.LinkedObject = body
+    l3.ElementCount = 3
+    l3.ShowElement = False
+    local = ad.addObject("Part::Box", "LocalBox")
+    l4 = ad.addObject("App::Link", "LinkLocal")
+    l4.LinkedObject = local
+    ad.recompute()
+    ad.save()
+    return ad
+
+
 BUILDERS = {
+    "T14_links": T14_links,
     "T13_fem": T13_fem,
     "T12_print": T12_print,
     "T10_fixes": T10_fixes,
@@ -400,7 +442,7 @@ def build_all(names=None):
 
 
 def close_all():
-    for name in list(BUILDERS):
+    for name in list(BUILDERS) + ["T14_part"]:
         if name in FreeCAD.listDocuments():
             FreeCAD.closeDocument(name)
 

@@ -57,7 +57,7 @@ def _timeout_for(tool, params):
     if tool in ("setup_analysis", "run_analysis"):
         # Gmsh 메시 + CalculiX 실행 — 절점 수만 개면 수 분 (M13)
         return 900
-    if tool in ("inspect_results", "suggest_reinforcement"):
+    if tool in ("inspect_results", "suggest_reinforcement", "trace_links"):
         return 180
     if tool == "make_drawing":
         # 뷰 투영(Link 27개 어셈블리 5면 ≈ 20초) + PDF 내보내기 (M8)

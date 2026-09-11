@@ -637,6 +637,17 @@ def apply_print_fixes(name: str, fixes: list[dict], doc: str | None = None, prof
 
 
 @mcp.tool()
+def trace_links(doc: str | None = None, max_depth: int = 5, max_links: int = 200, include_local: bool = False) -> str:
+    """어셈블리 **Link 너머 문서 추적** (M14): 문서의 App::Link·Link 배열·SubShapeBinder·불리언이 가리키는 **다른 파일의 객체**를 따라가
+    문서 사슬(documents: 이름·파일·Invalid 수), 링크 목록(links: 대상 객체·문서·hops·element_count), problems(깨진 링크 = 파일 없음, 연결 문서의 Invalid 객체)를 돌려준다.
+
+    연결 문서는 부모를 열 때 FreeCAD가 자동으로 같이 연다(트리에 없어도 list_documents에 있음). 이후 진단은 그 문서 이름으로 get_document_graph / get_sketch_diagnostics(doc=...).
+    같은 문서 안의 Link는 include_local=True일 때만 목록에 넣는다.
+    """
+    return client.call("trace_links", {"doc": doc, "max_depth": max_depth, "max_links": max_links, "include_local": include_local}, timeout=120)
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

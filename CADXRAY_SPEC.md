@@ -592,6 +592,12 @@ STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 �
 ### 7.40 `check_printability`의 `paint` (M13 부가)
 - `paint=True`: 대상의 `ViewObject.ShapeAppearance`를 면 수만큼의 `App.Material` 튜플로 바꿔 결과 색(얇은 벽 빨강 > 서포트 주황 > 브릿지 노랑 > 접지 초록, 나머지 회색)을 칠한다. `paint=False`: 첫 재질 하나로 되돌린다. 응답 `paint: {"painted", "legend", "counts"}`. 헤드리스(ViewObject 없음)는 `null`
 
+### 7.42 `trace_links` (M14)
+- 입력: `doc=None, max_depth=5, max_links=200, include_local=False`
+- 문서의 객체 중 `OutList`에 **다른 문서의 객체**가 있는 것(App::Link·LinkElement·Link 배열·LinkGroup·SubShapeBinder·Part 불리언·기타)과 `Link not restored` 상태(파일 없음)를 모은다. Link는 `LinkedObject`(직접 대상)·`getLinkedObject(True)`(최종 대상)·hops(Link의 Link 단수)·`ElementCount`(배열)를 적는다. 대상 문서로 내려가며(`max_depth`) 문서 사슬을 만들고, `getDependentDocuments()`에만 잡히는 문서(수식 참조)도 붙인다
+- 출력: `{"summary": {"documents", "external_links", "local_links", "broken", "link_arrays", "instances", "by_target_document", "problems"}, "documents": [{"name", "label", "file", "open", "objects", "invalid", "invalid_objects", "depth", "via"}], "links": [{"name", "label", "type", "kind": "link|link_array|link_group|binder|reference", "document", "depth", "external", "target": {"name", "document", "file", "invalid"}, "final_target"?, "hops", "element_count"?, "references"?, "broken"?: {"object", "file"}}], "problems": [{"id", "kind": "broken_link|invalid_in_linked", "document", "object", "detail", "fix"}]}`
+- 연결 문서는 FreeCAD가 부모를 열 때 자동으로 같이 연다(파일이 없으면 Link가 Invalid + "Link not restored / Linked file: x.FCStd"). 이후 진단은 기존 툴에 `doc=<연결 문서>`
+
 ### 7.41 `get_mass_properties`의 `stability` (M13 부가)
 - `stability=True`: 바닥(bbox ZMin에 납작한 면)의 정점으로 볼록껍질을 만들고 무게중심 XY가 그 안에 있는지, 가장 가까운 변까지 거리 `margin_mm`, 무게중심 높이로 `tip_over_deg = atan(margin/h)`, `verdict` stable(≥10°)/tippy/unstable(밖). `offset_from_bbox_center`로 편심도 준다
 
@@ -720,6 +726,11 @@ FreeCAD 1.1은 CalculiX(ccx)·Gmsh를 동봉한다(bin/). FEM 워크벤치를 �
 6. CLAUDE.md 워크플로: 재질·고정·하중 확인 → setup → run → 스크린샷 + 안전율 → 미달이면 suggest 번호 목록 → 사용자 선택 → build_features → run 재확인
 7. **완료 기준**: `T13_fem`(외팔보 100×10×5, PETG, 자유단 20 N −Z)에서 최대 von Mises가 이론 48 MPa ±10 %, 최대 변위가 32 mm ±5 %(2차 요소; 1차는 절반 수준으로 나와 기본값이 아니다), 핫스팟이 고정단, 안전율 <1 → fail, suggest에 thicken·material·load. 스풀 가이드(나사 있는 실물)에서 Gmsh 2차 메시가 CalculiX "nonpositive jacobian"을 내지 않는다(SecondOrderLinear)
 
+### M14 — 어셈블리 Link 너머 문서 추적 (M13 이후, 2026-09-11 추가)
+1. `trace_links` (7.42) — `handlers/links.py`
+2. CLAUDE.md 워크플로: 문서 그래프에 App::Link가 많거나 Invalid Link가 있으면 trace_links → problems 번호 목록 → 연결 문서 이름으로 기존 진단
+3. **완료 기준**: `T14_links`(임시 폴더에 저장한 T14_part.FCStd의 Body를 T14_asm.FCStd가 Link·Link의 Link·Link 배열 3개·로컬 Link로 참조)에서 외부 Link 3개, LinkOfLink의 최종 대상 Body(hops 2), 인스턴스 5, 문서 사슬 depth 0/1과 파일 경로, 연결 문서의 Invalid(BadExtrude)가 problems에, 로컬 Link는 include_local일 때만. 파일을 치운 채 열면 "Link not restored"를 broken_link로 파싱(라이브 확인)
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -737,6 +748,7 @@ FreeCAD 1.1은 CalculiX(ccx)·Gmsh를 동봉한다(bin/). FEM 워크벤치를 �
 | `T8_drawing` | T1(PartDesign 판 + 구멍)과 pole_frame(Link 27개, `examples/pole_frame_from_dxf.py`) (M8) | `make_drawing(T1)`: 뷰 3개·치수 4개 값이 모델과 같음, PDF A4 1장. `inspect_drawing`이 치수 값을 그대로 돌려줌 |
 | `T9_mesh` | T7의 "Plate"를 `MeshPart.meshFromShape`(LinearDeflection 0.02)로 STL에 내보내 `Mesh.insert`로 다시 읽은 `Mesh::Feature` "PlateMesh" (M9) | `import_mesh`: is_solid. `analyze_mesh`: levels [0, 6, 10], verdict prismatic. `section_profile(PlateMesh, z=3)`: 선분 4개. `build_features` → `compare_shapes(PlateMesh, Body)` max 편차 < 0.05 |
 | `T10_fixes` | 0.02 mm 벌어진 사각형(끝점 3곳만 일치) + 0.3° 기운 선 + 길이 같은 선 2개 + 반지름 같은 원 2개 (M10) | `suggest_sketch_fixes`: add_coincident 1, add_horizontal/vertical ≥ 4, add_equal 2(선·반지름), effect 있음. `apply_sketch_fixes(recommended)` 뒤 open_vertices 0, DoF 감소 |
+| `T14_links` | 임시 폴더의 T14_part.FCStd(Body + Invalid Extrusion)를 T14_asm.FCStd가 외부 Link·Link의 Link·Link 배열(3)·로컬 Link로 참조 (M14) | `trace_links`: 외부 3, hops 2, instances 5, documents depth·file, invalid_in_linked, include_local, max_links truncated |
 | `T13_fem` | 외팔보 100×10×5 `Part::Feature` (M13) | `setup_analysis` xmin 고정·xmax 20 N −Z → Gmsh 2차. `run_analysis` σmax 48±10 %, δmax 32±5 %, verdict fail. `inspect_results` 자유단. `suggest_reinforcement` thicken·material·load; 목표 0.5면 후보 없음. `get_mass_properties(stability)` 전도각 > 45° |
 | `T12_print` | 40×30×20 상자 + 0.6 mm 리브 + 10 mm 캔틸레버(z 10) + 70° 기운 면 + Ø3 수직 관통 구멍 + Ø6 수평 관통 구멍 (M12) | `check_printability`: thin 1(0.6), overhang 캔틸레버·70° 면, small hole Ø3, horizontal hole Ø6. `estimate_print` mass. `suggest_orientation` 7후보. `apply_print_fixes` 3종 유효 |
 
@@ -769,7 +781,7 @@ FreeCAD 1.1은 CalculiX(ccx)·Gmsh를 동봉한다(bin/). FEM 워크벤치를 �
 ## 12. 이후 확장 후보 (v1 이후, 지금은 구현하지 않음)
 
 - ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
-- 어셈블리 Link 너머 문서 추적
+- ~~어셈블리 Link 너머 문서 추적~~ — 2026-09-11 M14로 구현
 - ~~원격 호스트 접속(허용 IP 목록)~~ — 2026-09-11 제외. 다른 PC의 FreeCAD가 필요해지면 코드 수정 없이 SSH 터널(`ssh -L 9877:localhost:9877 원격PC`)로 먼저 쓴다. execute_code가 있어 원격을 여는 것은 그 PC를 여는 것과 같다
 
 

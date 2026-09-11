@@ -78,6 +78,12 @@
 5. 변위를 보고 싶으면 `inspect_results(field="displacement", show="displacement")`. 해석 객체는 문서에 남는다(같은 이름으로 setup하면 지우고 다시 만든다)
 6. 한계를 항상 붙인다: 선형 정적·등방성, FDM 출력물은 층 방향으로 더 약함, 재질 표는 경험값
 
+### 어셈블리(Link) 문서 추적 워크플로 (M14)
+1. `get_document_graph`의 `by_type`에 `App::Link`가 있거나 Link가 Invalid면 `trace_links(doc)` → `problems`를 번호 목록으로(깨진 링크 = 파일 없음, 연결 문서의 Invalid)
+2. `documents`가 사슬이다(depth 0 = 이 문서). 연결 문서는 이미 열려 있으므로 그 이름으로 `get_document_graph(doc=...)` → 기존 진단 워크플로. 고친 뒤 부모 문서에서 `tracked_recompute`
+3. 깨진 링크는 파일을 제자리에 돌려놓거나 `open_document(경로)`로 열고 부모를 다시 연다. Link 배열은 `element_count`가 인스턴스 수다
+4. 같은 문서 안의 Link(부품 종류당 Body 하나 + Link 인스턴스 구조)는 기본 목록에 없다 — `include_local=True`
+
 ### 읽을 때 주의
 - `suggest_sketch_fixes`의 `effect`는 사본에서 잰 값이다. `add_dimension`(low)은 현재 값을 치수로 굳히는 것이라 설계 치수인지 사용자에게 확인한다. `open_vertices`는 Shape 기준이라 solve만으로는 안 바뀐다(툴이 recompute한다)
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
