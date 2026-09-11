@@ -32,7 +32,7 @@
 2. `list_documents` → 대상 문서 확정. 여러 개면 사용자에게 묻는다
 3. `get_document_graph` (기본 `max_objects`) → `invalid_objects`와 `summary`부터 본다. `warnings`에 "dof/fully_constrained 값이 서로 맞지 않습니다"가 있으면 그 스케치는 4번으로
 4. 문제 객체가 스케치면 `get_sketch_diagnostics`, 형상이면 `analyze_shape`, 그 외는 `inspect_object`
-5. 원인을 사용자에게 한 문장으로 설명하고 수정 방향을 제시한 뒤 `execute_code`로 수정
+5. 원인을 사용자에게 한 문장으로 설명한다. 스케치 문제면 `suggest_sketch_fixes` → 후보를 **번호 목록**으로 보여 주고(대상·효과·확신도, 충돌 삭제는 "둘 중 하나") 사용자가 고른 번호만 `apply_sketch_fixes(ids, fingerprint)`. `recommended`는 추천일 뿐 자동 적용하지 않는다. 스케치가 아닌 문제는 `execute_code`로 수정
 6. `tracked_recompute`로 결과 확인 → `resolved`에 들어갔는지, `new_errors`가 없는지. 필요 시 `get_screenshot(view="iso")`
 7. 전체 트리 덤프(`max_objects` 크게)는 사용자가 명시적으로 원할 때만
 
@@ -64,6 +64,7 @@
 5. `inspect_drawing(page)`로 최종 확인. PDF 경로는 `files.pdf`
 
 ### 읽을 때 주의
+- `suggest_sketch_fixes`의 `effect`는 사본에서 잰 값이다. `add_dimension`(low)은 현재 값을 치수로 굳히는 것이라 설계 치수인지 사용자에게 확인한다. `open_vertices`는 Shape 기준이라 solve만으로는 안 바뀐다(툴이 recompute한다)
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
 - 제약 번호는 `id`(1-based, GUI 제약 패널과 같음)와 `index`(0-based, `sk.Constraints[index]`)가 같이 온다. 사용자에게는 `id`로 말한다
 - `open_vertices`는 열린 곳 한 군데당 2개(양쪽 끝점)다

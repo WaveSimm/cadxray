@@ -48,7 +48,7 @@ def _timeout_for(tool, params):
     if tool == "build_features":
         # 피처마다 recompute — 피처 수에 비례
         return 300
-    if tool in ("import_mesh", "analyze_mesh", "open_document", "save_document"):
+    if tool in ("import_mesh", "analyze_mesh", "open_document", "save_document", "suggest_sketch_fixes", "apply_sketch_fixes"):
         # 큰 메시 읽기·단면 여러 장, 큰 문서 열기·저장 (M9)
         return 180
     if tool == "make_drawing":

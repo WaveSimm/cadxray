@@ -51,6 +51,7 @@ from CadXray.handlers import (  # noqa: E402
     documents,
     drawing,
     mesh as mesh_mod,
+    sketch_fix,
     REGISTRY,
     document_graph,
     documents,
@@ -504,6 +505,64 @@ def test_mesh_tools():
     check("파일 없는 문서 save → 경로 요구", not r["ok"] and "path" in r["error"])
 
 
+def test_sketch_fix_tools():
+    section("M10: suggest_sketch_fixes / apply_sketch_fixes")
+    r = measure("suggest_sketch_fixes", "T10 후보", sketch_fix.suggest_sketch_fixes(sketch="Sketch", doc="T10_fixes"))
+    check("suggest ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    kinds = [c["kind"] for c in d["suggestions"]]
+    check("add_coincident 1 (0.028 벌어진 끝점)", kinds.count("add_coincident") >= 1 and any("거리" in c["detail"] for c in d["suggestions"] if c["kind"] == "add_coincident"), str(kinds))
+    check("add_horizontal/vertical ≥ 4 (기운 선 포함)", kinds.count("add_horizontal") + kinds.count("add_vertical") >= 4, str(kinds))
+    check("add_equal 2 (선 길이·반지름)", kinds.count("add_equal") == 2, str([c["detail"] for c in d["suggestions"] if c["kind"] == "add_equal"]))
+    check("effect 있음, 원본 제약 수 유지", all("effect" in c and "solve_status" in c["effect"] for c in d["suggestions"]) and FreeCAD.getDocument("T10_fixes").getObject("Sketch").ConstraintCount == 4,
+          str(FreeCAD.getDocument("T10_fixes").getObject("Sketch").ConstraintCount))
+    check("recommended에 low 없음, id·key·fingerprint", d["recommended"] and all(d["suggestions"][i - 1]["confidence"] != "low" for i in d["recommended"]) and d["fingerprint"].startswith("g"), str(d["recommended"]))
+    before_open = d["before"]["open_vertices"]
+    r2 = measure("apply_sketch_fixes", "T10 recommended 적용", sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T10_fixes", ids=d["recommended"], fingerprint=d["fingerprint"]))
+    check("apply ok", r2["ok"], str(r2.get("error")))
+    a = r2["data"]["after"]
+    check("적용 뒤 solve 0, 열린 끝점 4→2(따로 있는 선 f의 양 끝만), DoF 감소", a["solve_status"] == 0 and a["open_vertices"] == 2 and a["dof"] < d["before"]["dof"], f"{a} before_open={before_open}")
+    r3 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T10_fixes", ids=[1], fingerprint=d["fingerprint"])
+    check("바뀐 fingerprint → 오류", not r3["ok"] and "fingerprint" in r3["error"])
+    r3 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T10_fixes", ids=[999])
+    check("없는 id → 오류", not r3["ok"])
+
+    # T4: 2 mm 벌어진 열린 와이어 → medium 후보로 잇기
+    r = measure("suggest_sketch_fixes", "T4 열린 와이어", sketch_fix.suggest_sketch_fixes(sketch="Sketch", doc="T4_open_wire"))
+    co = [c for c in r["data"]["suggestions"] if c["kind"] == "add_coincident"]
+    check("T4: 열린 끝점 쌍 add_coincident 후보(2 mm, low)", len(co) == 1 and co[0]["confidence"] == "low" and "2.0" in co[0]["detail"], str(co))
+    r2 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T4_open_wire", ids=[co[0]["id"]])
+    check("T4: 적용 뒤 open_vertices 0", r2["ok"] and r2["data"]["after"]["open_vertices"] == 0, str(r2.get("error") or r2["data"]["after"]))
+
+    # T3: 충돌 치수 둘 → delete 후보 두 개, exclusive
+    r = measure("suggest_sketch_fixes", "T3 충돌", sketch_fix.suggest_sketch_fixes(sketch="Sketch", doc="T3_conflict"))
+    dl = [c for c in r["data"]["suggestions"] if c["kind"] == "delete_constraint"]
+    check("T3: delete 후보 2개, exclusive_with로 묶임", len(dl) == 2 and all(c.get("exclusive_with") for c in dl) and all("DistanceX" in c["targets"][0] for c in dl), str(dl))
+    check("T3: 충돌 후보는 recommended에 없음", not any(c["id"] in r["data"]["recommended"] for c in dl))
+    r3 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T3_conflict", ids=[c["id"] for c in dl])
+    check("T3: 둘 다 고르면 오류", not r3["ok"] and "같이" in r3["error"])
+    pick = [c for c in dl if "= 25" in c["targets"][0]][0]
+    r2 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T3_conflict", ids=[pick["id"]])
+    check("T3: 25 삭제 → solve 0, 충돌 없음", r2["ok"] and r2["data"]["after"]["solve_status"] == 0 and not r2["data"]["after"]["conflicting"], str(r2.get("error") or r2["data"]["after"]))
+
+    # T2: 자유도 남음 → add_dimension(low) 후보로 DoF 0
+    r = measure("suggest_sketch_fixes", "T2 자유도", sketch_fix.suggest_sketch_fixes(sketch="Sketch", doc="T2_underconstrained"))
+    dims = [c for c in r["data"]["suggestions"] if c["kind"] == "add_dimension"]
+    check("T2: add_dimension 후보(low) 있음", len(dims) >= 2 and all(c["confidence"] == "low" for c in dims), str([(c["targets"], c["detail"]) for c in dims][:4]))
+    # 원점 고정 X·Y + 세로 길이: 효과가 DoF를 줄이는 것부터 차례로 적용
+    dof0 = dof = r["data"]["before"]["dof"]
+    applied = []
+    for c in sorted(dims, key=lambda c: (c["effect"].get("dof") if c["effect"].get("dof") is not None else 99)):
+        if dof == 0:
+            break
+        r2 = sketch_fix.apply_sketch_fixes(sketch="Sketch", doc="T2_underconstrained", ids=[c["id"]])
+        if r2["ok"] and r2["data"]["after"]["solve_status"] == 0 and r2["data"]["after"]["dof"] < dof:
+            dof = r2["data"]["after"]["dof"]; applied.append(c["targets"])
+            r = sketch_fix.suggest_sketch_fixes(sketch="Sketch", doc="T2_underconstrained", evaluate=False)
+            break
+    check("T2: 치수 후보 적용으로 DoF 감소", dof < dof0, f"dof={dof0}→{dof} applied={applied}")
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -718,6 +777,7 @@ def main():
         ("rebuild_tools", test_rebuild_tools),
         ("drawing_tools", test_drawing_tools),
         ("mesh_tools", test_mesh_tools),
+        ("sketch_fix_tools", test_sketch_fix_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

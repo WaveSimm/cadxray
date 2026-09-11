@@ -555,6 +555,46 @@ def analyze_mesh(
 
 
 @mcp.tool()
+def suggest_sketch_fixes(
+    sketch: str,
+    doc: str | None = None,
+    coincident_tolerance: float = 0.05,
+    angle_tolerance: float = 0.5,
+    equal_tolerance: float = 0.01,
+    max_gap: float = 5.0,
+    evaluate: bool = True,
+) -> str:
+    """스케치 문제마다 **고칠 후보**를 만든다 (M10). 자동으로 고치지 않는다 — 사용자에게 번호 목록으로 보여 주고 고르게 한다.
+
+    후보 kind: add_coincident(가까운/열린 끝점 잇기), add_horizontal/add_vertical(거의 수평·수직인 선), add_equal(같은 길이·반지름),
+    delete_constraint(중복·잘못된·충돌 제약 삭제; 충돌은 exclusive_with로 묶여 하나만 고른다), add_dimension(남은 자유도 → 현재 값 치수, low).
+    effect: 사본에 적용해 본 solve 결과(dof·상태). recommended: 효과가 좋고 low가 아닌 것. 적용은 apply_sketch_fixes(ids, fingerprint).
+    """
+    return client.call("suggest_sketch_fixes", {"sketch": sketch, "doc": doc, "coincident_tolerance": coincident_tolerance, "angle_tolerance": angle_tolerance,
+                                                "equal_tolerance": equal_tolerance, "max_gap": max_gap, "evaluate": evaluate}, timeout=190)
+
+
+@mcp.tool()
+def apply_sketch_fixes(
+    sketch: str,
+    ids: list[int],
+    doc: str | None = None,
+    fingerprint: str | None = None,
+    coincident_tolerance: float = 0.05,
+    angle_tolerance: float = 0.5,
+    equal_tolerance: float = 0.01,
+    max_gap: float = 5.0,
+) -> str:
+    """suggest_sketch_fixes의 후보 중 **사용자가 고른 id**만 적용한다 (M10). 같은 허용값을 넘겨야 id가 맞는다.
+
+    fingerprint가 다르면(그사이 스케치가 바뀜) 오류. 적용 뒤 상태가 나빠지면 되돌리고 오류. 결과의 after(solve·dof·open_vertices)와
+    recompute.invalid_objects를 보고한다.
+    """
+    return client.call("apply_sketch_fixes", {"sketch": sketch, "ids": ids, "doc": doc, "fingerprint": fingerprint, "coincident_tolerance": coincident_tolerance,
+                                              "angle_tolerance": angle_tolerance, "equal_tolerance": equal_tolerance, "max_gap": max_gap}, timeout=190)
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

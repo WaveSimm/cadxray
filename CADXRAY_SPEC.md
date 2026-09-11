@@ -524,6 +524,25 @@ STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 �
 - `open_document(path)` → FCStd를 연다(이미 열려 있으면 그 문서). 출력: `{"name", "label", "filename", "objects", "already_open"}`. 없는 파일·FCStd가 아니면 오류.
 - `save_document(doc=None, path=None, overwrite=False)` → `path`가 없으면 `doc.save()`(파일 이름이 없는 새 문서면 오류로 경로를 요구), 있으면 `saveAs`. 다른 기존 파일을 덮어쓸 때는 `overwrite=true`가 있어야 한다. 출력: `{"name", "filename", "bytes", "objects"}`. 사용자가 시키기 전에는 저장하지 않는다는 CLAUDE.md 규칙은 그대로다(툴이 있어도 부르는 건 사용자 지시가 있을 때).
 
+### 7.29 `suggest_sketch_fixes` (M10)
+스케치의 문제(열린 끝점·빠진 수평/수직·빠진 같음·중복·충돌·남은 자유도)마다 **고칠 후보**를 만든다. 자동으로 고치지 않는다 — 후보와 예상 효과를 주고 사용자가 고른다.
+- 입력: `sketch, doc=None, coincident_tolerance=0.05, angle_tolerance=0.5, equal_tolerance=0.01, evaluate=True, max_suggestions=50`
+- 출력: `{"sketch", "before": {"solve_status", "dof", "fully_constrained", "conflicting", "redundant", "malformed", "open_vertices"}, "fingerprint", "suggestions": [{"id", "key", "kind", "action": "add|delete", "targets": ["Line3.end", "Arc2.start"], "constraint_id", "detail", "effect": {"solve_status", "dof", "conflicting", "redundant"}, "confidence": "high|medium|low", "exclusive_with": [ids]}], "recommended": [ids]}`
+- 후보 종류 `[라이브 1.1.3 확인, 2026-09-11]`:
+  - `add_coincident`: `detectMissingPointOnPointConstraints(tol)` → `MissingPointOnPointConstraints` = (geo1, pos1, geo2, pos2, type). 끝점 거리를 detail에
+  - `add_horizontal` / `add_vertical`: `detectMissingVerticalHorizontalConstraints(angle)` → `MissingVerticalHorizontalConstraints` = (geo, pos, -2000, 0, type 2=Horizontal/3=Vertical). 이미 H/V/축평행 제약이 있는 선은 뺀다. 기울기(도)를 detail에
+  - `add_equal`: `detectMissingEqualityConstraints(tol)` → `MissingLineEqualityConstraints`(선 쌍), `MissingRadiusConstraints`(원·호 쌍)
+  - `delete_constraint`: 솔버의 `RedundantConstraints`(지워도 형상 유지 → high), `ConflictingConstraints`(값이 다른 치수 둘이면 각각 "이것을 삭제" 후보 두 개, `exclusive_with`로 묶음, 결과 치수를 detail에 → medium), `MalformedConstraints`(high)
+  - `add_dimension`: 솔브가 되는데 DoF가 남으면 `getGeometryWithDependentParameters()`의 자유 요소마다 원점 기준 DistanceX/DistanceY(현재 값) 또는 Radius(현재 값) 후보 → low(설계 치수는 사용자만 안다)
+- `evaluate=True`면 후보마다 **스케치 사본**(`doc.copyObject`)에 적용해 `solve()`하고 DoF·상태 변화를 `effect`에 넣는다(원본은 건드리지 않는다, 사본은 지운다). `recommended`는 effect가 좋아지고(상태 0, DoF 감소, 충돌·중복 없음) confidence가 low가 아닌 것.
+- `fingerprint`(요소 수·제약 수·제약 종류 해시)는 apply 때 같은 스케치인지 확인용.
+
+### 7.30 `apply_sketch_fixes` (M10)
+- 입력: `sketch, ids=[...], doc=None, fingerprint=None, coincident_tolerance=0.05, angle_tolerance=0.5, equal_tolerance=0.01`
+- 같은 허용값으로 후보를 다시 만들어 id를 맞춘다. `fingerprint`가 다르면(그사이 스케치가 바뀜) 오류. `exclusive_with`끼리 같이 고르면 오류.
+- 삭제는 인덱스 내림차순으로 먼저, 추가는 그 뒤. 적용 후 `solve()` → `doc.recompute()` → `{"applied": [...], "before", "after": {"solve_status", "dof", "fully_constrained", ...}, "recompute": {"resolved", "new_errors"}}`. 상태가 나빠지면(충돌 생김) 되돌리고 오류로 알린다.
+- 사용자가 고른 것만 적용한다. 대화에서는 Claude가 후보를 번호 목록으로 보여 주고 사용자가 번호를 고른다(CLAUDE.md 워크플로).
+
 ---
 
 ## 8. Claude Code 연결
@@ -613,6 +632,13 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 6. `classify_faces`·`section_profile`의 `levels[].faces` 목록 상한(`max_level_faces`, 기본 20)
 7. **완료 기준**: `T9_mesh`(T7 "Plate"를 STL로 내보내 다시 읽은 "PlateMesh")에서 `import_mesh`가 is_solid, `analyze_mesh`가 levels [0, 6, 10] ±0.02·verdict prismatic, `section_profile(z=3)`이 선분 4개(안쪽 원 버림)·`z=8`이 선분 4개 + 원 2개(r 3.3 ±0.02), 그 단면으로 `build_features` → `compare_shapes(PlateMesh, Body)`가 max 편차 < 0.05 mm·부피 0.5 % 안. `helix` op로 판 위 원기둥에 피치 2 홈을 판 Body가 유효하고 부피가 줄며, 그것을 메시로 바꿔 `analyze_mesh`가 pitch 2 ±0.05를 잡는다. `save_document`→`open_document` 왕복 뒤 객체 수가 같다.
 
+### M10 — 제약 오류 자동 수정 제안 (M9 이후, 2026-09-11 추가)
+`get_sketch_diagnostics`가 찾은 문제를 고칠 후보로 바꾸고, 사용자가 고른 것만 적용한다. FreeCAD의 `detectMissing*`·`MissingXxxConstraints`·솔버 목록·`getGeometryWithDependentParameters`를 쓴다(api-notes 4장 + 라이브 확인).
+1. `suggest_sketch_fixes` (7.29) — `handlers/sketch_fix.py`
+2. `apply_sketch_fixes` (7.30)
+3. CLAUDE.md 진단 워크플로 5단계에 넣는다: 진단 → 후보 목록(번호) → 사용자 선택 → 적용 → `tracked_recompute`
+4. **완료 기준**: `T4_open_wire`에서 열린 끝점 쌍에 `add_coincident` 후보가 나오고 적용하면 `open_vertices`가 0, `T3_conflict`에서 충돌 치수 둘에 대해 `delete_constraint` 후보 두 개가 `exclusive_with`로 묶여 나오며 하나를 적용하면 solve 0, `T2_underconstrained`에서 `add_dimension`/`add_horizontal` 후보 적용으로 DoF 0. `T10_fixes`(0.02 벌어진 사각형 + 0.3° 기운 선 + 같은 길이 선 + 같은 반지름 원)에서 후보 4종이 모두 나오고 `recommended`만 적용하면 열린 끝점 0·DoF 감소. 원본 스케치는 evaluate 뒤에도 제약 수가 같다. 잘못된 id·바뀐 fingerprint는 오류.
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -629,6 +655,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 | `T7_rebuild` | 단차 판(60×40×10, 위 절반 4 mm 단차) + Ø6.6 관통 2개 + Ø10×3 카운터보어 + 0.5 챔퍼를 `Part::Feature` "Plate"로, 같은 형상을 `transformGeometry`로 전부 BSpline 면으로 바꾼 "PlateB" (M7) | `classify_faces(PlateB)`: 면 전부 plane/cylinder, verdict prismatic, levels [0, 6, 10]. `section_profile(z=3)`: 닫힌 선분 4개(구멍 메움). `build_features` Pad·Pad·Pocket·Pocket·Chamfer → `compare_shapes(Plate, Body)` identical |
 | `T8_drawing` | T1(PartDesign 판 + 구멍)과 pole_frame(Link 27개, `examples/pole_frame_from_dxf.py`) (M8) | `make_drawing(T1)`: 뷰 3개·치수 4개 값이 모델과 같음, PDF A4 1장. `inspect_drawing`이 치수 값을 그대로 돌려줌 |
 | `T9_mesh` | T7의 "Plate"를 `MeshPart.meshFromShape`(LinearDeflection 0.02)로 STL에 내보내 `Mesh.insert`로 다시 읽은 `Mesh::Feature` "PlateMesh" (M9) | `import_mesh`: is_solid. `analyze_mesh`: levels [0, 6, 10], verdict prismatic. `section_profile(PlateMesh, z=3)`: 선분 4개. `build_features` → `compare_shapes(PlateMesh, Body)` max 편차 < 0.05 |
+| `T10_fixes` | 0.02 mm 벌어진 사각형(끝점 3곳만 일치) + 0.3° 기운 선 + 길이 같은 선 2개 + 반지름 같은 원 2개 (M10) | `suggest_sketch_fixes`: add_coincident 1, add_horizontal/vertical ≥ 4, add_equal 2(선·반지름), effect 있음. `apply_sketch_fixes(recommended)` 뒤 open_vertices 0, DoF 감소 |
 
 ### CLAUDE.md에 넣을 진단 워크플로 (이 MCP를 사용하는 AI용)
 1. `ping` → 연결·버전 확인
@@ -660,7 +687,6 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 
 - ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
 - 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
-- 제약 오류 자동 수정 제안(`autoconstraint`, `detectMissingPointOnPointConstraints` 활용)
 - ~~원격 호스트 접속(허용 IP 목록)~~ — 2026-09-11 제외. 다른 PC의 FreeCAD가 필요해지면 코드 수정 없이 SSH 터널(`ssh -L 9877:localhost:9877 원격PC`)로 먼저 쓴다. execute_code가 있어 원격을 여는 것은 그 PC를 여는 것과 같다
 - Addon Manager 배포용 `package.xml` 완성
 

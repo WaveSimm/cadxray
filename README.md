@@ -33,7 +33,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 25개)`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 27개)`). 끝입니다.
 
 이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
 
@@ -103,6 +103,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 |---|---|
 | "지금 열린 모델 구조 파악해줘" | `get_document_graph` → Body·피처·에러 객체 요약 |
 | "Sketch003 왜 빨간지 진단해줘" | `get_sketch_diagnostics` → 충돌 제약 번호(GUI 패널 번호와 같음), 남은 자유도, 열린 끝점 |
+| "고쳐줘" | `suggest_sketch_fixes` → 번호 붙은 후보 목록(예: "1. Line5 끝점과 Arc2 시작점 잇기 → 자유도 3→1") → 사용자가 번호 선택 → `apply_sketch_fixes` |
 | "Pad001 에러 원인 찾아서 고쳐줘" | 진단 → 원인 설명 → `execute_code`로 수정 → `tracked_recompute`로 확인 |
 | "이 형상 뭔가 이상해" | `analyze_shape` → 유효성, 부피, 면 구성, 깨진 이유 |
 | "지금 어떻게 생겼는지 보여줘" | `get_screenshot(view="iso")` → 이미지가 대화에 뜸 |
@@ -144,6 +145,8 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `section_profile` / `compare_shapes` 메시 입력 | 메시 단면 폴리라인을 직선·원호·원으로 피팅해 `build_features`가 그대로 받음 / 불리언 없이 법선 광선 편차(worst 점)로 비교 |
 | `build_features` `helix` op | 나사·나선 홈(SubtractiveHelix/AdditiveHelix), 축 중심·피치·높이·방향 |
 | `open_document` / `save_document` | FCStd 열기·저장(다른 파일 덮어쓰기는 overwrite 필요) |
+| `suggest_sketch_fixes` | **제약 수정 후보(M10)**: 가까운/열린 끝점 잇기, 빠진 수평·수직·같음, 중복·잘못된·충돌 제약 삭제, 남은 자유도용 치수. 후보마다 사본에 적용해 본 효과(DoF·상태)와 확신도. 자동으로 고치지 않음 |
+| `apply_sketch_fixes` | 사용자가 고른 후보 id만 적용, 나빠지면 되돌림. 스케치가 그사이 바뀌었으면(fingerprint) 거부 |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 

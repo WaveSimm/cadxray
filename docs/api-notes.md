@@ -387,3 +387,16 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - 나사 판별 신호: 높이별 단면의 최대 반지름 각도가 z에 비례해 돈다(피치 2 → 1 mm당 180°). 정점을 (각도, z)로 펼쳐 그리면 사선 줄무늬. 단면 z 간격은 피치의 절반보다 작아야 각도가 접히지 않는다(`analyze_mesh`는 0.2 mm, 최대 60장). 한 단면의 원 피팅 중심은 산 쪽으로 치우치므로 여러 높이의 피팅 중심을 평균한다
 - `Mesh.Facet`: `Area`, `Normal`, `Points`(3점), `PointIndices`, `NeighbourIndices`. `getPlanarSegments(dev, min_facets)`는 면이 min_facets보다 적은 평면을 버린다(작은 면은 삼각형 2개) → 레벨은 면별 법선으로 직접 묶는다(`handlers/mesh.py::_mesh_levels`)
 - `FreeCAD.openDocument(path)`로 연 문서의 `Name`은 파일명에서 온다(저장 전 이름은 남지 않는다). 소문자로 정규화한 경로를 넘기면 이름도 소문자가 된다 — 비교만 `os.path.normcase(realpath)`로, 열 때는 원래 경로로
+
+## 17. 스케치 제약 자동 감지·수정 API `[라이브 1.1.3 확인, 2026-09-11]`
+
+`handlers/sketch_fix.py`에서 사용.
+
+- `sk.detectMissingPointOnPointConstraints(tol)` → 개수. 결과는 `sk.MissingPointOnPointConstraints` = [(geo1, pos1, geo2, pos2, type)] (type 1 = Coincident). `makeMissingPointOnPointCoincident(bool)`은 감지된 것을 전부 적용 — 선별 적용은 `addConstraint(Sketcher.Constraint("Coincident", g1, p1, g2, p2))`로 직접
+- `sk.detectMissingVerticalHorizontalConstraints(deg)` → `MissingVerticalHorizontalConstraints` = [(geo, 0, -2000, 0, type)] type 2 = Horizontal, 3 = Vertical. 이미 정확히 수평인 선도(제약이 없으면) 들어온다
+- `sk.detectMissingEqualityConstraints(tol)` → `MissingLineEqualityConstraints` = [(g1, 0, g2, 0)], `MissingRadiusConstraints` = [(g1, 0, g2, 0)]
+- `sk.getGeometryWithDependentParameters()` → [(geo, pos)] 솔버가 자유롭다고 보는 요소(pos 0 = 모서리, 1/2/3 = 점). 남은 DoF의 위치를 알려준다
+- `sk.autoRemoveRedundants(bool)`, `sk.autoconstraint`, `sk.analyseMissingPointOnPointCoincident`(끝점 접선/수직 분석), `deleteAllConstraints()`도 있다
+- `sk.OpenVertices`는 **Shape 기준**이라 `solve()`만으로는 갱신되지 않는다 → `sk.recompute()`(객체 단위) 뒤에 읽는다
+- `doc.copyObject(sk, False)`로 스케치 사본을 만들어 후보를 적용·solve해 보면 원본이 안 바뀐다(Body 밖에 생김, 쓰고 `removeObject`). 헤드리스 콘솔에 "Importing project files" 진행 메시지가 찍힌다
+- 제약을 값으로 저장해 되돌리기: `(Type, First, FirstPos, Second, SecondPos, Third, ThirdPos, Value, Name, Driving)` → `deleteAllConstraints()` 후 `addConstraint` 재생성 + `renameConstraint`·`setDriving`

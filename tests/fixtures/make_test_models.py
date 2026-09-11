@@ -307,7 +307,30 @@ def T9_mesh():
     return doc
 
 
+# --- T10 제약 수정 후보 ------------------------------------------------------------
+
+
+def T10_fixes():
+    """0.02 mm 벌어진 사각형(끝점 3곳만 일치) + 0.3° 기운 선 + 길이 같은 선 2개 + 반지름 같은 원 2개 (M10)."""
+    doc = _fresh("T10_fixes")
+    body, sk = _body_with_sketch(doc)
+    a = _line(sk, 0, 0, 20, 0)
+    b = _line(sk, 20, 0, 20.05, 12.1)          # 0.24° 기움
+    c = _line(sk, 20.05, 12.1, 0.02, 12.1)
+    e = _line(sk, 0, 12.12, 0, 0)              # c 끝과 0.028 벌어짐
+    sk.addConstraint(Sketcher.Constraint("Coincident", a, 2, b, 1))
+    sk.addConstraint(Sketcher.Constraint("Coincident", b, 2, c, 1))
+    sk.addConstraint(Sketcher.Constraint("Coincident", e, 2, a, 1))
+    sk.addConstraint(Sketcher.Constraint("Horizontal", a))
+    f = _line(sk, 30, 0, 50, 0)                # a와 같은 길이 20
+    sk.addGeometry(Part.Circle(Vec(35, 20, 0), Vec(0, 0, 1), 3.0), False)
+    sk.addGeometry(Part.Circle(Vec(45, 20, 0), Vec(0, 0, 1), 3.0), False)
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T10_fixes": T10_fixes,
     "T9_mesh": T9_mesh,
     "T7_rebuild": T7_rebuild,
     "T1_clean": T1_clean,
