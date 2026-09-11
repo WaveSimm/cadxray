@@ -235,7 +235,7 @@ def _find_circle_edge(view, center2d, radius_scaled, tol_mm=0.05):
 
 def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, views=None, dimensions=None,
                  notes=None, title=None, export="pdf", out_dir=None, vertex_tolerance=0.05, max_dimensions=50,
-                 wait_seconds=60):
+                 wait_seconds=60, line_width=0.35, smooth_edges=True):
     """3D 객체 → TechDraw 페이지(뷰·치수·주석·표제란) → PDF/SVG. [확인됨: api-notes 14장]"""
     t0 = time.time()
     d, err = util.get_doc(doc)
@@ -466,6 +466,20 @@ def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, 
             tpl.EditableTexts = et
         d.recompute()
         _wait_for_views([v for v, _ in created.values()], wait_seconds, warnings)
+
+        # --- 선 굵기·매끈한 모서리 (GUI 표시용. 기본 라인 그룹은 0.7 mm라 화면에서 뭉쳐 보인다) ------
+        if FreeCAD.GuiUp and line_width:
+            for v in pg.Views:
+                vo = v.ViewObject
+                for prop, val in (("LineWidth", line_width), ("HiddenWidth", line_width / 2), ("IsoWidth", line_width / 2), ("ExtraWidth", line_width * 1.5)):
+                    if hasattr(vo, prop):
+                        setattr(vo, prop, float(val))
+        if not smooth_edges:
+            for v, _ in created.values():
+                if hasattr(v, "SmoothVisible"):
+                    v.SmoothVisible = False
+                    v.SeamVisible = False
+            d.recompute()
 
         # --- 내보내기 --------------------------------------------------------------
         files = {}
