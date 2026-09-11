@@ -296,7 +296,7 @@ def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, 
             "iso": (min(W - margin - 45 - s * max(X, Y) * 0.6, (right_x if has_side else fx) + s * (Y if has_side else X) / 2 + gap + s * max(X, Y) * 0.6),
                     fy + (s * (Z + Y) / 2 + gap if has_top else 0)),
         }
-        notes_xy = ((right_x if has_side else fx) + s * (Y if has_side else X) / 2 + 55, bottom + 4)   # X는 글자 중앙
+        notes_xy = ((W - 185.0) / 2, bottom - 12.0)   # 표제란(오른쪽 아래) 왼쪽의 빈 띠. X는 글자 블록 중앙, 줄은 아래로 이어진다
         created = {}
         base_views = {}
         pending_details = []
@@ -327,7 +327,7 @@ def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, 
         _wait_for_views([v for v, _ in created.values()], wait_seconds, warnings)
         # 상세 뷰: BaseView 기하 중심 기준 뷰 좌표(축척 전)
         detail_x = W - margin - 45
-        detail_y_next = H - 14.0
+        detail_y_next = H - 22.0
         for k, spec in enumerate(pending_details):
             base = base_views.get(str(spec.get("base", "front")))
             if base is None:
