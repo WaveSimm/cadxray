@@ -458,6 +458,54 @@ def align_shapes(
 
 
 @mcp.tool()
+def make_drawing(
+    source: str | list[str],
+    doc: str | None = None,
+    page: str = "Page",
+    template: str | None = None,
+    scale: float | None = None,
+    views: list | None = None,
+    dimensions: list[dict] | None = None,
+    notes: list | None = None,
+    title: dict | None = None,
+    export: str = "pdf",
+    out_dir: str | None = None,
+    vertex_tolerance: float = 0.05,
+    wait_seconds: int = 60,
+) -> str:
+    """3D 객체로 **TechDraw 2D 도면 페이지**를 만들고 PDF/SVG로 내보낸다 (M8).
+
+    source: Body·Part 이름, 또는 이름 목록/그룹(Link 어셈블리는 자동으로 Part::Compound로 묶는다).
+    views: ["front","right","top"](기본) + "iso"/"left"/"rear"/"bottom", 또는 {"type":"front","x":..,"y":..,"scale":..},
+           상세는 {"detail": {"base":"front","at":[x,y,z],"radius":20,"scale":0.2,"ref":"A"}}.
+    scale: None이면 페이지의 60 %에 맞는 표준 축척 자동. template: 기본 ISO/A3_Landscape_TD.svg(표제란 있음).
+    dimensions: [{"view":"front","type":"DistanceX|DistanceY|Distance","from":[x,y,z],"to":[x,y,z],"offset":[dx,dy],"label":"W"},
+                 {"view":"top","type":"Diameter","center":[x,y,z],"radius":3},
+                 {"view":"front","type":"DistanceX","edges":{"axis":"x","at":[x1,x2]}}]  ← 정점이 없는 실루엣 사이 거리.
+    from/to는 모델 정점 좌표(vertex_tolerance 안에서 찾는다). 값은 모델에서 재므로 도면 값 = 모델 값.
+    notes: 문자열 목록(주석 한 덩어리) 또는 [{"text":[...],"x":..,"y":..,"size":2.5}].
+    title: {"title":..,"subtitle":..,"author":..,"date":..,"scale":..,"number":..,"sheet":..} (템플릿 칸 이름도 됨).
+    export: "pdf"|"svg"|"both"|"none". GUI가 없으면 내보내기는 건너뛴다. 배치는 기본값이고 세밀한 위치는 GUI에서 옮긴다.
+    """
+    return client.call(
+        "make_drawing",
+        {"source": source, "doc": doc, "page": page, "template": template, "scale": scale, "views": views,
+         "dimensions": dimensions, "notes": notes, "title": title, "export": export, "out_dir": out_dir,
+         "vertex_tolerance": vertex_tolerance, "wait_seconds": wait_seconds},
+        timeout=310,
+    )
+
+
+@mcp.tool()
+def inspect_drawing(page: str | None = None, doc: str | None = None) -> str:
+    """TechDraw 페이지의 뷰·치수(값)·주석·표제란을 읽는다 (M8). page를 비우면 문서의 유일한 페이지.
+
+    치수 value는 모델에서 잰 값. status가 Invalid면 참조가 깨진 치수, 뷰의 edges가 0이면 소스가 빈 뷰다.
+    """
+    return client.call("inspect_drawing", {"page": page, "doc": doc}, timeout=70)
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

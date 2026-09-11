@@ -48,6 +48,9 @@ def _timeout_for(tool, params):
     if tool == "build_features":
         # 피처마다 recompute — 피처 수에 비례
         return 300
+    if tool == "make_drawing":
+        # 뷰 투영(Link 27개 어셈블리 5면 ≈ 20초) + PDF 내보내기 (M8)
+        return 300
     return _DEFAULT_TIMEOUT
 
 

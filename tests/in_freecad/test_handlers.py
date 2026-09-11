@@ -48,6 +48,7 @@ import FreeCAD  # noqa: E402
 import make_test_models as fx  # noqa: E402
 from CadXray import rpc_server  # noqa: E402
 from CadXray.handlers import (  # noqa: E402
+    drawing,
     REGISTRY,
     document_graph,
     documents,
@@ -365,6 +366,44 @@ def test_step_tools():
     check("STL → 메시 안내", r["ok"] is False and "메시" in r["error"])
 
 
+def test_drawing_tools():
+    section("M8: make_drawing / inspect_drawing")
+    dims = [
+        {"view": "front", "type": "DistanceX", "from": [0, 0, 0], "to": [20, 0, 0], "label": "W"},
+        {"view": "front", "type": "DistanceY", "from": [0, 0, 0], "to": [0, 0, 10], "label": "H"},
+        {"view": "top", "type": "DistanceY", "from": [0, 0, 10], "to": [0, 12, 10], "label": "D"},
+        {"view": "top", "type": "Diameter", "center": [10, 6, 10], "radius": 3.0, "label": "Hole"},
+        {"view": "front", "type": "DistanceX", "edges": {"axis": "x", "at": [0, 20]}, "label": "W2"},
+        {"view": "front", "type": "DistanceX", "from": [99, 99, 99], "to": [0, 0, 0], "label": "Bad"},
+    ]
+    r = measure("make_drawing", "T1 3면도+치수", drawing.make_drawing(source="Body", doc="T1_clean", page="PageT1", views=["front", "right", "top", "iso"],
+                                                                dimensions=dims, notes=["TEST NOTE"], title={"title": "T1 TEST"}, export="none"))
+    check("make_drawing ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    check("뷰 4개, 모서리 있음", len(d["views"]) == 4 and all(v["edges"] for v in d["views"]), str([(v["name"], v["edges"]) for v in d["views"]]))
+    check("자동 축척 = 2:1 (20×12×10 부품, A3)", abs(d["scale"] - 2.0) < 1e-9, str(d["scale"]))
+    vals = {x["type"] + ":" + x["references"][:2]: x["value"] for x in d["dimensions"]}
+    byname = {x["name"]: x["value"] for x in d["dimensions"]}
+    check("치수 5개 생성, 잘못된 1개는 경고로", len(d["dimensions"]) == 5 and any("Bad" in w or "치수 6" in w for w in r["warnings"]), str((len(d["dimensions"]), r["warnings"])))
+    check("DistanceX 20 / DistanceY 10 / 깊이 12", abs(byname["Dim_W"] - 20) < 0.01 and abs(byname["Dim_H"] - 10) < 0.01 and abs(byname["Dim_D"] - 12) < 0.01, str(byname))
+    check("Diameter 6 (원 모서리 참조)", abs(byname["Dim_Hole"] - 6) < 0.01, str(byname.get("Dim_Hole")))
+    check("실루엣 모서리 참조 DistanceX 20", abs(byname["Dim_W2"] - 20) < 0.01, str(byname.get("Dim_W2")))
+    check("표제란 제목 반영", True)
+    r2 = measure("inspect_drawing", "T1 페이지", drawing.inspect_drawing(page="PageT1", doc="T1_clean"))
+    check("inspect_drawing ok", r2["ok"], str(r2.get("error")))
+    d2 = r2["data"]
+    check("뷰 4·치수 5·주석 1", len(d2["views"]) == 4 and len(d2["dimensions"]) == 5 and len(d2["annotations"]) == 1, str((len(d2["views"]), len(d2["dimensions"]), len(d2["annotations"]))))
+    check("표제란 FC-Title = T1 TEST", d2["template"]["editable_texts"].get("FC-Title") == "T1 TEST", str(d2["template"]["editable_texts"].get("FC-Title")))
+    check("치수 값 일치", all(abs(x["value"] - byname[x["name"]]) < 1e-6 for x in d2["dimensions"]))
+    # 같은 이름으로 다시 만들면 이전 페이지를 지우고 새로 만든다
+    r3 = drawing.make_drawing(source="Body", doc="T1_clean", page="PageT1", views=["front"], export="none")
+    check("재생성: 페이지 1개, 뷰 1개", r3["ok"] and len([o for o in FreeCAD.getDocument("T1_clean").Objects if o.TypeId == "TechDraw::DrawPage"]) == 1 and len(r3["data"]["views"]) == 1)
+    r4 = drawing.make_drawing(source="NoSuch", doc="T1_clean", export="none")
+    check("없는 소스 → 오류 봉투", not r4["ok"] and "NoSuch" in r4["error"])
+    r5 = drawing.make_drawing(source="Body", doc="T1_clean", page="PageBad", template="nope.svg", export="none")
+    check("없는 템플릿 → 후보 안내", not r5["ok"] and "ISO/" in r5["error"])
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -577,6 +616,7 @@ def main():
         ("screenshot", test_screenshot),
         ("step_tools", test_step_tools),
         ("rebuild_tools", test_rebuild_tools),
+        ("drawing_tools", test_drawing_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

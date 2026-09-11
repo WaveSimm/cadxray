@@ -359,7 +359,10 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `DrawViewAnnotation`: `Text`(줄 목록), `TextSize`, X/Y (addView 뒤)
 - 기본 템플릿 `Templates/Default_Template_A4_Landscape.svg`는 11줄짜리 빈 페이지(테두리·표제란·EditableTexts 없음). 표제란은 `Templates/ISO/A3_Landscape_TD.svg` 등(EditableTexts: FC-Title, Subtitle, AuthorName, CreationDate, SupervisorName, CheckDate, scale, Weight, drawing_number, SheetNumber, copyright). 다른 크기는 `ISO/A?_Landscape_ISO5457_advanced|minimal|notitleblock.svg`, `ASME/`
 - 페이지 창 열기: `Gui.getDocument(doc).getObject(page).doubleClicked()` (반환 True). 내보내기 `TechDrawGui.exportPageAsPdf(page, path)` / `exportPageAsSvg` — 페이지 크기(A3=1191×842 pt)로 나온다
-- 뷰 방향: 정면 `Direction (0,-1,0)`, `XDirection (1,0,0)`; 우측면 `(1,0,0)` / `(0,1,0)`; 평면 `(0,0,1)` / `(1,0,0)`
+- 뷰 방향: 정면 `Direction (0,-1,0)`, `XDirection (1,0,0)`; 우측면 `(1,0,0)` / `(0,1,0)`; 평면 `(0,0,1)` / `(1,0,0)`; 등각 `(1,-1,1)` / `(1,1,0)`
+- **투영은 비동기다** `[라이브 1.1.3, 2026-09-11]`: DrawViewPart의 HLR이 별도 스레드에서 돌고 결과가 메인 이벤트 루프로 들어온다. 한 번의 `execute_code`/툴 호출 안에서 recompute 직후 `getVisibleEdges()`를 부르면 0개다(Link 27개 컴파운드 정면도 ≈ 20초). `QtCore.QCoreApplication.instance().processEvents()`를 돌리며 모서리가 생길 때까지 기다린다(`handlers/drawing.py::_wait_for_views`). FreeCADCmd(헤드리스)에서는 동기적으로 끝난다. Python에는 `waitingForHlr` 같은 메서드가 없다
+- 상세 뷰(DrawViewDetail)의 `getGeometricCenter()`는 앵커 기준이라 3D 점을 뷰 좌표로 투영해 원 모서리를 찾을 때 어긋난다 → 반지름이 맞는 원이 하나뿐이면 그것을 쓴다
+- `DrawViewAnnotation.X`는 글자 블록의 중앙이다(왼쪽 끝이 아니다)
 
 ## 15. 외관(색·투명) `[라이브 1.1.3 확인, 2026-09-11]`
 

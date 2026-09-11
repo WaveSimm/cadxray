@@ -19,7 +19,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 18개)`; addon messages are in Korean for now). Done.
+The first line copies the addon into FreeCAD's Mod folder; the second registers the bridge with Claude Code. Restart FreeCAD — the server starts automatically (Report view: `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 21개)`; addon messages are in Korean for now). Done.
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
@@ -33,7 +33,7 @@ If Windows cannot find `uvx`, put its full path in `"command"` (`(Get-Command uv
 
 Also installable from FreeCAD's **Addon Manager** (add this repo as a custom repository). Developers: `git clone … && cd cadxray/bridge && uv run cadxray install --dev` (symlink, edits apply immediately).
 
-## Tools (18)
+## Tools (21)
 
 | Tool | What it does |
 |---|---|
@@ -56,23 +56,27 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `build_features` | stacks sketch + Pad / Pocket / Groove / Revolution / Fillet / Chamfer on a Body, one feature at a time with recompute and validation; `profile.section` traces the original directly (no coordinates through the LLM); Block / point-anchored arcs / axis construction line rules built in; `params` go to a Spreadsheet |
 | `compare_shapes` | volume / area / bbox difference plus fuzzy-difference pieces with bounding boxes — tells you *where* the rebuild is wrong |
 | `align_shapes` | rigid transform between two instances of the same part (principal axes + on-surface probe verification); use it to place one rebuilt Body at many positions with App::Link; flags mirror images |
+| `make_drawing` | **2D drawing (M8)**: Body / Part / Link group → TechDraw page (ISO title block, auto scale and layout, front/right/top/iso/detail views) + dimensions (model vertices, silhouette edges, circles — values measured on the model) + notes + title block → PDF/SVG. 27-link assembly, 5 views, 13 dimensions in 87 s |
+| `inspect_drawing` | views, dimension values, notes and title-block fields of a page; finds empty views and broken dimensions |
 
 Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_ms"}`. List-type responses take `max_*` limits; summaries and `invalid_objects` are always computed over the whole document even when the list is truncated. Hard cap 100 KB (screenshots excepted).
 
 ## What it has been tested on
 
-- 109 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (0.8 s)
+- 164 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (2 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.
 - STEP assembly → one PartDesign Body per part + grounded Assembly joints: `examples/step_assembly_to_bodies.py`
 - **Whole assembly rebuilt parametrically**: all 20 part types of the 80-part vendor assembly rebuilt with the M7 tools (15 identical, 4 match, one at 0.14 % because of free-form fillets), then one Body per type placed 80 times via `align_shapes` into App::Links with grounded joints — 0 interference, 3.5 min (`examples/assemble_from_bodies.py`). Two part types turned out to have mirror-image instances.
+- **2D drawings**: `make_drawing` produced an A3 sheet of the 27-link pole frame (3 views, 2 details, 13 dimensions all equal to the model, notes, title block, PDF) in one call, and of a single-body part in 2.7 s.
+- **Drawings and photos to 3D**: DXF (PCB, structural), 1:1 vector PDF and a photographed sketch were read and rebuilt parametrically (`examples/*_from_*.py`).
 
 ## Known limits
 
 - `through` for holes is a heuristic (material just outside both ends). A hole opening into a pocket can read as through.
 - Threads are not modelled in vendor STEP files; `thread_hint` is inferred from diameter only.
-- STL/OBJ meshes have no faces or solids — none of the geometry tools apply. Ask for STEP.
+- STL/OBJ meshes have no faces or solids, so the analysis tools do not read them directly. They can still be rebuilt: show the mesh as a transparent reference, fit circles to `crossSections` polylines, then `build_features` (workflow in CLAUDE.md, `examples/stl_spool_guide_with_m7.py` — a 5,758-facet spool-guide STL rebuilt with every mesh vertex within 0.03 mm, including its external thread). Never call `compare_shapes` on a mesh-derived solid (the boolean runs for 10+ minutes).
 - Verified on FreeCAD 1.1.3 / Windows only so far. 1.0.x is supported by code paths checked against the 1.0.2 sources but not yet run live.
 
 ## Notes for contributors

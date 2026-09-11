@@ -56,6 +56,13 @@
 5. 그 값으로 `build_features`(원·호·선 `wires`, 원 요소의 `expr`는 **지름** 수식). 나사는 `PartDesign::SubtractiveHelix`를 `execute_code`로: 프로파일 스케치를 XZ에 붙이고 `AttachmentOffset = Placement(Vector(cx, 0, -cy))`로 축을 부품 중심에, 골 단면 한 피치 전체, 한 피치 아래에서 시작, 아래 잘린 곳은 Pad로 되메움 (api-notes §16)
 6. 검증은 **`compare_shapes`를 부르지 않는다**(메시 솔리드 불리언은 10분 넘게 멈춘다). `execute_code`로 Body 면 표본점에서 `mesh.nearestFacetOnRay`(법선 ±, 시작점 0.6 mm 뒤) 편차와 메시 정점 → `distToShape` 역방향 편차를 잰다. 최대 편차가 큰 점의 위치가 틀린 곳이다
 
+### 2D 도면 워크플로 (M8)
+1. 소스 정하기: Body 하나면 그 이름, Link 어셈블리면 그룹 이름(툴이 Part::Compound로 묶는다)
+2. `make_drawing(source, views=["front","right","top"(+"iso")], dimensions=[...], notes=[...], title={...}, export="pdf")`. 축척은 비우면 자동(페이지 60 %). 치수는 모델 **정점 좌표**로 지정(`from`/`to`), 원통 실루엣 사이는 `edges={"axis":"x","at":[x1,x2]}`, 구멍은 `type="Diameter", center, radius`. 정점 좌표는 `inspect_object`/`analyze_shape`의 bbox나 `find_holes`에서 읽는다
+3. 응답의 `dimensions[].value`가 모델 값과 같은지, `warnings`의 "건너뜀"(정점을 못 찾은 치수)을 본다. `views[].edges`가 0이면 소스가 빈 것
+4. 겹침·위치는 `offset`으로 조정하거나 GUI에서 끌어 옮긴다(기본 배치는 대략이다). 큰 어셈블리(Link 수십 개)는 투영에 1분 넘게 걸린다 — `wait_seconds`
+5. `inspect_drawing(page)`로 최종 확인. PDF 경로는 `files.pdf`
+
 ### 읽을 때 주의
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다
 - 제약 번호는 `id`(1-based, GUI 제약 패널과 같음)와 `index`(0-based, `sk.Constraints[index]`)가 같이 온다. 사용자에게는 `id`로 말한다
@@ -66,6 +73,7 @@
 - `check_interference`는 `distToShape`가 0일 때만 `common()`을 부른다. 큰 어셈블리는 `names`를 좁혀서 여러 번 부른다
 - `classify_faces`의 `method: "fit"` 면은 `residual`이 있다. free_form인데 `best_axis_fit.residual`이 작으면 `tolerance`를 그 값보다 크게 주고 다시 부른다
 - `section_profile`의 좌표는 스케치 로컬 2D다(XZ 평면은 (X, Z), YZ 평면은 (Y, Z)). `sketch_plane.build_features`를 그대로 `build_features`의 `plane`/`position`에 넣는다
+- `make_drawing`의 치수는 Projected 모드라 DistanceX/Y가 뷰 축을 따른다. 상세 뷰(`view`에 `ref` 글자)에서도 같은 방식으로 잰다
 - `compare_shapes`에서 `boolean_failed`가 true면 `missing/extra`는 무시하고 `volume_diff`·`area_diff`로만 판단한다
 
 ### 수정 코드 작성 시 주의

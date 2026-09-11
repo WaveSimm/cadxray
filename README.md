@@ -33,7 +33,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 18개)`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 21개)`). 끝입니다.
 
 이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
 
@@ -110,6 +110,8 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | "이 STEP 파일 마운팅 홀 몇 개고 피치 얼마야?" | `import_step` → `find_holes` → 직경·개수·중심·피치 |
 | "브라켓이랑 센서 겹치는지 봐줘" | `check_interference` → 겹치는 부피(mm³) |
 | "이거 알루미늄이면 몇 g이야?" | `get_mass_properties(density=2.7)` |
+| "이거 2D 도면으로 뽑아줘" | `make_drawing` → 3면도·상세·치수·주석·표제란이 든 TechDraw 페이지 + PDF/SVG. `inspect_drawing`으로 치수 값 확인 |
+| "이 STL 다시 그려줘" | 참고 메시를 투명으로 띄우고 단면 원 피팅 → `build_features`(CLAUDE.md "STL → 파라메트릭" 절차, `examples/stl_spool_guide_with_m7.py`) |
 | "이 STEP 부품 파라메트릭으로 다시 만들어줘" (찰흙으로) | `classify_faces`(면 정체·주축·띠 높이) → `section_profile`(띠 경계) → `build_features`(Pad·Groove·Pocket·Chamfer를 순서대로) → `compare_shapes`(원본과 차집합으로 검증) |
 
 ### 툴 목록
@@ -135,6 +137,8 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓고 피처마다 검증**. `profile.section`이면 원본을 직접 트레이스해 좌표가 대화를 오가지 않음. Block·구성점 고정·구성선 축 규칙 내장, `params`는 Spreadsheet로 |
 | `compare_shapes` | 부피·면적·bbox 차 + 퍼지 차집합 조각의 bbox — **어디가 틀렸는지** 바로 짚음 |
 | `align_shapes` | 같은 부품의 두 인스턴스 사이 강체 변환(관성 주축 + 표면 점 검증). 재구성한 Body를 Link로 여러 자리에 놓을 때. 거울상이면 `mirrored` |
+| `make_drawing` | **2D 도면(M8)**: Body·Part·Link 그룹 → TechDraw 페이지(ISO 표제란, 자동 축척·배치, 정면/우측/평면/등각/상세) + 치수(모델 정점·실루엣·원 참조, 값은 모델에서 잼) + 주석 + 표제란 → PDF/SVG. Link 27개 어셈블리 5뷰·치수 13개 87초 |
+| `inspect_drawing` | 페이지의 뷰·치수 값·주석·표제란 읽기. 빈 뷰(모서리 0)·깨진 치수(Invalid) 찾기 |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
@@ -143,9 +147,10 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 - `examples/step_assembly_to_bodies.py` — STEP 어셈블리(80부품)를 부품별 Body + 접지 조인트 Assembly로 변환. 5.7초
 - 벤더 부품(클램프 조 44면, BSpline 전이면·더브테일 홈·립 챔퍼 포함)도 같은 방법으로 부피 차 0.0004 %까지 재구성했습니다. 그 과정에서 확인한 함정(트레이스 기하는 Block으로, 2D 불리언 회피, 1e-5 틈 닫기, 회전 절삭의 과절삭 복원)은 `docs/api-notes.md` 7.5절에 있습니다
 - **어셈블리 전체 재구성** — 벤더 STEP 80부품(20종)을 전부 파라메트릭 Body로 다시 만들고(`examples/rebuild_*_with_tools.py`), 종류당 Body 하나에 인스턴스 80개를 `align_shapes`로 배치한 Link + Assembly로 조립(`examples/assemble_from_bodies.py`). 20종 중 identical 15 · match 4 · 0.14 % 1(자유곡면 필렛), 인스턴스 80개 전부 배치·접지, 간섭 0(접촉 9쌍), 3.5분. STEP의 Placement는 인스턴스 변환이 아니라서 형상에서 강체 변환을 찾는 `align_shapes`가 필요했고, D형 캡과 스페이서에 **거울상 인스턴스**가 섞여 있다는 것도 이 과정에서 드러났습니다
+- `examples/techdraw_page_from_assembly.py` — 철봉 프레임 어셈블리의 TechDraw 페이지를 손으로 만든 기록(M8 `make_drawing`의 원형). `examples/pole_frame_from_dxf.py`·`cover_from_pdf_drawing.py`·`pcb_from_dxf.py`·`ink_holder_from_photo.py` — DXF·벡터 PDF·사진(조감도)에서 3D를 만든 기록
 - `examples/rebuild_2b2_with_tools.py` — 같은 클램프 조를 **M7 툴 네 개만으로** 다시 만든 기록. 손으로 쓰던 200줄이 피처 12개 목록 하나가 됐고, 스케치 12개 전부 DoF 0, `compare_shapes` 판정 identical(부피 차 0.0004 %). BSpline 전이면 8개는 `classify_faces`가 원뿔(축·꼭짓점·반각 59.63°)로 판별했습니다. 그때 확인한 것(법선 부호 뒤집힘, `common()`의 겹친 면, 구성점으로 호 고정, 반지름 반올림의 대가)은 13절
 
-**STL/OBJ는 안 됩니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭·부피 툴이 전혀 동작하지 않습니다. 벤더에게 **STEP**을 받으세요.
+**STL/OBJ는 분석 툴이 직접 못 읽습니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭 툴이 동작하지 않습니다. 대신 참고 메시를 띄우고 단면을 원 피팅해 `build_features`로 다시 그리는 절차가 있습니다(CLAUDE.md, `examples/stl_spool_guide_with_m7.py` — 3D 프린트용 스풀 가이드 STL 5,758면을 메시 정점 전부 0.03 mm 안, 부피 0.014 %로 재구성, 수나사 포함). 메시 솔리드에 `compare_shapes`는 부르지 마세요(불리언이 10분 넘게 걸립니다). 벤더에게 **STEP**을 받으세요.
 
 모든 응답은 `{"ok", "data", "warnings", "truncated", "elapsed_ms"}` 봉투이고, 목록형 응답은 `max_*` 인자로 크기를 조절합니다. 요약(`summary`, `invalid_objects`)은 잘려도 항상 전체 기준입니다.
 
