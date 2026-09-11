@@ -2,7 +2,7 @@
 
 *한국어: [README.md](README.md)*
 
-An MCP server that lets Claude Code **diagnose** FreeCAD models. Ask "why is Sketch003 red?" or "why does Pad001 fail?" and Claude inspects the live document with dedicated tools, explains the cause, fixes it with `execute_code`, and verifies with `tracked_recompute` and a screenshot.
+An MCP server that lets an AI coding tool (Claude Code, Cursor, VS Code Copilot, Codex, Gemini CLI — any MCP client) **diagnose and edit** FreeCAD models. Ask "why is Sketch003 red?" or "why does Pad001 fail?" and the assistant inspects the live document with dedicated tools, explains the cause, fixes it with `execute_code`, and verifies with `tracked_recompute` and a screenshot.
 
 - FreeCAD **1.0.x / 1.1.x** (verified on 1.1.3), Windows · macOS · Linux
 - Two parts: a FreeCAD **addon** (`freecad/cadxray`, stdlib + PySide only) and an MCP **bridge** (`bridge/`, depends on `mcp` only)
@@ -12,7 +12,7 @@ An MCP server that lets Claude Code **diagnose** FreeCAD models. Ask "why is Ske
 
 Type these in a **terminal** (Windows: PowerShell or Command Prompt; macOS: Terminal) — not in the Claude Code chat.
 
-Prerequisites, each installed once: FreeCAD ≥ 1.0 (launch it once so the Mod folder exists), [Claude Code](https://claude.com/claude-code) (`claude --version`), [uv](https://docs.astral.sh/uv/) (`uv --version`; Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`, macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`, then reopen the terminal), git.
+Prerequisites, each installed once: FreeCAD ≥ 1.0 (launch it once so the Mod folder exists), an MCP-capable AI tool — the commands below use [Claude Code](https://claude.com/claude-code) (`claude --version`), other clients are listed under *Which AI tool?* —, [uv](https://docs.astral.sh/uv/) (`uv --version`; Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`, macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`, then reopen the terminal), git.
 
 ```bash
 uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
@@ -23,17 +23,56 @@ The first line copies the addon into FreeCAD's Mod folder; the second registers 
 
 Stuck? `… cadxray doctor` checks the addon install, the FreeCAD server and version mismatches.
 
-**Which Claude?** All three work: Claude Code CLI and the Claude Code desktop app share the registration above (`--scope user`). For the **Claude Desktop chat app**, add the same server to `claude_desktop_config.json` (Settings → Developer → Edit Config; Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`) and fully restart the app:
+**Which AI tool?** The bridge is a standard **MCP (stdio)** server, so any MCP-capable client works — the FreeCAD side (first line above) is shared, only the registration differs. The launch command is always:
+
+```
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+| Client | How to register | Check |
+|---|---|---|
+| **Claude Code** (CLI and desktop app share settings) | second line above (`claude mcp add --scope user …`) | `/mcp` → `cadxray · connected · 36 tools` |
+| **Claude Desktop** chat app | add the standard JSON below to `claude_desktop_config.json` (Settings → Developer → Edit Config; Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`), then fully restart the app | tools (🔧) list |
+| **Cursor** | Settings → MCP → *Add new global MCP server* → standard JSON in `~/.cursor/mcp.json` (or `.cursor/mcp.json` per project) | green dot, 36 tools |
+| **VS Code** (Copilot agent mode) | Command Palette → *MCP: Add Server* → Command (stdio) → the launch command; or the VS Code JSON below in `.vscode/mcp.json` | Copilot chat tools |
+| **Windsurf** | Settings → Cascade → MCP → *Add server* → standard JSON in `~/.codeium/windsurf/mcp_config.json` | Cascade tools |
+| **OpenAI Codex CLI** | `codex mcp add cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray` (or the TOML below in `~/.codex/config.toml`) | `codex mcp list` |
+| **Gemini CLI** | `gemini mcp add cadxray uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray` (or the standard JSON in `~/.gemini/settings.json`) | `/mcp` |
+| **Cline, Roo Code, Continue, …** | standard JSON (`mcpServers`) in the extension's MCP settings | the extension's MCP panel |
+
+Standard JSON (Claude Desktop, Cursor, Windsurf, Gemini CLI, Cline-style clients):
 
 ```json
-{ "mcpServers": { "cadxray": { "command": "uvx",
+{
+  "mcpServers": {
+    "cadxray": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+    }
+  }
+}
+```
+
+VS Code (`.vscode/mcp.json`, note the `servers` key):
+
+```json
+{ "servers": { "cadxray": { "type": "stdio", "command": "uvx",
     "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"] } } }
 ```
-If Windows cannot find `uvx`, put its full path in `"command"` (`(Get-Command uvx).Source` in PowerShell).
+
+Codex CLI (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.cadxray]
+command = "uvx"
+args = ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+```
+
+Notes for every client: if Windows cannot find `uvx`, put its full path in `"command"` (`(Get-Command uvx).Source` in PowerShell — GUI apps often have a different PATH than your terminal); if you changed the port, append `"--port", "9878"` to `args`; the first launch downloads the bridge (10–30 s), so reconnect once if no tools show up; all clients talk to the same FreeCAD server (127.0.0.1:9877), so one FreeCAD is enough. The diagnostic workflow in `CLAUDE.md` is written for Claude Code — with other tools the tool docstrings are enough, but you can copy the workflow section into that tool's rules file (`.cursor/rules`, `AGENTS.md`, `GEMINI.md`, …).
 
 Also installable from FreeCAD's **Addon Manager** (add this repo as a custom repository). Developers: `git clone … && cd cadxray/bridge && uv run cadxray install --dev` (symlink, edits apply immediately).
 
-## Tools (31)
+## Tools (36)
 
 | Tool | What it does |
 |---|---|

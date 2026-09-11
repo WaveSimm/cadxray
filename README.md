@@ -2,15 +2,15 @@
 
 *English: [README.en.md](README.en.md)*
 
-FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
+FreeCAD 모델을 AI 코딩 툴(Claude Code·Cursor·VS Code·Codex·Gemini CLI 등 MCP 클라이언트)이 **진단·수정**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
 - 지원: FreeCAD **1.0.x / 1.1.x** (1.1.3에서 검증), Windows · macOS · Linux
-- 구성: FreeCAD 안에서 도는 **애드온**(`freecad/cadxray`) + Claude Code가 띄우는 **브릿지**(`bridge/`)
+- 구성: FreeCAD 안에서 도는 **애드온**(`freecad/cadxray`) + AI 툴이 띄우는 **브릿지**(`bridge/`, 표준 MCP stdio)
 - 두 프로그램은 `127.0.0.1:9877`로만 통신합니다 (외부 접속 없음)
 
 ---
 
-## 1. 설치 — 명령 두 줄
+## 1. 설치 — 명령 두 줄 (Claude Code 기준, 다른 툴은 3장)
 
 **아래 명령은 전부 "터미널"에 입력합니다.** Claude Code 대화창이 아닙니다.
 - Windows: 시작 메뉴에서 **PowerShell** 을 찾아 실행 (명령 프롬프트 `cmd`도 됩니다)
@@ -22,7 +22,7 @@ FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다
 | | 확인 명령 | 없을 때 |
 |---|---|---|
 | FreeCAD 1.0 이상 | (한 번은 실행해 두세요 — Mod 폴더가 그때 생깁니다) | freecad.org |
-| [Claude Code](https://claude.com/claude-code) | `claude --version` | 공식 안내대로 설치 후 로그인 |
+| MCP를 지원하는 AI 툴 — 예: [Claude Code](https://claude.com/claude-code) | `claude --version` | 공식 안내대로 설치 후 로그인. Cursor·VS Code·Windsurf·Codex·Gemini CLI 등은 3장 |
 | [uv](https://docs.astral.sh/uv/) | `uv --version` | Windows(PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` · macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh \| sh` — 설치 후 터미널을 **다시 엽니다** |
 | git | `git --version` | Windows: git-scm.com · macOS: `xcode-select --install` |
 
@@ -70,15 +70,26 @@ claude mcp add --scope user cadxray -- uv --directory "<이 폴더의 절대경�
 | Auto Start | 자동시작 켜기/끄기 (기본 켜짐) |
 | Set Port… | 포트 변경 (기본 9877). 바꾸면 `claude mcp add` 명령 끝에 `--port 9878`을 붙입니다 |
 
-## 3. 어느 Claude에서 쓰나 — 세 가지 다 됩니다
+## 3. 어느 AI 툴에서 쓰나 — MCP를 지원하는 툴이면 다 됩니다
 
-| 클라이언트 | 등록 방법 | 확인 |
+브릿지는 표준 **MCP(stdio)** 서버라 Claude 말고도 Cursor·VS Code·Windsurf·Codex·Gemini CLI 등 MCP를 지원하는 어느 툴에서나 같은 명령으로 붙습니다. FreeCAD 쪽(1장 첫째 줄, 애드온 설치)은 공통이고, 아래는 **툴별 등록**만 다릅니다. 실행 명령은 어디서나 같습니다:
+
+```
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+| 툴 | 등록 방법 | 확인 |
 |---|---|---|
-| **Claude Code CLI** (터미널에서 `claude`) | 1장의 둘째 줄 (`claude mcp add --scope user …`) | `/mcp` 에 `cadxray · connected · 18 tools` |
-| **Claude Code 데스크톱 앱** | 위와 **같은 등록**을 그대로 씁니다 (설정을 공유). 추가 작업 없음 | 앱의 MCP 목록에 `cadxray` |
-| **Claude Desktop 채팅 앱** | 아래 설정 파일에 넣기 | 대화창 도구(🔧) 목록에 `cadxray` |
+| **Claude Code** (CLI·데스크톱 앱, 설정 공유) | 1장의 둘째 줄 `claude mcp add --scope user …` | `/mcp` → `cadxray · connected · 36 tools` |
+| **Claude Desktop** 채팅 앱 | `claude_desktop_config.json`에 아래 JSON (설정 → 개발자 → 설정 편집; Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`) 후 앱 완전 재시작 | 대화창 도구(🔧)에 `cadxray` |
+| **Cursor** | 설정 → MCP → **Add new global MCP server** 로 `~/.cursor/mcp.json`(프로젝트만이면 `.cursor/mcp.json`)에 아래 JSON | 설정 MCP 목록에 초록 점 + 툴 36개 |
+| **VS Code** (Copilot 에이전트 모드) | 명령 팔레트 → **MCP: Add Server** → Command(stdio) → 위 실행 명령. 또는 `.vscode/mcp.json`에 아래 VS Code JSON | Copilot 채팅 도구 목록에 `cadxray` |
+| **Windsurf** | 설정 → Cascade → MCP → **Add server** → `~/.codeium/windsurf/mcp_config.json`에 아래 JSON | Cascade 도구 목록 |
+| **OpenAI Codex CLI** | `codex mcp add cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray` (또는 `~/.codex/config.toml`에 아래 TOML) | `codex mcp list` |
+| **Gemini CLI** | `gemini mcp add cadxray uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray` (또는 `~/.gemini/settings.json`에 아래 JSON) | `/mcp` |
+| **Cline · Roo Code · Continue 등** | 각 확장의 MCP 설정 파일에 아래 JSON(`mcpServers` 형식) | 확장의 MCP 패널 |
 
-**Claude Desktop 채팅 앱 등록**: 앱 설정 → 개발자 → **설정 편집**으로 `claude_desktop_config.json`을 열고(Windows `%APPDATA%\Claude\`, macOS `~/Library/Application Support/Claude/`) `mcpServers` 안에 추가한 뒤, 앱을 **완전히 종료했다가**(트레이 아이콘까지) 다시 켭니다:
+**표준 JSON** (Claude Desktop · Cursor · Windsurf · Gemini CLI · Cline 계열 공통):
 
 ```json
 {
@@ -91,9 +102,35 @@ claude mcp add --scope user cadxray -- uv --directory "<이 폴더의 절대경�
 }
 ```
 
-Windows에서 "uvx를 찾을 수 없다"고 하면 `"command"`에 전체 경로를 넣습니다 — PowerShell에서 `(Get-Command uvx).Source` (보통 `C:\Users\<이름>\.local\bin\uvx.exe`). 다른 MCP가 이미 있으면 `mcpServers` 안에 항목만 추가합니다.
+**VS Code** (`.vscode/mcp.json` — 키가 `servers`입니다):
 
-세 클라이언트가 같은 FreeCAD 서버(9877)에 붙으므로 FreeCAD는 하나만 켜 두면 됩니다.
+```json
+{
+  "servers": {
+    "cadxray": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+    }
+  }
+}
+```
+
+**Codex CLI** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.cadxray]
+command = "uvx"
+args = ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+```
+
+공통 주의:
+- Windows에서 "uvx를 찾을 수 없다"고 하면 `"command"`에 전체 경로를 넣습니다 — PowerShell에서 `(Get-Command uvx).Source` (보통 `C:\Users\<이름>\.local\bin\uvx.exe`). GUI 앱(Claude Desktop·Cursor)은 터미널과 PATH가 달라 이 문제가 자주 납니다.
+- 다른 MCP가 이미 있으면 `mcpServers`(VS Code는 `servers`) 안에 `"cadxray"` 항목만 추가합니다.
+- 포트를 바꿨으면 `args` 끝에 `"--port", "9878"`을 붙입니다.
+- 첫 실행은 브릿지를 내려받느라 10~30초 걸립니다. 툴이 안 보이면 그 뒤에 한 번 더 연결합니다.
+- 어느 툴이든 같은 FreeCAD 서버(127.0.0.1:9877)에 붙으므로 FreeCAD는 하나만 켜 두면 되고, 여러 툴을 동시에 써도 됩니다.
+- 사용법(4장)의 CLAUDE.md 워크플로는 Claude Code용 파일입니다. 다른 툴에서는 툴 설명(docstring)만으로도 동작하지만, 진단 순서를 알려 주려면 그 툴의 규칙 파일(Cursor `.cursor/rules`, Codex `AGENTS.md`, Gemini `GEMINI.md` 등)에 CLAUDE.md의 "진단 워크플로" 부분을 복사해 넣으면 됩니다.
 
 ## 4. 이렇게 씁니다
 

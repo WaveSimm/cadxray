@@ -1,7 +1,7 @@
 [project]
 name = "cadxray"
 version = "0.12.0"
-description = "FreeCAD 모델 진단용 MCP 서버 (브릿지 + 동봉 애드온)"
+description = "FreeCAD 모델 진단·수정용 MCP 서버 — Claude Code·Cursor·VS Code·Codex·Gemini CLI 등 MCP 클라이언트 공용 (브릿지 + 동봉 애드온)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["mcp>=1.2"]
