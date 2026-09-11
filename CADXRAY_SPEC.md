@@ -661,7 +661,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 - ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
 - 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
 - 제약 오류 자동 수정 제안(`autoconstraint`, `detectMissingPointOnPointConstraints` 활용)
-- 원격 호스트 접속(허용 IP 목록)
+- ~~원격 호스트 접속(허용 IP 목록)~~ — 2026-09-11 제외. 다른 PC의 FreeCAD가 필요해지면 코드 수정 없이 SSH 터널(`ssh -L 9877:localhost:9877 원격PC`)로 먼저 쓴다. execute_code가 있어 원격을 여는 것은 그 PC를 여는 것과 같다
 - Addon Manager 배포용 `package.xml` 완성
 
 
