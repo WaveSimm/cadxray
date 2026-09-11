@@ -1,0 +1,141 @@
+---
+title: 실습 1. 판에 구멍 4개 — 5분 첫 모델
+description: 치수만 말해서 파라메트릭 판을 만들고, 스프레드시트로 두께를 바꿔 보고, 저장한다
+sidebar:
+  order: 1
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../assets/practice/01-plate-final.png';
+
+| 입력 파일 | 걸리는 시간 | 결과물 | 배우는 것 |
+|---|---|---|---|
+| 없음 | 5분 | `plate.FCStd` — Body 1개(Pad + Pocket), Params 5개 | 말로 만들기, 확인하기, 치수 바꾸기, 저장 |
+
+## 원본과 완성
+
+원본 파일은 없습니다. 치수만 말해서 만듭니다.
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="완성: 판에 구멍 4개" />
+    <figcaption><b>완성</b> Body 1개 — Pad + Pocket, 스케치 2개 자유도 0, 부피 29,316 mm³</figcaption>
+  </figure>
+</div>
+
+| 구분 | 파일 | 설명 | 크기 |
+|---|---|---|---|
+| 완성 | [완성-plate.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/01-plate-done.FCStd) | FreeCAD 파일 | 15 KB |
+| 완성 | [완성-plate.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/01-plate-done.step) | STEP | 13 KB |
+| 완성 | [완성-plate.stl](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/01-plate-done.stl) | STL | 52 KB |
+
+:::tip[완성 파일은 실제로 만든 것입니다]
+이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
+:::
+
+## 준비
+
+1. FreeCAD 1.1.3 을 켭니다. 리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)` 가 있는지 봅니다.
+2. 파일 → 새로 만들기. 문서가 하나만 열려 있게 합니다.
+3. 터미널에서 작업 폴더로 가서 AI 툴을 엽니다(`claude`, `codex`, `gemini`).
+
+## 단계
+
+### 1. 연결 확인
+
+```text title="이렇게 말한다"
+FreeCAD 에 연결되는지 확인하고, 열린 문서 이름 알려줘.
+```
+
+**AI 가 하는 일** — FreeCAD 버전과 열린 문서를 읽습니다.
+
+:::note[AI 는 이렇게 답합니다]
+FreeCAD 1.1.3 에 연결됐습니다. 열린 문서: Unnamed (객체 0개).
+:::
+
+### 2. 판 만들기
+
+```text title="이렇게 말한다"
+100×60 두께 5 판을 XY 평면에 그려서 위로 올려줘. 원점은 판의 왼쪽 아래 모서리. 치수는 스프레드시트 Params 에 width, height, thickness 로 넣어줘. 끝나면 iso 스크린샷 보여줘.
+```
+
+**AI 가 하는 일** — Body 를 만들고, XY 평면에 사각형 스케치를 그려 제약을 전부 걸고(자유도 0), Pad 로 5 mm 올립니다. 세 치수는 `Params` 스프레드시트에 별칭으로 들어가고 스케치와 Pad 가 그 셀을 참조합니다. 재계산해 오류가 없는지 확인하고 스크린샷을 보여 줍니다.
+
+**확인하기** — 트리에 `Body › Params, Sketch, Pad` 가 생깁니다. 스케치를 더블클릭하면 아래 상태줄에 «완전 구속» 이 보입니다. 나가려면 닫기.
+
+:::tip[스크린샷이 안 뜨면]
+Codex·Gemini 는 이미지를 글로만 요약할 수 있습니다. FreeCAD 화면에서 보기 → 표준 뷰 → 등각투영(키 `0`)으로 직접 봅니다.
+:::
+
+### 3. 구멍 뚫기
+
+```text title="이렇게 말한다"
+네 모서리에서 각각 10 안쪽에 Ø6.6 관통 구멍 4개를 뚫어줘. 지름은 Params.hole_d, 모서리 거리는 Params.margin 으로.
+```
+
+**AI 가 하는 일** — 판 윗면 높이에 원 4개짜리 스케치를 만들고(중심은 (10,10), (90,10), (10,50), (90,50)), 지름 제약에 `Params.hole_d` 수식을 걸고, Pocket 으로 관통시킵니다. 다시 재계산·확인합니다.
+
+**확인하기** — 트리에 `Sketch001, Pocket` 이 추가됩니다. `Params` 를 더블클릭하면 다섯 줄(width 100, height 60, thickness 5, hole_d 6.6, margin 10)이 보입니다.
+
+### 4. 수치로 확인
+
+```text title="이렇게 말한다"
+부피랑 스케치 자유도 알려줘. 구멍이 몇 개 있고 관통인지도.
+```
+
+:::note[AI 는 이렇게 답합니다]
+부피 29,316 mm³ (판 30,000 − 구멍 4개 684). 스케치 2개 모두 자유도 0. 구멍 Ø6.6 × 4, 전부 관통, 사각 패턴 80×40.
+:::
+
+30,000 에서 구멍 부피(π × 3.3² × 5 × 4 ≈ 684)를 뺀 값이면 맞습니다.
+
+### 5. 치수 바꾸기 — 파라메트릭이라는 뜻
+
+AI 없이 직접 해 봅니다. 트리에서 `Params` 를 더블클릭하고 `thickness` 를 5 에서 8 로 고친 뒤 재계산(F5 또는 편집 → 새로 고침). 판이 두꺼워지고 구멍은 여전히 관통입니다. 다시 5 로 돌려 놓습니다.
+
+AI 에게 시켜도 됩니다.
+
+```text title="이렇게 말한다"
+Params 의 margin 을 12 로 바꾸고 재계산해서 새로 깨진 게 없는지 확인해줘.
+```
+
+### 6. 저장
+
+```text title="이렇게 말한다"
+D:\cad-work\plate.FCStd 로 저장해.
+```
+
+**확인하기** — 창 제목이 `plate` 로 바뀌고 파일이 그 경로에 생깁니다. AI 는 이 말을 하기 전엔 저장하지 않습니다.
+
+## 결과 확인
+
+| 항목 | 기준 |
+|---|---|
+| 트리 | Body › Params, Sketch, Pad, Sketch001, Pocket |
+| 스케치 자유도 | 둘 다 0 |
+| 부피 | 약 29,316 mm³ (두께 5, margin 10 일 때) |
+| Params | width, height, thickness, hole_d, margin |
+| 재계산 | 오류 객체 0 |
+
+## 잘 안 될 때
+
+- **"연결할 수 없습니다"** — FreeCAD 가 꺼져 있거나 서버가 안 뜬 것. [문제 해결](/cadxray/setup/03-troubleshoot/).
+- **AI 가 어느 문서인지 묻는다** — 다른 문서를 닫거나 이름을 답합니다.
+- **구멍이 판 밖에 생겼다** — 원점을 말하지 않아 판 중심이 원점이 된 경우. "판의 왼쪽 아래 모서리가 원점" 을 넣고 다시 시킵니다.
+- **스케치가 «완전 구속» 이 아니다** — "Sketch 자유도가 남았어. 무엇이 빠졌는지 보고 후보 보여줘" 라고 합니다. [실습 6](/cadxray/practice/06-fix-sketch/) 과 같은 흐름입니다.
+- **판이 아래로 내려갔다** — "Pad 방향을 반대로" 라고 합니다.
+
+## 더 해보기
+
+1. 네 세로 모서리에 R5 필렛, 구멍 입구에 C0.5 챔퍼를 추가해 봅니다.
+2. 구멍을 Ø6.6 대신 "M6 볼트 여유 구멍" 이라고만 말해 보고 AI 가 어떤 지름을 고르는지 봅니다.
+3. 이 판을 [실습 7](/cadxray/practice/07-drawing-pdf/) 에서 3면도로 뽑아 봅니다.
+
+## 뒤에서 도는 기능
+
+| 단계 | 툴 |
+|---|---|
+| 연결 | `ping`, `list_documents` |
+| 판·구멍 | `build_features` (pad, pocket, `params`) |
+| 확인 | `tracked_recompute`, `get_screenshot`, `analyze_shape`, `find_holes`, `get_sketch_diagnostics` |
+| 저장 | `save_document` |

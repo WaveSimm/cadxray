@@ -1,0 +1,68 @@
+---
+title: 3. 문제 해결
+description: 연결 실패, 워크벤치 없음, 포트 충돌, 툴 개수 부족, FreeCAD 멈춤 — 증상별 원인과 조치
+sidebar:
+  order: 3
+---
+
+먼저 진단 명령을 돌립니다. 대부분 여기서 원인이 나옵니다.
+
+```powershell title="터미널"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
+```
+
+## "FreeCAD 에 연결할 수 없습니다 (127.0.0.1:9877)"
+
+FreeCAD 가 꺼져 있거나 서버가 안 떴습니다. FreeCAD 를 켜고 리포트 뷰에 `[CAD X-ray] 서버 시작` 이 있는지 봅니다. 없으면 워크벤치 **CAD X-ray → Auto Start** 가 꺼져 있는지 확인하고 켭니다.
+
+## 워크벤치 목록에 "CAD X-ray" 가 없다
+
+진단 명령의 1번 항목이 설치된 폴더와 버전을 보여 줍니다. 폴더가 `v1-1` 인지 FreeCAD 도움말 → 정보의 버전과 대조합니다. 다르면 맞는 폴더로 다시 설치합니다.
+
+```powershell
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install --dest "%APPDATA%\FreeCAD\v1-1\Mod"
+```
+
+## "포트 9877 을 열 수 없습니다"
+
+이미 서버가 떠 있거나(FreeCAD 두 개) 다른 프로그램이 쓰고 있습니다. FreeCAD 는 하나만 켭니다. 그래도 안 되면 **Set Port…** 로 9878 로 바꾸고 AI 툴 등록 명령 끝에 `--port 9878` 을 붙여 다시 등록합니다.
+
+## 툴이 36개보다 적게 보인다 / 새 기능이 안 보인다
+
+AI 툴이 옛 목록을 들고 있는 것입니다. Claude Code 는 `/mcp` → `cadxray` → **Reconnect**. Codex·Gemini 는 툴을 껐다 켭니다.
+
+## "uvx 를 찾을 수 없다" (Windows)
+
+uv 설치 후 터미널을 다시 열지 않았거나, GUI 앱이 터미널과 PATH 가 다른 경우입니다. PowerShell 에서 경로를 확인해 등록 명령의 `uvx` 자리에 전체 경로를 넣습니다.
+
+```powershell
+(Get-Command uvx).Source
+```
+
+보통 `C:\Users\<이름>\.local\bin\uvx.exe` 입니다.
+
+## 첫 실행이 느리다
+
+브릿지를 처음 내려받는 10–30초입니다. 그 뒤에 한 번 더 연결하면 됩니다.
+
+## FreeCAD 가 멈췄다
+
+AI 가 긴 Python 코드를 FreeCAD 안에서 돌린 것입니다. 이 코드는 FreeCAD 의 메인 스레드에서 실행되므로 **중단할 수 없습니다.** 끝나길 기다리거나 FreeCAD 를 강제 종료합니다. 다음부터는 이렇게 말합니다.
+
+```text title="이렇게 말한다"
+한 번에 다 하지 말고 단계마다 나눠서 해줘. 각 단계가 끝나면 결과를 보여줘.
+```
+
+특히 STL 을 솔리드로 바꿔 불리언 비교를 시키면 10분 넘게 잡힙니다. STL 은 메시 이름 그대로 비교하게 둡니다(AI 가 기본으로 그렇게 합니다).
+
+## AI 가 "문서가 여러 개 열려 있다" 고 묻는다
+
+정상입니다. 작업할 문서 이름을 답합니다. 헷갈리면 다른 문서를 닫고 하나만 남깁니다.
+
+## 스크린샷이 안 보인다
+
+Claude Code 는 대화창에 이미지가 뜹니다. Codex CLI·Gemini CLI 는 툴 버전에 따라 이미지를 글로만 요약할 수 있습니다. 그때는 FreeCAD 화면을 직접 봅니다. [AI 툴 비교](/cadxray/ai/04-compare/) 참고.
+
+## 고친 것이 반영이 안 된다
+
+애드온 코드를 직접 고친 개발자용 상황입니다. `handlers/*.py` 는 "핸들러 다시 읽어줘" 로 되고, 그 밖의 파일은 FreeCAD 재시작이 필요합니다.

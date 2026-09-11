@@ -21,3 +21,8 @@ docs/.pdca-snapshots/
 /*.FCStd
 /*.step
 /*.stp
+
+# 가이드 사이트(site/) 빌드 산출물
+site/node_modules/
+site/dist/
+site/.astro/

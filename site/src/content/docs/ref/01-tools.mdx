@@ -1,0 +1,80 @@
+---
+title: 기능 36개 표
+description: cadxray v0.12.0 의 툴 전체. AI 가 뒤에서 부르는 이름과 하는 일
+sidebar:
+  order: 1
+---
+
+AI 가 뒤에서 부르는 기능의 전체 목록입니다. 몰라도 쓰는 데 지장이 없지만, AI 의 답에 이 이름이 나오면 여기서 찾습니다. 출처는 cadxray README(v0.12.0).
+
+## 연결·구조
+
+| 툴 | 하는 일 |
+|---|---|
+| `ping` | 연결·FreeCAD 버전 확인 |
+| `list_documents` | 열린 문서 목록 |
+| `get_document_graph` | 객체 트리·의존관계·문제 객체. 진단의 시작점 |
+| `inspect_object` | 객체 하나의 모든 프로퍼티·수식·형상 요약 |
+| `open_document` / `save_document` | FCStd 열기·저장(덮어쓰기는 명시 필요) |
+| `reload_handlers` | 애드온 코드 다시 읽기(개발용) |
+
+## 스케치·형상·확인
+
+| 툴 | 하는 일 |
+|---|---|
+| `get_sketch_diagnostics` | 스케치 solve 결과, 자유도, 충돌/중복 제약, 열린 끝점 |
+| `suggest_sketch_fixes` | 제약 수정 후보(끝점 잇기, 빠진 수평·수직·같음, 중복·충돌 삭제, 치수). 사본에서 효과·확신도. 자동 적용 없음 |
+| `apply_sketch_fixes` | 고른 후보만 적용, 나빠지면 되돌림. 그사이 스케치가 바뀌었으면 거부 |
+| `analyze_shape` | 형상 유효성·부피·면/모서리 구성 |
+| `tracked_recompute` | 재계산 전후 비교 — 고쳐진 것 / 새로 깨진 것 |
+| `get_screenshot` | 3D 뷰 PNG(iso, front, top 등 12가지) |
+| `execute_code` | FreeCAD 안에서 Python 실행(수정용). 메인 스레드라 중단 불가 |
+
+## STEP·검사
+
+| 툴 | 하는 일 |
+|---|---|
+| `import_step` | STEP/IGES 가져오기 + 부품 요약 |
+| `find_holes` | 구멍 직경·중심·깊이·관통 여부, 카운터보어·카운터싱크·챔퍼, 패턴·피치, ISO 미터나사 추정 |
+| `check_interference` | 부품 쌍 최소 거리·간섭 부피(80부품 3,160쌍 6.5초) |
+| `get_mass_properties` | 부피·표면적·무게중심·관성, 밀도→질량, 접지·전도각, 어셈블리 합산 |
+
+## 다시 그리기(STEP·STL)
+
+| 툴 | 하는 일 |
+|---|---|
+| `classify_faces` | 면마다 정체(평면/원통/원뿔/구/자유곡면), 주축, 띠 높이, 반지름, 재구성 판정 |
+| `section_profile` | 높이의 단면 윤곽을 스케치 요소(선분·호·원)로. 메시도 받음 |
+| `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer/Helix 를 순서대로 쌓고 피처마다 검증. 치수는 Spreadsheet `Params` |
+| `compare_shapes` | 부피·면적·bbox 차 + 차집합 조각의 위치. 메시는 광선 편차 |
+| `align_shapes` | 같은 부품 두 인스턴스 사이 강체 변환(Link 배치용). 거울상 감지 |
+| `import_mesh` | STL/OBJ/PLY/3MF 를 참고 메시로(투명), 닫힘·자기교차 검사 |
+| `analyze_mesh` | 메시의 주축·띠·단면 원·나사(피치·외경·골·방향)·판정 |
+
+## 2D 도면
+
+| 툴 | 하는 일 |
+|---|---|
+| `make_drawing` | TechDraw 페이지: 정면/우측/평면/등각/상세, 치수, 주석, 표제란 → PDF/SVG |
+| `inspect_drawing` | 페이지의 뷰·치수 값·주석 읽기, 빈 뷰·깨진 치수 찾기 |
+
+## 3D 프린트
+
+| 툴 | 하는 일 |
+|---|---|
+| `check_printability` | 재질·노즐·베드 프로파일로 얇은 벽, 오버행, 작은·수평 구멍, 베드 적합, 접지 검사 → 점수·문제·수정 후보 |
+| `estimate_print` | 재료 부피·무게·필라멘트 길이·시간·비용 |
+| `suggest_orientation` | 출력 방향 후보 채점, 고르면 적용 |
+| `apply_print_fixes` | 코끼리발 챔퍼, 구멍 지름 보정, 눈물방울, 두껍게, 오버행 쐐기, 베드 초과 분할 |
+
+## 구조해석·어셈블리
+
+| 툴 | 하는 일 |
+|---|---|
+| `setup_analysis` | 재질 + 고정면 + 하중 + Gmsh 메시 + CalculiX 를 한 번에. 여러 부품·고유진동수 |
+| `run_analysis` | 정적 해석 → 최대 응력·위치, 변위, 안전율, 컬러맵. frequency 면 모드별 Hz |
+| `inspect_results` | 응력·변위 상위 절점, 면별 최대, 컬러맵 전환 |
+| `suggest_reinforcement` | 안전율 미달 시 두께·필렛·리브·재질·하중 후보 |
+| `trace_links` | 다른 파일을 가리키는 Link 사슬, 깨진 링크, 연결 문서의 오류 |
+
+모든 응답은 크기 제한이 있는 JSON 이라 수백 객체 모델에서도 대화가 터지지 않습니다.

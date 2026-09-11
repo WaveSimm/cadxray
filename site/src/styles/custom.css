@@ -1,0 +1,21 @@
+/* FreeCAD AI 모델링 교육 포털 — 사이트 전용 스타일.
+   공통 토큰은 tokens.css, Starlight 테마는 oceantech-starlight.css (astro.config.mjs customCss 순서대로 적용).
+   사이트별 허용 범위(디자인 시스템 §4): 전기전자 교육 포털과 같음(본문 15px/1.75). 그 외는 공통 규칙.
+   프롬프트는 코드펜스(```text title="이렇게 말한다")로 쓴다 — Starlight 가 복사 버튼을 붙여 주므로 별도 컴포넌트가 없다. */
+:root {
+  --ot-logo-text: 'CAD';
+}
+
+/* 넓은 표(툴 목록·비교표)는 가로 스크롤 */
+.sl-markdown-content table { display: block; overflow-x: auto; }
+
+/* 실습 머리표(입력·시간·결과)는 내용 폭만큼 */
+.sl-markdown-content table.spec { display: table; width: auto; }
+.sl-markdown-content table.spec th { white-space: nowrap; }
+
+/* ── 실습 «원본과 완성» 그림 쌍 — 카드 규격(흰 표면 + 1px 테두리 + radius lg) 안에 그림, 아래 회색 설명 ── */
+.sl-markdown-content .file-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4); margin: var(--space-4) 0; }
+.sl-markdown-content .file-pair figure { margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-3); }
+.sl-markdown-content .file-pair figure img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; border-radius: var(--radius-sm); }
+.sl-markdown-content .file-pair figcaption { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--color-text-2); }
+.sl-markdown-content .file-pair figcaption b { color: var(--color-text); }

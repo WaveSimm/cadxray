@@ -1,0 +1,77 @@
+---
+title: Claude Code
+description: 등록 한 줄, 연결 확인, 작업 폴더의 CLAUDE.md, 스크린샷이 대화에 뜨는 유일한 툴
+sidebar:
+  order: 1
+---
+
+cadxray 가 만들어지고 검증된 기준 툴입니다. 스크린샷이 대화창에 그대로 뜨고, 작업 순서를 적은 규칙 파일(CLAUDE.md)이 리포에 그대로 있습니다. 처음이면 이 툴로 시작하는 것을 권합니다.
+
+## 설치
+
+[claude.com/claude-code](https://claude.com/claude-code) 안내대로 설치하고 로그인합니다. 확인:
+
+```powershell
+claude --version
+```
+
+## 등록
+
+```powershell title="터미널"
+claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+`--scope user` 라서 어느 폴더에서 열어도 같이 갑니다. 포트를 바꿨으면 끝에 `--port 9878`.
+
+## 연결 확인
+
+FreeCAD 를 켠 상태에서 아무 폴더에서나 `claude` 를 치고, 대화창에 `/mcp` 를 입력합니다.
+
+```text
+cadxray · connected · 36 tools
+```
+
+툴이 적게 보이면 `/mcp` → `cadxray` → **Reconnect**.
+
+## 작업 폴더와 CLAUDE.md
+
+Claude Code 는 현재 폴더의 `CLAUDE.md` 를 읽고 그 지침대로 움직입니다. cadxray 리포의 CLAUDE.md 에는 «빨간 스케치는 이 순서로 진단한다», «후보는 번호 목록으로 보여 주고 고른 것만 적용한다», «저장은 시키기 전엔 하지 않는다» 같은 작업 순서가 적혀 있습니다. 이 파일이 있으면 AI 가 훨씬 일관되게 움직입니다.
+
+모델링용 폴더를 하나 만들고 그 안에 받아 둡니다.
+
+```powershell title="터미널"
+mkdir C:\cad-work
+cd C:\cad-work
+curl -o CLAUDE.md https://raw.githubusercontent.com/WaveSimm/cadxray/master/CLAUDE.md
+claude
+```
+
+파일 앞부분은 cadxray 를 개발하는 사람용 규칙(마일스톤·커밋·테스트)이라 모델링에는 상관없습니다. 거슬리면 «진단 워크플로» 절부터 끝까지만 남겨도 됩니다.
+
+:::tip[자기 규칙을 덧붙이기]
+같은 파일 끝에 자주 쓰는 규칙을 더 적어 두면 매번 말하지 않아도 됩니다. 예: "치수 단위는 mm, 판 두께를 안 말하면 3 mm 로 가정하고 그렇게 말한다", "저장 경로는 D:\models\", "스크린샷은 iso 로".
+:::
+
+## 첫 대화
+
+```text title="이렇게 말한다"
+FreeCAD 에 연결되는지 확인하고, 열린 문서 구조를 파악해줘.
+```
+
+:::note[AI 는 이렇게 답합니다]
+FreeCAD 1.1.3 에 연결됐습니다. 문서 Unnamed 에 객체 0개입니다. 무엇을 만들까요?
+:::
+
+## 이 툴만의 특징
+
+- **스크린샷이 대화에 뜹니다.** "지금 어떻게 생겼는지 보여줘" 하면 iso 뷰 이미지가 바로 나옵니다. 구조해석 컬러맵도 마찬가지입니다.
+- 데스크톱 앱과 CLI 가 설정을 공유합니다. 한 번 등록하면 둘 다 됩니다.
+- Claude Desktop(채팅 앱)도 되지만 설정 파일(`claude_desktop_config.json`)에 JSON 을 넣어야 합니다. 이 사이트은 Claude Code 기준입니다.
+
+## 자주 쓰는 명령
+
+| 대화창에서 | 뜻 |
+|---|---|
+| `/mcp` | 연결 상태·툴 개수 |
+| `/clear` | 대화 비우기 (긴 작업 뒤 새로 시작할 때) |
+| `Esc` 두 번 | 진행 중인 답변 중단 (FreeCAD 안에서 도는 코드는 중단 안 됨) |

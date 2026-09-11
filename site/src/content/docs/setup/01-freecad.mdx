@@ -1,0 +1,68 @@
+---
+title: 1. FreeCAD 1.1.3 과 기본 도구
+description: FreeCAD 1.1.3, uv, git 을 설치하고 확인하는 법 (Windows 기준, macOS·Linux 는 경로만 다름)
+sidebar:
+  order: 1
+---
+
+기준은 **FreeCAD 1.1.3** 입니다. cadxray 가 이 버전에서 검증됐고, 구조해석에 쓰는 CalculiX·Gmsh 가 1.1 부터 동봉됩니다. 1.0.x 도 동작하지만 이 사이트의 실습은 1.1.3 기준으로 씁니다.
+
+## FreeCAD 1.1.3
+
+1. [freecad.org](https://www.freecad.org/downloads.php) 에서 1.1.3 Windows 설치판을 받아 설치합니다.
+2. **한 번 실행했다가 닫습니다.** 그때 애드온이 들어갈 Mod 폴더가 생깁니다.
+3. 도움말 → 정보 에서 버전이 1.1.3 인지 봅니다.
+
+| OS | 애드온이 들어가는 Mod 폴더 |
+|---|---|
+| Windows | `%APPDATA%\FreeCAD\v1-1\Mod\` |
+| macOS | `~/Library/Application Support/FreeCAD/v1-1/Mod/` |
+| Linux | `~/.local/share/FreeCAD/v1-1/Mod/` |
+
+:::caution[1.0 과 1.1 은 폴더가 다릅니다]
+1.0 은 `v1-0`, 1.1 은 `v1-1` 입니다. 두 버전이 같이 깔려 있으면 애드온이 엉뚱한 쪽에 들어갈 수 있습니다. 다음 페이지의 진단 명령이 어느 폴더에 들어갔는지 알려 줍니다.
+:::
+
+## 터미널
+
+아래 명령은 전부 **터미널**에 입력합니다. AI 툴의 대화창이 아닙니다.
+
+- Windows: 시작 메뉴에서 **PowerShell** 을 찾아 실행합니다. 명령 프롬프트(cmd)도 됩니다.
+- macOS: 터미널(Terminal) 앱.
+- Linux: 터미널.
+
+## uv
+
+cadxray 의 브릿지(AI 툴 쪽 절반)를 내려받고 실행하는 도구입니다. Python 을 따로 설치할 필요가 없습니다.
+
+```powershell title="Windows PowerShell"
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```bash title="macOS / Linux"
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+설치 후 **터미널을 닫았다가 다시 엽니다.** 그다음 확인합니다.
+
+```powershell
+uv --version
+```
+
+## git
+
+브릿지를 GitHub 에서 받아오는 데 씁니다. Windows 는 [git-scm.com](https://git-scm.com/) 설치판, macOS 는 터미널에서 `xcode-select --install`.
+
+```powershell
+git --version
+```
+
+## 확인 표
+
+| | 확인 명령 | 기대 결과 |
+|---|---|---|
+| FreeCAD | 도움말 → 정보 | 1.1.3 |
+| uv | `uv --version` | `uv 0.x.x` |
+| git | `git --version` | `git version 2.x` |
+
+셋 다 나오면 다음 페이지로 갑니다.

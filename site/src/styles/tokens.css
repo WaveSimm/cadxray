@@ -1,0 +1,121 @@
+/* 오션테크 사내 포털 공통 디자인 토큰
+   2026-09-07 ERP-OT(apps/web/tailwind.config.ts brand=#2563eb, Tailwind 기본 회색 팔레트, Pretendard) 와 대조해 확정.
+   교육 포털·HF Radar 포털은 이 파일을 src/styles/tokens.css 로 그대로 복사해 쓴다(도커 빌드 컨텍스트가 앱 폴더라 참조 불가).
+   여기를 고치면 두 복사본도 같이 고친다.
+   Tailwind를 쓰는 경우 theme.extend.colors 등에 같은 이름으로 매핑한다. */
+
+:root {
+  /* ---- 강조색 (단일) ---- */
+  --color-primary: #2563eb;        /* blue-600 : 주 버튼, 링크, 활성 글자, 진행률 채움 */
+  --color-primary-hover: #1d4ed8;  /* blue-700 */
+  --color-primary-soft: #eff6ff;   /* blue-50  : 활성 pill/사이드바 배경, 콜아웃 info 배경 */
+  --color-primary-soft-2: #dbeafe; /* blue-100 : 캘린더 이벤트 칩, 인사 배너 */
+  --color-on-primary: #ffffff;     /* 파란 채움 위 글자 (라이트·다크 공통) */
+
+  /* ---- 의미색 ----  기본색=테두리·아이콘·점, -soft=콜아웃/배지 배경, -strong=soft 배경 위 글자 */
+  --color-success: #16a34a;        /* green-600 */
+  --color-success-soft: #f0fdf4;
+  --color-success-strong: #15803d; /* green-700 */
+  --color-warning: #d97706;        /* amber-600 */
+  --color-warning-soft: #fffbeb;
+  --color-warning-strong: #b45309; /* amber-700 */
+  --color-danger: #dc2626;         /* red-600  : 오류, 지연, 공휴일/일요일 */
+  --color-danger-soft: #fef2f2;
+  --color-danger-strong: #b91c1c;  /* red-700 */
+  --color-info: var(--color-primary);
+  --color-info-soft: var(--color-primary-soft);
+  --color-info-strong: var(--color-primary-hover);
+
+  /* ---- 중립색 ---- */
+  --color-bg: #f9fafb;             /* gray-50 : 페이지 배경 */
+  --color-surface: #ffffff;        /* 카드, 표, 패널 */
+  --color-surface-2: #f3f4f6;      /* gray-100: 세그먼트 트랙, 단축키 힌트 배지 */
+  --color-border: #e5e7eb;         /* gray-200 */
+  --color-border-strong: #d1d5db;  /* gray-300: 보조 버튼 테두리 */
+  --color-text: #111827;           /* gray-900 */
+  --color-text-2: #374151;         /* gray-700: 비활성 탭, 보조 본문 */
+  --color-text-3: #6b7280;         /* gray-500: 메타, 표 헤더, 빈 상태 */
+  --color-text-4: #9ca3af;         /* gray-400: 플레이스홀더 */
+
+  /* ---- 아바타 팔레트 (이름 해시 → 8색) ---- */
+  --avatar-1: #2563eb; --avatar-2: #16a34a; --avatar-3: #d97706; --avatar-4: #db2777;
+  --avatar-5: #0891b2; --avatar-6: #7c3aed; --avatar-7: #ea580c; --avatar-8: #4b5563;
+  /* 아바타 안에서만 보라(--avatar-6) 허용. 다른 UI 요소에는 금지. */
+
+  /* ---- 교육 포털 전용: 학습 모듈 A~H 아이콘 배지 ---- */
+  --module-a-bg: #fef3c7; --module-a-fg: #92400e;
+  --module-b-bg: #ede9fe; --module-b-fg: #5b21b6;
+  --module-c-bg: #dbeafe; --module-c-fg: #1e40af;
+  --module-d-bg: #dcfce7; --module-d-fg: #166534;
+  --module-e-bg: #fce7f3; --module-e-fg: #9d174d;
+  --module-f-bg: #ffedd5; --module-f-fg: #9a3412;
+  --module-g-bg: #cffafe; --module-g-fg: #155e75;
+  --module-h-bg: #f3f4f6; --module-h-fg: #374151;
+
+  /* ---- 타이포 ---- */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --font-mono: "JetBrains Mono", "D2Coding", ui-monospace, Consolas, monospace;
+  --text-xs: 12px;   /* 배지, 표 헤더, 캡션 */
+  --text-sm: 13px;   /* 메타, 상태 라벨, TOC */
+  --text-base: 14px; /* 본문 기본 (문서 사이트 본문은 15px 허용) */
+  --text-md: 16px;   /* 카드 제목 */
+  --text-lg: 18px;   /* 섹션 제목 */
+  --text-xl: 24px;   /* 페이지 제목 (상한) */
+  --text-hero: 36px; /* 랜딩 히어로 제목 (상한) */
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75; /* 문서 본문 */
+
+  /* ---- 간격 (4px 배수) ---- */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --card-padding: var(--space-5);
+  --card-gap: var(--space-6);
+  --section-gap: var(--space-10);
+
+  /* ---- 반경 ---- */
+  --radius-sm: 6px;   /* 배지, 세그먼트 칩, 입력 */
+  --radius-md: 8px;   /* 버튼, 탭 pill, 사이드바 활성 */
+  --radius-lg: 12px;  /* 카드, 패널 */
+  --radius-pill: 9999px; /* 배지·아바타·진행률 바 트랙에만. 버튼 금지 */
+
+  /* ---- 크기 ---- */
+  --header-height: 56px;
+  --button-height: 36px;
+  --button-height-sm: 32px;
+  --input-height: 40px;
+  --row-height: 44px;
+  --progress-height: 6px;
+  --avatar-size: 28px;
+  --sidebar-width: 260px;
+  --toc-width: 220px;
+  --content-max: 720px; /* 문서 사이트 본문 */
+
+  /* ---- 그림자 ---- */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+}
+
+/* 다크 모드 — 세 사이트 모두 테마 전환 UI가 있으므로 함께 정의.
+   ERP 다크는 text-blue-400 계열을 쓰므로 강조색도 한 단계 밝힌다. */
+[data-theme="dark"] {
+  --color-primary: #3b82f6;        /* blue-500 */
+  --color-primary-hover: #60a5fa;  /* blue-400 */
+  --color-primary-soft: #1e3a8a33;
+  --color-primary-soft-2: #1e40af4d;
+  --color-success-soft: #16a34a26;  --color-success-strong: #4ade80;
+  --color-warning-soft: #d9770626;  --color-warning-strong: #fbbf24;
+  --color-danger-soft: #dc262626;   --color-danger-strong: #f87171;
+  --color-info-strong: #93c5fd;
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-2: #334155;
+  --color-border: #334155;
+  --color-border-strong: #475569;
+  --color-text: #f1f5f9;
+  --color-text-2: #cbd5e1;
+  --color-text-3: #94a3b8;
+  --color-text-4: #64748b;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.5);
+}

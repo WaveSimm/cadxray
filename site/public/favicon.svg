@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FreeCAD AI 모델링 교육 포털">
+  <rect width="32" height="32" rx="7" fill="#1d4ed8"/>
+  <!-- 정육면체(3D 모델) — 16px 에서도 형태가 남도록 굵은 선 -->
+  <path d="M16 5 26 10.5v11L16 27 6 21.5v-11z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M16 16 26 10.5M16 16 6 10.5M16 16v11" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

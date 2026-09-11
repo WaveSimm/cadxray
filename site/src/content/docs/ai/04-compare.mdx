@@ -1,0 +1,39 @@
+---
+title: 세 툴 비교와 공통 주의
+description: Claude Code · Codex CLI · Gemini CLI 에서 같은 것과 다른 것, 여러 툴을 같이 쓸 때
+sidebar:
+  order: 4
+---
+
+## 같은 것
+
+- **프롬프트 문장.** "100×60 두께 5 판에 Ø6.6 구멍 4개" 는 어느 툴에서나 같은 결과를 냅니다. 이 사이트의 «이렇게 말한다» 상자는 셋 다에 그대로 쓰입니다.
+- **FreeCAD 쪽.** 애드온 설치(첫 줄)는 한 번이면 됩니다. 세 툴이 같은 서버(127.0.0.1:9877)에 붙습니다.
+- **동작 원칙.** 후보는 번호 목록, 고른 것만 적용, 저장은 시킬 때만. 규칙 파일을 넣었을 때 얘기입니다.
+
+## 다른 것
+
+| | Claude Code | Codex CLI | Gemini CLI |
+|---|---|---|---|
+| 등록 | `claude mcp add --scope user cadxray -- uvx …` | `codex mcp add cadxray -- uvx …` | `gemini mcp add cadxray uvx …` |
+| 설정 파일 | (명령으로 충분) | `~/.codex/config.toml` | `~/.gemini/settings.json` |
+| 규칙 파일 | `CLAUDE.md` (리포에 그대로 있음) | `AGENTS.md` (CLAUDE.md 를 이름만 바꿔 저장) | `GEMINI.md` (같음) |
+| 연결 확인 | `/mcp` | `codex mcp list` | `/mcp` |
+| 스크린샷 표시 | 대화에 이미지로 뜸 (검증됨) | 버전에 따라 다름 | 버전에 따라 다름 |
+| 검증 | cadxray 개발·검증 기준 툴 | README 등록 안내만 | README 등록 안내만 |
+
+:::caution[스크린샷은 확인용일 뿐입니다]
+이미지가 안 떠도 작업은 됩니다. AI 는 수치(부피·자유도·차집합·안전율)로 판단하고, 사람은 FreeCAD 화면을 직접 보면 됩니다. 실검증은 Claude Code 로 했습니다. Codex·Gemini 에서 다르게 동작한 것을 발견하면 [GitHub Issues](https://github.com/WaveSimm/cadxray/issues) 에 남겨 주세요.
+:::
+
+## 공통 주의
+
+- **Windows 에서 uvx 를 못 찾을 때**: 터미널을 다시 열지 않았거나, GUI 앱이 PATH 가 다른 경우. `(Get-Command uvx).Source` 결과를 `command` 에 넣습니다.
+- **첫 실행 10–30초**: 브릿지 내려받기. 툴이 안 보이면 한 번 더 연결.
+- **포트를 바꿨으면** 등록 명령 또는 `args` 끝에 `--port 9878`.
+- **FreeCAD 는 하나만** 켭니다. 여러 AI 툴을 동시에 써도 같은 FreeCAD 에 붙습니다. 두 툴이 같은 문서를 동시에 고치게 하지는 마세요.
+- **규칙 파일 없이도 동작은 합니다.** 툴 설명(docstring)만으로 움직이지만 진단 순서를 모르니 엉뚱한 곳부터 볼 수 있습니다. 규칙 파일을 넣는 편이 낫습니다.
+
+## 어느 툴을 고를까
+
+이미 쓰는 툴이 있으면 그것을 씁니다. 없으면 Claude Code. 스크린샷이 대화에 뜨고, 규칙 파일을 이름 그대로 쓸 수 있으며, 이 사이트의 실습이 그 기준으로 검증됐습니다.

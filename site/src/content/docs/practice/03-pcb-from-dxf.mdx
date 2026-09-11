@@ -1,0 +1,156 @@
+---
+title: 실습 3. PCB DXF 에서 보드 만들기
+description: PCB 설계 툴이 내보낸 2D DXF(외곽 OUTLINE 레이어 + 구멍 원)에서 모서리가 둥근 보드와 장착 구멍을 가진 3D 보드를 만듭니다.
+sidebar:
+  order: 3
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../assets/practice/03-pcb-original.png';
+
+import img1 from '../../../assets/practice/03-pcb-final.png';
+
+| 항목 | 내용 |
+|---|---|
+| 입력 파일 | `03-pcb/MYB-6ULX_2D.dxf`, `03-pcb/MYS-6ULX_2D.dxf` |
+| 걸리는 시간 | 3분 (보드 2장 생성 8초) |
+| 결과물 | 문서 2개(`pcb_MYB`, `pcb_MYS`), 각각 보드 Body 1개(두께 1.6, 장착 구멍 Ø3.3 파라미터) |
+| 배우는 것 | DXF 에서 필요한 레이어만 골라 읽히는 법, 폴리라인의 둥근 모서리(bulge)가 호로 옮겨지는 것, 구멍을 종류별로 나누는 법 |
+
+PCB 를 케이스에 넣으려면 보드 외곽과 장착 구멍만 있는 3D 보드가 필요합니다. DXF 에는 실크·치수·비아까지 수백 개가 들어 있어 **필요한 것만 골라 읽게** 하는 것이 이 실습의 핵심입니다.
+
+## 원본과 완성
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="원본: MYB-6ULX 2D DXF" />
+    <figcaption><b>원본</b> MYB-6ULX_2D.dxf 를 FreeCAD Draft 로 가져온 평면 뷰 — 외곽·구멍·실크·치수 레이어가 한 파일에</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="완성: PCB 보드" />
+    <figcaption><b>완성</b> MYB_6ULX — 외곽 Pad + 장착 구멍 6 + 핀 구멍 115, 70×55×1.6, 자유도 0</figcaption>
+  </figure>
+</div>
+
+| 구분 | 파일 | 설명 | 크기 |
+|---|---|---|---|
+| 원본 | [MYB-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB-6ULX_2D.dxf) | DXF | 479 KB |
+| 원본 | [MYS-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS-6ULX_2D.dxf) | DXF | 461 KB |
+| 완성 | [완성-pcb_MYB.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYB-done.FCStd) | MYB 보드 | 91 KB |
+| 완성 | [완성-pcb_MYS.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYS-done.FCStd) | MYS 보드 | 79 KB |
+| 완성 | [완성-MYB_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB_6ULX-done.step) | STEP | 200 KB |
+| 완성 | [완성-MYS_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS_6ULX-done.step) | STEP | 173 KB |
+
+:::tip[완성 파일은 실제로 만든 것입니다]
+이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
+:::
+
+## 준비
+
+1. FreeCAD 1.1.3 을 켭니다. 리포트 뷰에 `[CAD X-ray] 서버 시작` 이 보이면 됩니다.
+2. DXF 두 파일을 `C:\cad\` 에 둡니다.
+3. PowerShell 에서 `C:\cad` 로 이동해 `claude` 를 엽니다.
+4. FreeCAD 에서 DXF 를 **직접 열지 않습니다**(파일 → 열기 금지). 이유는 아래 1단계에 있습니다.
+
+## 단계
+
+### 1. DXF 안에 무엇이 있는지 먼저 보게 한다
+
+```text title="이렇게 말한다"
+C:\cad\MYB-6ULX_2D.dxf 는 PCB 2D 도면이야. FreeCAD 로 열지 말고 파일을 직접 읽어서
+레이어 이름별로 폴리라인·원이 몇 개씩 있는지, OUTLINE 레이어의 폴리라인이 닫혀 있는지, 원의 반지름 종류를 표로 보여 줘.
+```
+
+**AI 가 하는 일** — DXF 텍스트를 직접 읽어 ENTITIES 구간의 POLYLINE(레이어, 닫힘 여부, 꼭짓점과 bulge)과 CIRCLE(레이어, 중심, 반지름)만 뽑습니다. FreeCAD 의 DXF 가져오기를 쓰면 실크·치수 폴리라인 수백 개가 전부 Draft 객체가 되어 2분 넘게 걸립니다(MYB-6ULX 실측). 그래서 처음부터 "FreeCAD 로 열지 말고" 라고 말합니다.
+
+:::note[AI 는 이렇게 답합니다]
+OUTLINE 레이어: 닫힌 폴리라인 1개, 꼭짓점 8개(모서리 4곳에 bulge 0.4142 = 90° 호). 원: 반지름 1.65 (Ø3.3) 4개, 그 밖에 0.5 이상 n 개, 0.5 미만(실크 점·비아) 다수. 다른 레이어의 폴리라인은 실크·치수입니다.
+:::
+
+**확인하기** — OUTLINE 폴리라인이 "닫힘"이고 bulge 값이 0.4142 근처면 모서리가 90° 호로 둥근 보드입니다. Ø3.3 이 4개면 장착 구멍입니다.
+
+### 2. 구멍을 어떻게 나눌지 정해 준다
+
+```text title="이렇게 말한다"
+규칙은 이렇게 해 줘.
+- 외곽은 OUTLINE 레이어 폴리라인 그대로. bulge 가 있는 구간은 호로.
+- 구멍은 반지름 0.5 mm 이상인 원만. 그 미만(실크 점·비아)은 버린다.
+- Ø3.3 은 장착 구멍이니 따로 묶고 지름을 Params.mount_d 로 둔다. 나머지 구멍은 지름 그대로.
+- 같은 중심에 원이 겹쳐 있으면 하나로.
+- 보드 두께 1.6 mm, Params.thickness.
+이 규칙으로 외곽 요소 수와 구멍 목록(장착/기타)을 보여 줘.
+```
+
+**AI 가 하는 일** — bulge b 를 각도 θ = 4·atan(b) 로 풀어 두 꼭짓점 사이를 호로 바꾸고, 원은 반지름과 중심으로 걸러 장착 구멍과 부품 핀 구멍으로 나눕니다.
+
+**확인하기** — 외곽 요소가 선분 4 + 호 4 = 8개, 장착 구멍 4개가 나오면 됩니다. 핀 구멍 개수는 보드마다 다릅니다.
+
+### 3. 보드를 만든다
+
+```text title="이렇게 말한다"
+새 문서 pcb_MYB 에 Body 이름 MYB_6ULX 로 보드를 만들어 줘.
+- Pad: XY 평면, 외곽 요소 그대로, 길이 Params.thickness
+- PocketMount: 장착 구멍 4개 관통, 지름 Params.mount_d
+- PocketPins: 나머지 구멍 관통
+Body 의 Label 은 MYB-6ULX 로. 끝나면 스케치 자유도·부피·bbox·면 수를 알려 줘.
+```
+
+**AI 가 하는 일** — 외곽 선분·호를 스케치에 옮기고(호는 양 끝점을 고정점에 맞춰 자유도 0 이 되게), Pad 1개와 Pocket 2개를 순서대로 쌓습니다. 피처마다 재계산해 깨진 것이 없는지 봅니다.
+
+:::note[AI 는 이렇게 답합니다]
+MYB_6ULX 완료. PadBoard(요소 8, 자유도 0) → PocketMount(4) → PocketPins(n). 형상 유효, bbox 약 70 × 55 × 1.6.
+:::
+
+**확인하기** — 트리에서 `PadBoard`, `PocketMount`, `PocketPins` 가 검은 글씨(오류 없음)인지, 위에서 봤을 때(숫자 키 2) 모서리 4곳이 둥근지 봅니다. `Params` 시트에 `thickness`, `mount_d`, `width`, `height`, `corner_r` 가 있습니다. `width`·`height`·`corner_r` 는 표기용 값이고 외곽 자체는 DXF 요소를 그대로 씁니다.
+
+### 4. 두 번째 보드도 같은 규칙으로
+
+```text title="이렇게 말한다"
+MYS-6ULX_2D.dxf 도 같은 규칙으로 새 문서 pcb_MYS 에 Body MYS_6ULX 로 만들어 줘.
+```
+
+**AI 가 하는 일** — 앞 단계의 규칙을 그대로 적용합니다. 규칙을 한 번 정해 두면 같은 계열 보드는 한 줄로 끝납니다.
+
+**확인하기** — 두 문서를 나란히 두고(창 → 바둑판식) 외곽과 장착 구멍 위치가 다른지 봅니다. 같은 6ULX 계열이라 크기는 비슷합니다.
+
+### 5. 저장한다
+
+```text title="이렇게 말한다"
+iso 뷰 스크린샷 보여 주고, 맞으면 C:\cad\pcb_MYB.FCStd, C:\cad\pcb_MYS.FCStd 로 저장해 줘.
+```
+
+**확인하기** — 스크린샷에서 보드 두께가 보이고 구멍이 관통돼 있으면 됩니다.
+
+## 결과 확인
+
+| 기준 | 값 |
+|---|---|
+| 외곽 스케치 | 요소 8개(선분 4 + 90° 호 4), 자유도 0 |
+| 장착 구멍 | Ø3.3 × 4, `Params.mount_d` |
+| 두께 | 1.6, `Params.thickness` |
+| 형상 유효성 | valid |
+| 피처 | PadBoard → PocketMount → PocketPins |
+
+## 잘 안 될 때
+
+- **2분 넘게 아무 반응이 없다** — AI 가 FreeCAD 의 DXF 가져오기를 써 버린 것입니다. 끝날 때까지 기다린 뒤(중단 불가) "DXF 는 FreeCAD 로 열지 말고 파일을 직접 읽어" 라고 다시 시킵니다.
+- **외곽이 닫히지 않아 Pad 가 실패한다** — OUTLINE 폴리라인이 여러 조각이거나 다른 레이어 이름(예: `Edge.Cuts`, `BOARD`)일 수 있습니다. 1단계 표에서 닫힌 폴리라인이 있는 레이어 이름을 골라 알려 줍니다.
+- **구멍이 너무 많다** — 반지름 문턱 0.5 를 올립니다. "반지름 1.0 이상만" 처럼 다시 정해 줍니다.
+- **장착 구멍이 Ø3.3 이 아니다** — 보드마다 Ø3.2·Ø3.5 등이 있습니다. 1단계 표의 반지름 종류를 보고 "반지름 1.6 을 장착 구멍으로" 라고 지정합니다.
+- **호 방향이 뒤집혀 모서리가 안으로 파인다** — bulge 부호 해석 문제입니다. "OUTLINE 호가 바깥으로 볼록한지 확인하고 뒤집힌 것은 고쳐 줘" 라고 합니다.
+
+## 더 해보기
+
+1. 보드 위에 부품 높이 여유 15 mm 를 더한 "부품 포함 외형" Body 를 만들어 케이스 설계용 간섭 검사에 씁니다(실습 4의 간섭 검사 참고).
+2. `Params.mount_d` 를 3.5 로 바꿔 여유 있는 장착 구멍으로 만들어 봅니다.
+3. 두 보드를 STEP 으로 내보내 케이스 설계자에게 보냅니다. "MYB_6ULX 를 C:\cad\MYB.step 으로 내보내 줘" 라고 하면 됩니다.
+
+---
+
+| 뒤에서 도는 기능 | |
+|---|---|
+| DXF 읽기 | AI 툴 자체(stdlib 로 POLYLINE·CIRCLE 파싱, bulge → 호 변환) |
+| 모델 생성 | `build_features`(elements 프로파일 + circles, Params 별칭) |
+| 확인 | `inspect_object`, `get_screenshot`, `save_document` |
+
+원본 기록: https://github.com/WaveSimm/cadxray/blob/master/examples/pcb_from_dxf.py
