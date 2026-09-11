@@ -63,6 +63,13 @@
 4. 겹침·위치는 `offset`으로 조정하거나 GUI에서 끌어 옮긴다(기본 배치는 대략이다). 큰 어셈블리(Link 수십 개)는 투영에 1분 넘게 걸린다 — `wait_seconds`
 5. `inspect_drawing(page)`로 최종 확인. PDF 경로는 `files.pdf`
 
+### 3D 프린트 출력용 검토 워크플로 (M12)
+1. 프로파일을 확인한다: 재질(PLA/PETG/ABS/ASA/TPU/Nylon)·노즐·레이어·베드. 모르면 PLA·0.4·0.2·220×220×250으로 하고 그렇게 말한다. 출력 방향은 +Z, 바닥은 가장 낮은 면
+2. `check_printability(name, profile)` → `issues`를 번호 목록으로(종류·심각도·위치·fix 힌트). `score`는 참고값. 재질 표는 경험값이라 `warnings`를 그대로 전한다
+3. 오버행이 크면 `suggest_orientation` 후보 순위를 보여 주고 사용자가 고르면 `apply=<rank>`
+4. `fixes` 중 사용자가 고른 것만 `apply_print_fixes(fixes=[...])` (Body만). 오버행 챔퍼·얇은 벽·분할은 `fix: manual` — `build_features`로 손으로
+5. 다시 `check_printability`로 확인, `estimate_print`로 무게·시간·비용
+
 ### 읽을 때 주의
 - `suggest_sketch_fixes`의 `effect`는 사본에서 잰 값이다. `add_dimension`(low)은 현재 값을 치수로 굳히는 것이라 설계 치수인지 사용자에게 확인한다. `open_vertices`는 Shape 기준이라 solve만으로는 안 바뀐다(툴이 recompute한다)
 - `get_sketch_diagnostics`: `solve_status`가 0이 아니면 `fully_constrained`는 `null`이고 `dof`도 믿을 수 없다. 어느 목록(`conflicting`/`redundant`/`malformed`)이 찼는지로 판단한다. 값이 다른 치수 두 개는 `-4`(과구속)로 나오고 `conflicting`에 들어간다

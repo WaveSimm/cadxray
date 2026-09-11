@@ -543,6 +543,29 @@ STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 �
 - 삭제는 인덱스 내림차순으로 먼저, 추가는 그 뒤. 적용 후 `solve()` → `doc.recompute()` → `{"applied": [...], "before", "after": {"solve_status", "dof", "fully_constrained", ...}, "recompute": {"resolved", "new_errors"}}`. 상태가 나빠지면(충돌 생김) 되돌리고 오류로 알린다.
 - 사용자가 고른 것만 적용한다. 대화에서는 Claude가 후보를 번호 목록으로 보여 주고 사용자가 번호를 고른다(CLAUDE.md 워크플로).
 
+### 7.31 프린트 프로파일 (M12 공통)
+모든 M12 툴은 `profile` dict 하나를 받는다: `{"material": "PLA", "nozzle": 0.4, "layer": 0.2, "bed": [220, 220, 250], "walls": 3, "infill": 20, "min_wall": null, "overhang_deg": null, "bridge_max": null, "hole_comp": null, "price_per_kg": 25000}`. 비운 값은 재질 표의 경험값으로 채운다(PLA·PETG·ABS·ASA·TPU·Nylon: 밀도, 오버행 한계각, 브릿지 최대, 구멍 보정, 수축률). 표는 `handlers/printing.py` 상단에 있고 출처는 슬라이서 기본값·제조사 안내 수준의 경험값이다 — 정밀값이 아니다. 출력 방향은 +Z, 바닥은 bbox ZMin.
+
+### 7.32 `check_printability` (M12)
+- 입력: `name, doc=None, profile={...}, samples=2000, max_items=30`
+- 검사: **얇은 벽**(면 표본점에서 안쪽으로 광선 → 반대 면까지 거리 < min_wall(기본 노즐×2)), **오버행**(아래를 향한 면의 수직 대비 기울기 > 한계각이고 바닥이 아니며 아래가 비어 있음 → 서포트 면적), **브릿지**(수평 아래면 스팬 ≤ bridge_max면 브릿지, 넘으면 서포트), **작은 구멍**(지름 < 노즐×2), **수평 구멍**(축 ⊥ Z: 찌그러짐 → 눈물방울 권장), **베드 적합**(bbox vs bed, Z 회전 포함), **첫 층 접지**(바닥 면적, 높이/접지 비), 부피.
+- 출력: `{"profile_used", "bbox", "fits_bed", "bottom_area", "thin_walls": {"min_thickness", "min_wall", "spots": [{"point", "thickness", "face"}]}, "overhangs": {"support_area", "limit_deg", "bridges", "minor", "faces": [{"face", "tilt_deg", "area", "kind": "overhang|bridge", "gap", "span?"}], "faces_total"}, "holes": {"small": [...], "horizontal": [...]}, "score": 0~100, "issues": [{"id", "kind", "severity", "detail", "fix"}], "fixes": [apply_print_fixes 후보]}`
+- 방법: 형상을 `MeshPart.meshFromShape`로 메시화해 `nearestFacetOnRay`로 광선을 쏜다(Part 광선 교차보다 훨씬 빠름). 면 표본은 `Face.valueAt`·`normalAt`. 구멍은 `find_holes`의 원통 판정 재사용.
+
+### 7.33 `estimate_print` (M12)
+- 입력: `name, doc=None, profile={...}, speed=50`(mm/s)
+- 출력: `{"volume_model", "volume_material"(벽 3겹×노즐 + 내부 infill% + 상하면), "mass_g", "filament_m"(1.75), "time_h"(대략, 이동 계수 1.3), "cost"(price_per_kg), "material", "density"}`. 시간·재료는 슬라이서보다 거칠다(±30 %).
+
+### 7.34 `suggest_orientation` (M12)
+- 입력: `name, doc=None, profile={...}, apply=None`(후보 인덱스 → 그 회전을 Placement에 적용)
+- 오버행 판정: 아래를 향한 면 중 기울기 > 한계각이고 바로 아래(층 높이 절반)에 재료가 없는 면. 수평으로 뻗은 폭이 노즐 2배 이하인 면(나사 플랭크·작은 챔퍼)은 `minor`로 세기만 하고 서포트 면적에 넣지 않는다. 수평 아래면은 짧은 변 양끝 바깥에 재료가 있어야 `bridge`(캔틸레버는 `overhang`). 광선은 `Mesh.foraminate`로 앞쪽 교차만(nearestFacetOnRay는 뒤쪽 면을 돌려준다, api-notes §16)
+- 6개 기본 방향(±X·±Y·±Z가 아래) + 현재 방향을 `check_printability`의 오버행·접지·높이·베드 적합으로 채점해 순위. 출력: `[{"rank", "rotation": {"axis", "angle"}, "support_area", "bottom_area", "height", "fits_bed", "score"}]`. apply하면 Body/Part의 Placement 회전을 바꾸고 바닥을 z=0에 놓는다.
+
+### 7.35 `apply_print_fixes` (M12)
+- 입력: `name(Body), doc=None, profile={...}, fixes=[{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical|all", "comp": null}, {"fix": "teardrop", "holes": [...]}]`
+- PartDesign 피처로 쌓는다(되돌리기 = 피처 삭제): `elephant_foot` = 바닥 바깥 모서리 Chamfer, `hole_comp` = 수직 구멍을 보정값만큼 키우는 Pocket(`find_holes` 값), `teardrop` = 수평 구멍 위에 45° 눈물방울 Pocket. 오버행 아래 챔퍼·얇은 벽 두껍게·분할은 v1에서 제안만 한다(issues에 "manual").
+- 출력: `{"applied": [{"fix", "feature", "status"}], "skipped": [...], "volume_before", "volume_after"}`. Body가 아니면 오류.
+
 ---
 
 ## 8. Claude Code 연결
@@ -649,6 +672,15 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 6. 2026-09-11 제출: https://github.com/FreeCAD/Addons/issues/145 (검토 대기)
 7. **완료 기준**: `FreeCAD.Metadata("package.xml")`이 오류 없이 읽히고 content/workbench classname이 `gui.CadXrayWorkbench`와 같다. 새 Mod/cadxray로 FreeCAD를 재시작하면 서버가 뜨고 `ping`이 0.7.0을 준다. 헤드리스 테스트 전부 통과. 이슈가 올라가 있다(등재는 팀 검토 뒤).
 
+### M12 — 3D 프린트 출력용 설계 검사·수정 (M11 이후, 2026-09-11 추가)
+인덱스의 3D 프린트 애드온(3D_Printing_Tools: 메시 스케일·베드 상자, slic3r-tools: 슬라이서 연동)에 없는 **출력 가능성 검사와 출력용 설계 수정**. 슬라이싱은 하지 않는다.
+1. 프로파일 표 + `check_printability` (7.32) — `handlers/printing.py`
+2. `estimate_print` (7.33)
+3. `suggest_orientation` (7.34)
+4. `apply_print_fixes` (7.35): elephant_foot / hole_comp / teardrop
+5. CLAUDE.md 워크플로: 프로파일 확인 → check → 번호 목록(issues·fixes) → 사용자 선택 → apply → check 재확인
+6. **완료 기준**: `T12_print`(40×30×20 상자 + 0.6 mm 리브 + 10 mm 캔틸레버 + 70° 기운 면 + Ø3 수직 구멍 + Ø6 수평 구멍)에서 check가 얇은 벽(0.6 < 0.8)·캔틸레버 오버행·70° 면·작은 구멍·수평 구멍을 모두 잡고 바닥면·35° 면은 잡지 않는다. estimate의 mass = 재료 부피×밀도. suggest_orientation이 7개 후보를 주고 최상위가 캔틸레버를 없애는 방향. apply(elephant_foot·hole_comp·teardrop) 뒤 Body 유효, 구멍 지름이 보정값만큼 커지고, 수평 구멍 위에 눈물방울이 생긴다.
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -666,6 +698,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 | `T8_drawing` | T1(PartDesign 판 + 구멍)과 pole_frame(Link 27개, `examples/pole_frame_from_dxf.py`) (M8) | `make_drawing(T1)`: 뷰 3개·치수 4개 값이 모델과 같음, PDF A4 1장. `inspect_drawing`이 치수 값을 그대로 돌려줌 |
 | `T9_mesh` | T7의 "Plate"를 `MeshPart.meshFromShape`(LinearDeflection 0.02)로 STL에 내보내 `Mesh.insert`로 다시 읽은 `Mesh::Feature` "PlateMesh" (M9) | `import_mesh`: is_solid. `analyze_mesh`: levels [0, 6, 10], verdict prismatic. `section_profile(PlateMesh, z=3)`: 선분 4개. `build_features` → `compare_shapes(PlateMesh, Body)` max 편차 < 0.05 |
 | `T10_fixes` | 0.02 mm 벌어진 사각형(끝점 3곳만 일치) + 0.3° 기운 선 + 길이 같은 선 2개 + 반지름 같은 원 2개 (M10) | `suggest_sketch_fixes`: add_coincident 1, add_horizontal/vertical ≥ 4, add_equal 2(선·반지름), effect 있음. `apply_sketch_fixes(recommended)` 뒤 open_vertices 0, DoF 감소 |
+| `T12_print` | 40×30×20 상자 + 0.6 mm 리브 + 10 mm 캔틸레버(z 10) + 70° 기운 면 + Ø3 수직 관통 구멍 + Ø6 수평 관통 구멍 (M12) | `check_printability`: thin 1(0.6), overhang 캔틸레버·70° 면, small hole Ø3, horizontal hole Ø6. `estimate_print` mass. `suggest_orientation` 7후보. `apply_print_fixes` 3종 유효 |
 
 ### CLAUDE.md에 넣을 진단 워크플로 (이 MCP를 사용하는 AI용)
 1. `ping` → 연결·버전 확인
@@ -696,7 +729,7 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 ## 12. 이후 확장 후보 (v1 이후, 지금은 구현하지 않음)
 
 - ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
-- 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
+- 어셈블리 Link 너머 문서 추적
 - ~~원격 호스트 접속(허용 IP 목록)~~ — 2026-09-11 제외. 다른 PC의 FreeCAD가 필요해지면 코드 수정 없이 SSH 터널(`ssh -L 9877:localhost:9877 원격PC`)로 먼저 쓴다. execute_code가 있어 원격을 여는 것은 그 PC를 여는 것과 같다
 
 

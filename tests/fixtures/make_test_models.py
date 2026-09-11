@@ -329,7 +329,39 @@ def T10_fixes():
     return doc
 
 
+# --- T12 3D 프린트 검사 --------------------------------------------------------------
+
+
+def _print_shape():
+    """40×30×20 상자 + 0.6 리브 + 10 캔틸레버(z 10) + 70° 기운 면 + Ø1.5 수직 관통 + Ø6 수평 관통 (M12)."""
+    s = Part.makeBox(40, 30, 20)
+    s = s.fuse(Part.makeBox(20, 0.6, 8, Vec(10, 14.7, 20)))                  # 얇은 리브 0.6, 윗면 위 8 높이
+    s = s.fuse(Part.makeBox(10, 30, 4, Vec(40, 0, 10)))                     # 캔틸레버: x 40~50, z 10~14 (아래 빈 공간)
+    # 왼쪽 위에 붙은 쐐기: 아래면이 수평에서 20° (= 수직에서 70°) 기울어 오버행
+    import math as _m
+    zt = 15.0 + 8.0 * _m.tan(_m.radians(20.0))
+    tri = Part.Face(Part.makePolygon([Vec(0, 0, 15), Vec(-8, 0, zt), Vec(-8, 0, 20), Vec(0, 0, 20), Vec(0, 0, 15)]))
+    s = s.fuse(tri.extrude(Vec(0, 30, 0)))
+    s = s.cut(Part.makeCylinder(0.75, 60, Vec(30, 8, -1)))                  # Ø1.5 수직 관통 (작은 구멍)
+    s = s.cut(Part.makeCylinder(3.0, 60, Vec(20, -1, 8), Vec(0, 1, 0)))     # Ø6 수평 관통 (Y축)
+    return s.removeSplitter()
+
+
+def T12_print():
+    doc = _fresh("T12_print")
+    s = _print_shape()
+    part = doc.addObject("Part::Feature", "Part")
+    part.Shape = s
+    body = doc.addObject("PartDesign::Body", "PrintBody")
+    base = doc.addObject("Part::Feature", "PrintBase")
+    base.Shape = s
+    body.BaseFeature = base
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T12_print": T12_print,
     "T10_fixes": T10_fixes,
     "T9_mesh": T9_mesh,
     "T7_rebuild": T7_rebuild,

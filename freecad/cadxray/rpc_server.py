@@ -51,6 +51,9 @@ def _timeout_for(tool, params):
     if tool in ("import_mesh", "analyze_mesh", "open_document", "save_document", "suggest_sketch_fixes", "apply_sketch_fixes"):
         # 큰 메시 읽기·단면 여러 장, 큰 문서 열기·저장 (M9)
         return 180
+    if tool in ("check_printability", "suggest_orientation", "apply_print_fixes"):
+        # 메시화 + 광선 표본 수천 개, 방향 6개 (M12)
+        return 180
     if tool == "make_drawing":
         # 뷰 투영(Link 27개 어셈블리 5면 ≈ 20초) + PDF 내보내기 (M8)
         return 300

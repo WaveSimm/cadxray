@@ -56,6 +56,7 @@ from freecad.cadxray.handlers import (  # noqa: E402
     documents,
     drawing,
     mesh as mesh_mod,
+    printing,
     sketch_fix,
     REGISTRY,
     document_graph,
@@ -568,6 +569,53 @@ def test_sketch_fix_tools():
     check("T2: 치수 후보 적용으로 DoF 감소", dof < dof0, f"dof={dof0}→{dof} applied={applied}")
 
 
+def test_print_tools():
+    section("M12: check_printability / estimate_print / suggest_orientation / apply_print_fixes")
+    prof = {"material": "PLA", "nozzle": 0.4, "layer": 0.2, "bed": [220, 220, 250]}
+    r = measure("check_printability", "T12 Part", printing.check_printability(name="Part", doc="T12_print", profile=prof))
+    check("check ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    kinds = {i["kind"] for i in d["issues"]}
+    check("얇은 벽 0.6 감지 (< 0.8)", d["thin_walls"]["spots_total"] >= 1 and d["thin_walls"]["min_thickness"] < 0.8, str(d["thin_walls"]))
+    check("오버행: 캔틸레버 아래면(서포트 면적 > 200)", d["overhangs"]["support_area"] > 200, str(d["overhangs"]))
+    check("바닥면은 overhang 목록에 없음", all(o["kind"] != "bottom" for o in d["overhangs"]["faces"]))
+    check("작은 구멍 Ø1.5 감지 (< 2)", any(abs(h["diameter"] - 1.5) < 0.05 for h in d["holes"]["small"]), str(d["holes"]["small"]))
+    check("바닥 접지 면적 = 40×30 − Ø1.5 구멍", abs(d["bottom_area"] - (1200 - math.pi * 0.75 ** 2)) < 0.5, str(d["bottom_area"]))
+    check("수평 구멍 Ø6 감지", any(abs(h["diameter"] - 6.0) < 0.05 for h in d["holes"]["horizontal"]), str(d["holes"]["horizontal"]))
+    check("issues에 thin_wall·overhang·small_hole·horizontal_hole", {"thin_wall", "overhang", "small_hole", "horizontal_hole"} <= kinds, str(kinds))
+    check("fixes에 teardrop·hole_comp·elephant_foot", {f["fix"] for f in d["fixes"]} >= {"teardrop", "hole_comp", "elephant_foot"}, str([f["fix"] for f in d["fixes"]]))
+    check("베드 적합, 점수 0~100", d["fits_bed"] and 0 <= d["score"] <= 100, str(d["score"]))
+    r = printing.check_printability(name="Part", doc="T12_print", profile={"material": "Unobtainium"})
+    check("모르는 재질 → 오류", not r["ok"] and "재질" in r["error"])
+    r = printing.check_printability(name="Part", doc="T12_print", profile={"material": "PETG", "bed": [30, 30, 30]})
+    check("작은 베드 → fits_bed False, bed issue", r["ok"] and not r["data"]["fits_bed"] and any(i["kind"] == "bed" for i in r["data"]["issues"]))
+
+    r = measure("estimate_print", "T12", printing.estimate_print(name="Part", doc="T12_print", profile=prof))
+    check("estimate ok, mass = 재료부피×밀도", r["ok"] and abs(r["data"]["mass_g"] - r["data"]["volume_material"] / 1000 * 1.24) < 0.2 and r["data"]["time_h"] > 0, str(r.get("data")))
+    check("재료 부피 ≤ 모델 부피", r["data"]["volume_material"] <= r["data"]["volume_model"] + 1e-6)
+
+    r = measure("suggest_orientation", "T12", printing.suggest_orientation(name="Part", doc="T12_print", profile=prof))
+    check("orientation ok, 후보 6개, rank 1 있음", r["ok"] and len(r["data"]["candidates"]) == 6 and r["data"]["best"]["rank"] == 1, str(r.get("error") or [(c["orientation"], c["score"]) for c in r["data"]["candidates"]]))
+    check("최상위 서포트 면적 ≤ 현재 방향", r["data"]["best"]["support_area"] <= next(c["support_area"] for c in r["data"]["candidates"] if c["orientation"] == "current"))
+    r2 = printing.suggest_orientation(name="Part", doc="T12_print", profile=prof, apply=r["data"]["best"]["rank"])
+    check("apply → 바닥이 z=0", r2["ok"] and r2["data"]["applied"] and abs(FreeCAD.getDocument("T12_print").getObject("Part").Shape.BoundBox.ZMin) < 0.01, str(r2.get("error") or r2["data"].get("applied")))
+    FreeCAD.getDocument("T12_print").getObject("Part").Placement = FreeCAD.Placement()
+    FreeCAD.getDocument("T12_print").recompute()
+
+    body = FreeCAD.getDocument("T12_print").getObject("PrintBody")
+    v0 = body.Shape.Volume
+    r = measure("apply_print_fixes", "T12 3종", printing.apply_print_fixes(name="PrintBody", doc="T12_print", profile=prof,
+                                                                     fixes=[{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical"}, {"fix": "teardrop"}]))
+    check("apply ok, Body 유효", r["ok"] and r["data"]["valid"], str(r.get("error") or r["data"]))
+    kinds_applied = {a["fix"] for a in r["data"]["applied"] if a["status"] == "Valid"}
+    check("3종 모두 적용됨(Valid)", kinds_applied >= {"elephant_foot", "hole_comp", "teardrop"}, str(r["data"]["applied"]) + str(r["data"]["skipped"]))
+    check("부피 감소(챔퍼·구멍 확대·눈물방울)", r["data"]["volume_after"] < v0, f"{v0} -> {r['data']['volume_after']}")
+    h = shape_features.find_holes(name="PrintBody", doc="T12_print")["data"]["holes"]
+    check("수직 구멍 Ø1.5 → Ø1.7 (PLA 보정 0.2)", any(abs(x["diameter"] - 1.7) < 0.02 for x in h), str([x["diameter"] for x in h]))
+    r = printing.apply_print_fixes(name="Part", doc="T12_print", profile=prof, fixes=[{"fix": "elephant_foot"}])
+    check("Body가 아니면 오류", not r["ok"] and "Body" in r["error"])
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -783,6 +831,7 @@ def main():
         ("drawing_tools", test_drawing_tools),
         ("mesh_tools", test_mesh_tools),
         ("sketch_fix_tools", test_sketch_fix_tools),
+        ("print_tools", test_print_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)

@@ -597,6 +597,44 @@ def apply_sketch_fixes(
 
 
 @mcp.tool()
+def check_printability(name: str, doc: str | None = None, profile: dict | None = None, samples: int = 2000) -> str:
+    """3D 프린트 **출력 가능성 검사** (M12). 출력 방향은 +Z(바닥 = 형상의 가장 낮은 면).
+
+    profile: {"material": "PLA|PETG|ABS|ASA|TPU|Nylon", "nozzle": 0.4, "layer": 0.2, "bed": [220,220,250], "walls": 3, "infill": 20,
+              "min_wall"|"overhang_deg"|"bridge_max"|"hole_comp"|"density": 재질 표 값 덮어쓰기}.
+    검사: 얇은 벽(노즐×2 미만), 오버행(한계각 초과·아래가 빈 면 → 서포트 면적), 브릿지, 작은 구멍(노즐×2 미만), 수평 구멍, 베드 적합, 첫 층 접지.
+    결과의 issues(번호·심각도·fix 힌트)를 사용자에게 번호 목록으로 보여 주고, fixes는 apply_print_fixes 후보다.
+    """
+    return client.call("check_printability", {"name": name, "doc": doc, "profile": profile, "samples": samples}, timeout=190)
+
+
+@mcp.tool()
+def estimate_print(name: str, doc: str | None = None, profile: dict | None = None, speed: float = 50.0) -> str:
+    """재료 부피·무게(g)·필라멘트 길이(m, 1.75)·대략 시간(h)·비용 추정 (M12). 슬라이서보다 거칠다(±30 %)."""
+    return client.call("estimate_print", {"name": name, "doc": doc, "profile": profile, "speed": speed}, timeout=120)
+
+
+@mcp.tool()
+def suggest_orientation(name: str, doc: str | None = None, profile: dict | None = None, apply: int | None = None) -> str:
+    """출력 방향 6개 + 현재 방향을 서포트 면적·접지·높이·베드 적합으로 채점해 순위 (M12).
+
+    apply=<rank>면 그 회전을 객체 Placement에 적용하고 바닥을 z=0에 놓는다(사용자가 고른 뒤에).
+    """
+    return client.call("suggest_orientation", {"name": name, "doc": doc, "profile": profile, "apply": apply}, timeout=190)
+
+
+@mcp.tool()
+def apply_print_fixes(name: str, fixes: list[dict], doc: str | None = None, profile: dict | None = None) -> str:
+    """출력용 설계 수정을 Body에 PartDesign 피처로 쌓는다 (M12). 되돌리기 = 피처 삭제.
+
+    fixes: [{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical"|"all", "comp": 0.2}, {"fix": "teardrop", "holes": [[x,y,z],...]}]
+    elephant_foot = 바닥 바깥 모서리 챔퍼, hole_comp = 수직 구멍 지름 보정 Pocket, teardrop = 수평 구멍 위 45° 눈물방울 Pocket.
+    오버행 챔퍼·얇은 벽 두껍게·분할은 v1에서 제안만(check의 issues fix: manual). 사용자가 고른 것만 적용한다.
+    """
+    return client.call("apply_print_fixes", {"name": name, "fixes": fixes, "doc": doc, "profile": profile}, timeout=190)
+
+
+@mcp.tool()
 def reload_handlers() -> str:
     """FreeCAD를 재시작하지 않고 애드온 핸들러 코드를 다시 읽는다. **개발용.**
 

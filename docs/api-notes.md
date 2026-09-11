@@ -380,6 +380,7 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `mesh.getPlanarSegments(dev, min_facets)` → 면 인덱스 목록의 목록. `getSegmentsOfType("Cylinder", dev, min)`은 삼각형화된 원통을 못 찾았다(스풀 가이드 0개, 시험 판 2구멍 중 1개) — 원통은 단면 원 피팅으로 잡는다
 - `Part.Shape().makeShapeFromMesh(mesh.Topology, tol)` + `Part.makeSolid`: 5,758면 → 1.6 s, 부피 일치. 그러나 이 솔리드로 `compare_shapes`(퍼지 불리언)를 부르면 **10분 넘게 메인 스레드가 막힌다** — 메시 비교는 불리언 금지
 - `mesh.nearestFacetOnRay((sx,sy,sz), (dx,dy,dz))` → `{facet_index: (x,y,z)}` dict, 못 맞히면 빈 dict. 표본점 900개 × 양방향 ≈ 0.8 s. 시작점을 표면 뒤 0.6 mm에 두면 자기 면을 맞힌다(5 mm는 얇은 판 반대편을 맞힘)
+- **주의** `nearestFacetOnRay`는 방향을 무시한 직선 교차다: 출발점 뒤쪽 면이 더 가까우면 그것을 돌려준다(두께 광선이 자기 면을 맞혀 2×back_off가 나온 원인) [라이브 1.1.3]. 세 번째 인자(최대 각도, rad)를 주면 면 법선과 광선 방향의 각도로 거른다. 앞쪽만 필요하면 `mesh.foraminate((sx,sy,sz),(dx,dy,dz))` → `{facet_index: (x,y,z)}`로 **모든** 교차점을 받아 `(q-s)·d > 0`인 것 중 최소를 고른다(printing.py `_ray`). 곡면 메시(LinearDeflection 0.05)는 실제 면에서 최대 0.05 벗어나므로 출발점을 0.1 안쪽에 둔다
 - 역방향: 메시 정점(≤ 1,500) → `shape.distToShape(Part.Vertex(p))[0]` ≈ 4 s
 - `execute_code` 결과 직렬화는 리스트 중첩 깊이에 한계가 있다(`"<depth limit: float>"`). 깊은 구조는 문자열로 평탄화해 돌려준다
 - `PartDesign::SubtractiveHelix`(`AdditiveHelix`도 같음): `Profile=(sketch, [""])`, `ReferenceAxis=(sketch, ["V_Axis"])`, `Mode="pitch-height-angle"`, `Pitch`, `Height`, `Angle`, `LeftHanded`, `Reversed`, `Outside`. 프로파일 스케치를 XZ 평면에 붙일 때 축을 부품 중심 (cx, cy)로 옮기려면 `AttachmentOffset = Placement(Vector(cx, 0, -cy))` — XZ 평면의 로컬 z가 전역 **−Y**다(로컬 x=X, y=Z). 오른나사(z 증가에 각도 증가)는 `LeftHanded=False`
