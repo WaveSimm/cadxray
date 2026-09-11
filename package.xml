@@ -13,6 +13,7 @@
   <url type="readme">https://github.com/WaveSimm/cadxray/blob/release/README.en.md</url>
   <url type="bugtracker">https://github.com/WaveSimm/cadxray/issues</url>
   <icon>freecad/cadxray/resources/icon.svg</icon>
+  <freecadmin>1.0.0</freecadmin>
   <tag>mcp</tag>
   <tag>claude</tag>
   <tag>diagnostics</tag>
