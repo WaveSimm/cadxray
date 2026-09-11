@@ -1,8 +1,4 @@
-/* 오션테크 디자인 토큰을 Starlight(0.42) 변수·컴포넌트에 입힌다.
-   교육 포털·HF Radar 포털에 같은 파일 — 한쪽을 고치면 다른 쪽도 같이 고친다.
-   규칙 원본: ERP_OT/.claude/skills/oceantech-design-system/SKILL.md
-   Starlight 의 CSS 는 전부 @layer 안에 있으므로 여기(레이어 없음)가 항상 이긴다. 선택자는 짧게 둔다.
-   색·크기 값은 tokens.css 변수만 쓴다. 리터럴이 들어가면 잘못된 것이다. */
+/* Starlight 변수를 tokens.css 의 토큰에 연결하는 테마 층 */
 
 /* ── 1. 토큰 → Starlight 변수. 다크는 tokens.css 의 [data-theme=dark] 값이 따라온다 ── */
 :root {

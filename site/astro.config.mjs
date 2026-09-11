@@ -2,8 +2,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// cadxray 공개 가이드 사이트 (GitHub Pages: https://wavesimm.github.io/cadxray/)
-// 이 폴더는 scripts/export-public.py 가 사내 포털에서 내보낸 것. 직접 고치면 다음 내보내기 때 덮인다.
+// cadxray 가이드 사이트 (GitHub Pages: https://wavesimm.github.io/cadxray/)
 export default defineConfig({
   site: 'https://wavesimm.github.io',
   base: '/cadxray',
@@ -13,11 +12,11 @@ export default defineConfig({
       description: 'AI 코딩 툴(Claude Code · Codex CLI · Gemini CLI)과 cadxray 로 FreeCAD 1.1.3 에서 3D 모델을 말로 만드는 법 — 설치, 할 수 있는 것, 따라하기 실습 10개, 프롬프트 작성법',
       defaultLocale: 'root',
       locales: { root: { label: '한국어', lang: 'ko' } },
-      // 순서: 글꼴 → 공통 토큰 → Starlight 테마 → 사이트 전용. 규칙은 ERP_OT/.claude/skills/oceantech-design-system
+      // 순서: 글꼴 → 토큰 → Starlight 테마 → 사이트 전용
       customCss: [
         'pretendard/dist/web/variable/pretendardvariable.css',
         './src/styles/tokens.css',
-        './src/styles/oceantech-starlight.css',
+        './src/styles/starlight-theme.css',
         './src/styles/custom.css',
       ],
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/WaveSimm/cadxray' }],
