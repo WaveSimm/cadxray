@@ -46,9 +46,11 @@ log["Vial"] = build("Vial", [
     {"op": "pad", "name": "PadVial", "plane": "XY", "position": 0.0, "length": "Params.vial_l",
      "profile": {"circles": [{"center": [0, 0], "diameter": P["vial_d"], "expr": "Params.vial_d"}]}},
     {"op": "fillet", "name": "FilletBottom", "size": 4.0, "edges": {"curve": "Circle", "center": [0, 0, 0]}},
-    {"op": "pad", "name": "PadCap", "plane": "XY", "position": P["vial_l"], "length": "Params.cap_l",
+])
+log["Cap"] = build("Cap", [        # 캡은 별도 바디 — 몸통(투명)과 외관을 따로 주려고
+    {"op": "pad", "name": "PadCap", "plane": "XY", "position": 0.0, "length": "Params.cap_l",
      "profile": {"circles": [{"center": [0, 0], "diameter": P["cap_d"], "expr": "Params.cap_d"}]}},
-    {"op": "chamfer", "name": "ChamferCap", "size": 1.0, "edges": {"curve": "Circle", "center": [0, 0, P["vial_l"] + P["cap_l"]]}},
+    {"op": "chamfer", "name": "ChamferCap", "size": 1.0, "edges": {"curve": "Circle", "center": [0, 0, P["cap_l"]]}},
 ])
 doc = App.getDocument(DOC)
 grp = doc.addObject("App::DocumentObjectGroup", "Vials")
@@ -57,17 +59,23 @@ for i, x in enumerate(XS[1:]):
     l.LinkedObject = doc.getObject("Vial")
     l.Placement = App.Placement(App.Vector(x, YC, win_z0 - P["recess_d"]), App.Rotation())
     grp.addObject(l)
+    c = doc.addObject("App::Link", f"Cap_{i + 1}")
+    c.LinkedObject = doc.getObject("Cap")
+    c.Placement = App.Placement(App.Vector(x, YC, win_z0 - P["recess_d"] + P["vial_l"]), App.Rotation())
+    grp.addObject(c)
 if App.GuiUp:
     doc.getObject("Vial").ViewObject.Visibility = False
+    doc.getObject("Cap").ViewObject.Visibility = False
 doc.recompute()
 h = doc.getObject("InkHolder").Shape
 bb = h.BoundBox
 _result = {"features": log, "valid": h.isValid(), "volume_cm3": round(h.Volume / 1000, 1), "faces": len(h.Faces),
            "bbox": [round(v, 1) for v in (bb.XMin, bb.XMax, bb.YMin, bb.YMax, bb.ZMin, bb.ZMax)],
-           "vial_top_z": round(doc.getObject("Vial_1").Shape.BoundBox.ZMax, 1), "invalid": [o.Name for o in doc.Objects if not o.isValid()]}
+           "vial_top_z": round(doc.getObject("Cap_1").Shape.BoundBox.ZMax, 1), "invalid": [o.Name for o in doc.Objects if not o.isValid()]}
 
-# 외관: 검붉은 아노다이징 알루미늄(보관대), 검정 반투명(병). FreeCAD 1.1은 ViewObject.ShapeAppearance = (App.Material,)로 준다.
+# 외관: 검붉은 아노다이징 알루미늄(보관대), 유리(병 몸통, Transparency 70), 검정(캡). FreeCAD 1.1은 ViewObject.ShapeAppearance = (App.Material,)로 준다.
 # Body에 주고 피처들에도 같은 값을 복사해야 Tip이 바뀌어도 색이 유지된다. Link는 OverrideMaterial=False면 원본 색을 따른다.
+# Material.Transparency(면별)는 3D 뷰에 안 먹는다 → ViewObject.Transparency(객체 전체)를 쓴다. 그래서 캡을 별도 바디로 뺐다.
 def appearance(obj, rgb, specular=0.55, shininess=0.7, transparency=0.0):
     m = App.Material()
     m.DiffuseColor, m.SpecularColor, m.AmbientColor = rgb, (specular,) * 3, tuple(c * 0.4 for c in rgb)
@@ -75,6 +83,8 @@ def appearance(obj, rgb, specular=0.55, shininess=0.7, transparency=0.0):
     for o in [obj] + list(obj.Group):
         if hasattr(o.ViewObject, "ShapeAppearance"):
             o.ViewObject.ShapeAppearance = (m,)
+            o.ViewObject.Transparency = int(transparency * 100)
 if App.GuiUp:
     appearance(doc.getObject("InkHolder"), (0.40, 0.05, 0.08))
-    appearance(doc.getObject("Vial"), (0.06, 0.06, 0.07), specular=0.8, shininess=0.9, transparency=0.35)
+    appearance(doc.getObject("Vial"), (0.80, 0.90, 0.95), specular=0.9, shininess=0.95, transparency=0.70)
+    appearance(doc.getObject("Cap"), (0.06, 0.06, 0.07), specular=0.8, shininess=0.9)
