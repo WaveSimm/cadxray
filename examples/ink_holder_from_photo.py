@@ -65,3 +65,16 @@ bb = h.BoundBox
 _result = {"features": log, "valid": h.isValid(), "volume_cm3": round(h.Volume / 1000, 1), "faces": len(h.Faces),
            "bbox": [round(v, 1) for v in (bb.XMin, bb.XMax, bb.YMin, bb.YMax, bb.ZMin, bb.ZMax)],
            "vial_top_z": round(doc.getObject("Vial_1").Shape.BoundBox.ZMax, 1), "invalid": [o.Name for o in doc.Objects if not o.isValid()]}
+
+# 외관: 검붉은 아노다이징 알루미늄(보관대), 검정 반투명(병). FreeCAD 1.1은 ViewObject.ShapeAppearance = (App.Material,)로 준다.
+# Body에 주고 피처들에도 같은 값을 복사해야 Tip이 바뀌어도 색이 유지된다. Link는 OverrideMaterial=False면 원본 색을 따른다.
+def appearance(obj, rgb, specular=0.55, shininess=0.7, transparency=0.0):
+    m = App.Material()
+    m.DiffuseColor, m.SpecularColor, m.AmbientColor = rgb, (specular,) * 3, tuple(c * 0.4 for c in rgb)
+    m.Shininess, m.Transparency = shininess, transparency
+    for o in [obj] + list(obj.Group):
+        if hasattr(o.ViewObject, "ShapeAppearance"):
+            o.ViewObject.ShapeAppearance = (m,)
+if App.GuiUp:
+    appearance(doc.getObject("InkHolder"), (0.40, 0.05, 0.08))
+    appearance(doc.getObject("Vial"), (0.06, 0.06, 0.07), specular=0.8, shininess=0.9, transparency=0.35)
