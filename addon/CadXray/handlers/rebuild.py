@@ -884,29 +884,47 @@ def _levels_and_vertices(shape, axis, samples=5):
     for v in shape.Vertexes:
         t = round(Vec(v.Point).dot(axis), 3)
         verts[t] = verts.get(t, 0) + 1
-    return (sorted(levels.values(), key=lambda x: x["position"]),
-            [{"position": k, "vertices": n} for k, n in sorted(verts.items())])
+    out = sorted(levels.values(), key=lambda x: x["position"])
+    for lv in out:
+        # 메시 솔리드(수천 면)에서 면 목록이 응답을 폭발시킨다 [라이브 1.1.3] → 20개까지만
+        lv["faces_total"] = len(lv["faces"])
+        lv["faces"] = lv["faces"][:20]
+    return (out, [{"position": k, "vertices": n} for k, n in sorted(verts.items())])
 
 
 def section_profile(name=None, doc=None, axis="Z", position=None, fill_holes=True, max_fill_radius=10.0,
-                    tolerance=1e-5, samples=24, max_elements=300):
-    """축 방향 위치의 단면 윤곽을 스케치용 선분·호·원 목록으로. position=None이면 후보 높이만."""
+                    tolerance=1e-5, samples=24, max_elements=300, fit_tolerance=0.05, corner_tolerance=0.15):
+    """축 방향 위치의 단면 윤곽을 스케치용 선분·호·원 목록으로. position=None이면 후보 높이만.
+
+    name이 Mesh::Feature면 메시 단면 폴리라인을 직선·원호·원으로 피팅한다(M9, fit_tolerance·corner_tolerance).
+    """
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
         return util.error(err)
-    obj, shape, err = _shape_or_error(d, name)
-    if err:
-        return util.error(err)
+    from . import mesh as mesh_mod
+
+    mobj, _ = util.find_object(d, name)
+    is_mesh = mesh_mod.is_mesh_object(mobj)
+    if is_mesh:
+        obj, shape = mobj, None
+    else:
+        obj, shape, err = _shape_or_error(d, name)
+        if err:
+            return util.error(err)
     ax, err = _parse_axis(axis)
     if err:
         return util.error(err)
     warnings = []
     letter = _axis_letter(ax)
-    data = {"document": d.Name, "object": obj.Name, "label": util.label(obj), "axis": _r3(ax, 6), "axis_letter": letter}
+    data = {"document": d.Name, "object": obj.Name, "label": util.label(obj), "axis": _r3(ax, 6), "axis_letter": letter,
+            "source": "mesh" if is_mesh else "shape"}
 
     if position is None:
-        levels, verts = _levels_and_vertices(shape, ax)
+        if is_mesh:
+            levels, verts = mesh_mod._mesh_levels(obj.Mesh, ax)
+        else:
+            levels, verts = _levels_and_vertices(shape, ax)
         data.update({"position": None, "levels": levels[:50], "vertex_positions": verts[:100]})
         data["hint"] = "levels 값 사이(띠의 중간 높이)를 position으로 다시 부르면 그 높이의 윤곽을 준다."
         if len(verts) > 100:
@@ -914,8 +932,12 @@ def section_profile(name=None, doc=None, axis="Z", position=None, fill_holes=Tru
         return util.envelope(data, warnings=warnings, truncated=len(verts) > 100, t0=t0)
 
     try:
-        frame, wires, filled, w2 = _section(shape, ax, float(position), bool(fill_holes), float(max_fill_radius),
-                                            max(float(tolerance), 1e-9), int(samples))
+        if is_mesh:
+            frame, wires, filled, w2 = mesh_mod.mesh_section(obj.Mesh, ax, float(position), bool(fill_holes), float(max_fill_radius),
+                                                             float(fit_tolerance), float(corner_tolerance))
+        else:
+            frame, wires, filled, w2 = _section(shape, ax, float(position), bool(fill_holes), float(max_fill_radius),
+                                                max(float(tolerance), 1e-9), int(samples))
     except Exception as e:
         return util.error(f"단면 추출 실패: {e}", e)
     warnings.extend(w2)
@@ -939,7 +961,9 @@ def section_profile(name=None, doc=None, axis="Z", position=None, fill_holes=Tru
     if not wires:
         warnings.append("이 위치에서 단면이 비어 있습니다. 형상의 bbox 안인지 확인하세요.")
     unsupported = sum(w["unsupported"] for w in wires)
-    if unsupported:
+    if unsupported and is_mesh:
+        warnings.append(f"직선·원에 맞지 않은 구간 {unsupported}개는 점을 잇는 line(approx)으로 남겼습니다. fit_tolerance를 키우거나(메시 편차보다 크게) 그 부분은 polygon으로 쓰세요.")
+    elif unsupported:
         warnings.append(f"직선·원으로 맞추지 못한 요소 {unsupported}개(type: bspline). 진짜 자유곡선이거나 tolerance가 너무 작습니다.")
     total = data["elements_total"]
     truncated = False
@@ -1012,12 +1036,29 @@ def _profile_wires(d, plane, profile, warnings):
         src_doc, err = util.get_doc(spec.get("doc")) if spec.get("doc") else (d, None)
         if err:
             raise _BuildError(err)
-        obj, shape, err = _shape_or_error(src_doc, spec.get("of") or spec.get("name"))
-        if err:
-            raise _BuildError(err)
+        from . import mesh as mesh_mod
+
+        mobj, _ = util.find_object(src_doc, spec.get("of") or spec.get("name"))
         axis = _CANON[_PLANE_AXIS[plane]]
         if "position" not in spec:
             raise _BuildError("profile.section에 position(전역 좌표)이 필요합니다.")
+        if mesh_mod.is_mesh_object(mobj):
+            # 메시 단면: 폴리라인 피팅. 맞지 않은 구간은 line(approx)으로 남는다 → 그리기는 된다
+            frame, wires, filled, w2 = mesh_mod.mesh_section(mobj.Mesh, axis, float(spec["position"]), bool(spec.get("fill_holes", True)),
+                                                             float(spec.get("max_fill_radius", 10.0)), float(spec.get("fit_tolerance", 0.05)),
+                                                             float(spec.get("corner_tolerance", 0.15)))
+            warnings.extend(w2)
+            if not wires:
+                raise _BuildError(f"{mobj.Name}의 {_PLANE_AXIS[plane]}={spec['position']} 메시 단면이 비어 있습니다.")
+            if spec.get("outer_only", False):
+                wires = wires[:1]
+            n_bad = sum(w["unsupported"] for w in wires)
+            if n_bad:
+                warnings.append(f"메시 단면에서 직선·원에 맞지 않은 구간 {n_bad}개를 점 잇기(line)로 그렸습니다.")
+            return [list(w["elements"]) for w in wires]
+        obj, shape, err = _shape_or_error(src_doc, spec.get("of") or spec.get("name"))
+        if err:
+            raise _BuildError(err)
         frame, wires, filled, w2 = _section(shape, axis, float(spec["position"]), bool(spec.get("fill_holes", True)),
                                             float(spec.get("max_fill_radius", 10.0)), float(spec.get("tolerance", 1e-5)),
                                             int(spec.get("samples", 24)), exclude=spec.get("exclude"), clip=spec.get("clip"))
@@ -1196,6 +1237,53 @@ def _draw_wire(sk, elements):
         if b[3] == "arc":
             sk.addConstraint(Sketcher.Constraint("Coincident", b[0], b[1], pid, 1))
     return named
+
+
+def _helix_feature(d, body_obj, name, spec, warnings):
+    """helix op (명세 7.27): 축 Z, XZ 평면 프로파일(로컬 x = 반지름, y = 전역 Z), AttachmentOffset으로 축을 axis_center에.
+
+    [확인됨: api-notes 16장] XZ 평면의 로컬 z는 전역 −Y → Offset = (cx, 0, −cy). 나선은 프로파일 각도(0°)에서 시작한다.
+    """
+    prof = spec.get("profile") or {}
+    if "polygon" not in prof:
+        raise _BuildError("helix에는 profile.polygon=[[r, z], ...] (축에서의 반지름, 전역 Z)가 필요합니다.")
+    cx, cy = (spec.get("axis_center") or [0.0, 0.0])[:2]
+    if "pitch" not in spec:
+        raise _BuildError("helix에는 pitch가 필요합니다.")
+    if "height" not in spec and "turns" not in spec:
+        raise _BuildError("helix에는 height 또는 turns가 필요합니다.")
+    sk = body_obj.newObject("Sketcher::SketchObject", "Sketch" + name)
+    sk.AttachmentSupport = [(body_obj.Origin.OriginFeatures[4], "")]   # XZ_Plane
+    sk.MapMode = "FlatFace"
+    sk.AttachmentOffset = FreeCAD.Placement(Vec(float(cx), 0.0, -float(cy)), FreeCAD.Rotation())
+    d.recompute()
+    if abs(sk.Placement.Base.y - float(cy)) > 1e-6 or abs(sk.Placement.Base.x - float(cx)) > 1e-6:
+        warnings.append(f"helix 스케치 원점이 axis_center와 다릅니다: {tuple(round(v, 4) for v in sk.Placement.Base)}")
+    pts = [list(p) for p in prof["polygon"]]
+    if len(pts) < 3:
+        raise _BuildError("helix profile.polygon은 점 3개 이상이어야 합니다.")
+    els = [{"type": "line", "start": pts[i], "end": pts[(i + 1) % len(pts)]} for i in range(len(pts))]
+    _draw_wire(sk, els)
+    d.recompute()
+    sk.Visibility = False
+    sub = bool(spec.get("subtractive", True))
+    f = d.addObject("PartDesign::SubtractiveHelix" if sub else "PartDesign::AdditiveHelix", name)
+    body_obj.addObject(f)
+    f.Profile = (sk, [""])
+    f.ReferenceAxis = (sk, ["V_Axis"])
+    if "height" in spec:
+        f.Mode = "pitch-height-angle"
+        _num_or_expr(f, "Pitch", spec["pitch"])
+        _num_or_expr(f, "Height", spec["height"])
+    else:
+        f.Mode = "pitch-turns-angle"
+        _num_or_expr(f, "Pitch", spec["pitch"])
+        _num_or_expr(f, "Turns", spec["turns"])
+    _num_or_expr(f, "Angle", spec.get("angle", 0.0))
+    f.LeftHanded = bool(spec.get("left_handed", False))
+    f.Reversed = bool(spec.get("reversed", False))
+    f.Outside = bool(spec.get("outside", False))
+    return f, sk
 
 
 def _sketch_report(sk):
@@ -1417,6 +1505,10 @@ def build_features(body=None, doc=None, features=None, params=None, create_body=
                     f.ReferenceAxis = (sk, ["Axis0"])
                     if spec.get("reversed"):
                         f.Reversed = True
+            elif op == "helix":
+                f, sk = _helix_feature(d, body_obj, name, spec, warnings)
+                new_objs.extend([sk, f])
+                entry.update(_sketch_report(sk))
             elif op in ("fillet", "chamfer"):
                 tip = body_obj.Tip
                 if tip is None or tip.Shape.isNull():
@@ -1432,7 +1524,7 @@ def build_features(body=None, doc=None, features=None, params=None, create_body=
                 _num_or_expr(f, "Radius" if op == "fillet" else "Size", spec.get("size", 1.0))
                 entry["edges"] = edges
             else:
-                raise _BuildError(f"알 수 없는 op {op!r}. pad/pocket/groove/revolution/fillet/chamfer 중 하나.")
+                raise _BuildError(f"알 수 없는 op {op!r}. pad/pocket/groove/revolution/helix/fillet/chamfer 중 하나.")
 
             d.recompute()
             bad = [(o.Name, util.status_string(o)) for o in new_objs if "Invalid" in o.State]
@@ -1495,6 +1587,47 @@ def _pieces(diff, min_vol, max_pieces):
     return out[:max_pieces], round(sum(p["volume"] for p in out), 6), len(out)
 
 
+def _compare_mesh(da, db, ma, mb, a, b, t0, samples=1500):
+    """메시 vs 형상: 불리언 없이 편차 표본 (명세 7.26). 메시 대 메시는 지원하지 않는다."""
+    from . import mesh as mesh_mod
+
+    if mesh_mod.is_mesh_object(ma) and mesh_mod.is_mesh_object(mb):
+        return util.error("메시 대 메시 비교는 지원하지 않습니다. 한쪽을 Body/Part 형상으로 주세요.")
+    if mesh_mod.is_mesh_object(ma):
+        mobj, mesh, sdoc, sname, mesh_is_a = ma, ma.Mesh, db, b, True
+    else:
+        mobj, mesh, sdoc, sname, mesh_is_a = mb, mb.Mesh, da, a, False
+    sobj, shape, err = _shape_or_error(sdoc, sname)
+    if err:
+        return util.error(err)
+    warnings = []
+    if not mesh.isSolid():
+        warnings.append("메시가 닫혀 있지 않아 부피 차는 믿을 수 없습니다.")
+    dev = mesh_mod.mesh_deviation(mesh, shape, samples=samples, reverse_samples=samples)
+    vm, vs = (mesh.Volume if mesh.isSolid() else None), shape.Volume
+    bm, bs = mesh.BoundBox, shape.BoundBox
+    bbox_diff = max(abs(bm.XMin - bs.XMin), abs(bm.XMax - bs.XMax), abs(bm.YMin - bs.YMin), abs(bm.YMax - bs.YMax), abs(bm.ZMin - bs.ZMin), abs(bm.ZMax - bs.ZMax))
+    vol_pct = round((vs - vm) / vm * 100.0, 4) if vm else None
+    fwd, back = dev["body_to_mesh"], dev["mesh_to_body"]
+    # verdict는 p95로 (최대값은 나사 시작부 같은 한두 점의 이상치가 좌우한다 — 스풀 가이드 실측 max 0.89, p95 0.045)
+    p95 = max([x["p95"] for x in (fwd, back) if x] or [0.0])
+    max_dev = max([x["max"] for x in (fwd, back) if x] or [0.0])
+    if p95 < 0.1 and (vol_pct is None or abs(vol_pct) < 0.5):
+        verdict = "match"
+    elif p95 < 0.5 and (vol_pct is None or abs(vol_pct) < 2.0):
+        verdict = "close"
+    else:
+        verdict = "different"
+    data = {
+        "method": "mesh_deviation", "mesh": {"object": mobj.Name, "label": util.label(mobj), "facets": mesh.CountFacets, "volume": round(vm, 4) if vm else None},
+        "shape": {"object": sobj.Name, "label": util.label(sobj), "faces": len(shape.Faces), "volume": round(vs, 4)},
+        "mesh_is_a": mesh_is_a, "volume_diff_pct": vol_pct, "bbox_diff_max": round(bbox_diff, 4),
+        "deviation": fwd, "reverse_deviation": back, "verdict": verdict, "verdict_basis": {"p95": round(p95, 4), "max": round(max_dev, 4)},
+        "hint": "deviation.worst 점이 모델이 메시와 다른 곳(모델에만 있는 면), reverse_deviation.worst가 메시에만 있는 곳이다.",
+    }
+    return util.envelope(data, warnings=warnings, t0=t0)
+
+
 def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_volume=1e-3, max_pieces=10):
     """두 형상의 부피·면적·bbox 차와 퍼지 차집합 조각(어디가 다른가)."""
     t0 = time.time()
@@ -1504,6 +1637,12 @@ def compare_shapes(a=None, b=None, doc=None, doc_b=None, fuzzy=1e-4, min_piece_v
     db, err = util.get_doc(doc_b) if doc_b else (da, None)
     if err:
         return util.error(err)
+    from . import mesh as mesh_mod
+
+    ma, _ = util.find_object(da, a)
+    mb, _ = util.find_object(db, b)
+    if mesh_mod.is_mesh_object(ma) or mesh_mod.is_mesh_object(mb):
+        return _compare_mesh(da, db, ma, mb, a, b, t0)
     oa, sa, err = _shape_or_error(da, a)
     if err:
         return util.error(err)

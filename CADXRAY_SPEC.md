@@ -487,6 +487,43 @@ STEP → 파라메트릭 워크플로(CLAUDE.md에 추가): `classify_faces`(정
 - 출력: `{"template", "size": [w, h], "views": [{"name", "type", "source", "scale", "x", "y", "status", "edges"}], "dimensions": [{"name", "type", "value", "references": "3D|2D", "status"}], "annotations": [...], "editable_texts": {...}}`
 - 치수 값은 `getRawValue()`. `status`가 Touched면 재계산이 필요한 것, Invalid면 참조가 깨진 것.
 
+### 7.23 `import_mesh` (M9)
+STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 않는다). 투명도를 올려 새로 그리는 Body와 겹쳐 보게 한다.
+- 입력: `path, doc=None, transparency=70, label=None`
+- 출력: `{"name", "label", "facets", "points", "is_solid", "non_manifold", "self_intersections", "bbox", "size", "volume"(is_solid일 때), "elapsed_ms"}`
+- `is_solid`가 false면 경고(부피·비교 신뢰 불가). 파일이 없거나 형식이 아니면 오류 봉투.
+- 방법 `[라이브 1.1.3]`: `Mesh.insert(path, docName)` → `Mesh::Feature`; `Mesh.isSolid()`, `hasNonManifolds()`, `hasSelfIntersections()`, `BoundBox`, `Volume`. `ViewObject.Transparency`로 투명.
+
+### 7.24 `analyze_mesh` (M9)
+메시의 **주축·띠(레벨)·단면 원**을 한 번에 뽑는다. `classify_faces`의 메시판 — 삼각형 면을 하나씩 보지 않고 평면 세그먼트와 단면 원 피팅으로 정체를 잡는다.
+- 입력: `name, doc=None, axis=None(자동), dev=0.05, min_facets=10, max_levels=30, max_segments=50`
+- 출력: `{"main_axis", "main_axis_letter", "levels": [{"position", "area", "facets"}], "center": [x, y] | null(단면 원들의 공통 중심), "bands": [{"from", "to", "mid", "circles": [{"center", "r", "rms"}], "wires": n}], "segments": [{"normal", "position", "area", "facets"}], "verdict": "prismatic|revolved|mixed|free_form", "notes": [...]}`
+- 방법 `[라이브 1.1.3]`: `getPlanarSegments(dev, min_facets)`로 평면 세그먼트 → 법선을 면적 가중으로 묶어 주축(가장 큰 평면 면적의 법선) → 주축에 수직인 세그먼트의 위치가 `levels`. 레벨 사이 중간 높이마다 `crossSections`로 폴리라인을 얻어 최소제곱 원 피팅(rms < dev면 원). 원들의 중심이 모두 같으면 `center`(회전체 계열). `getSegmentsOfType("Cylinder")`는 원통을 못 찾는 경우가 많아(스풀 가이드 STL에서 0개) 쓰지 않는다.
+- **목록은 개수만**: `levels[].facets`는 숫자다(면 인덱스 목록을 넣으면 5,758면 메시에서 응답이 수백 KB가 된다 — `classify_faces`가 메시 솔리드에서 그랬다).
+
+### 7.25 `section_profile` 메시 입력 (M9)
+`name`이 `Mesh::Feature`면 `crossSections`의 폴리라인을 **직선·원호·원으로 피팅**해 7.17과 같은 형식(`elements`, `sketch_plane`)으로 준다. `build_features`의 `profile.section`도 그대로 메시를 받는다.
+- 추가 입력: `fit_tolerance=0.05`(피팅 허용 rms, 메시 편차보다 크게), `corner_tolerance=0.15`(꼭짓점 검출 RDP)
+- 방법: 폴리라인 전체가 한 원에 맞으면 `circle`. 아니면 Douglas-Peucker로 꼭짓점을 뽑고, 인접 구간을 늘려 가며 원 피팅이 되면 `arc`, 아니면 `line`. 맞지 않는 구간은 그 폴리라인 조각을 `line` 여러 개로 남기고 `unsupported`에 센다(`approximate_bspline`과 같은 취급).
+- 출력에 `fit`: `{"points_in", "elements_out", "max_residual"}` 추가. `fill_holes`는 메시에서는 "반지름 `max_fill_radius` 이하의 닫힌 안쪽 원을 버린다"로 동작한다.
+- 높이별 단면의 최대 반지름 각도가 z에 비례해 돌면 **나사**다(스풀 가이드: 1 mm당 180° = 피치 2). `analyze_mesh`가 `thread: {major_r, minor_r, pitch, z_from, z_to, handedness}`로 보고하고, 생성은 7.27의 `helix` op로 받는다. 원·직선으로도 나사로도 안 떨어지는 단면만 폴리라인을 `polygon`으로 쓴다.
+
+### 7.26 `compare_shapes` 메시 입력 (M9)
+`a`가 `Mesh::Feature`면 **불리언을 쓰지 않는다**. 5,758면 메시 솔리드의 퍼지 차집합은 FreeCAD 메인 스레드를 10분 넘게 잡았다 `[라이브 1.1.3, 2026-09-11]`.
+- 방법: `b`(Body)의 면마다 표본점(면 중심 + UV 격자, 전체 ≤ `samples`=2000)을 잡고 법선 방향 ±로 `Mesh.nearestFacetOnRay`를 쏴 메시까지의 거리 = 편차. 반대로 메시 정점 표본(≤ 2000)에서 `b.distToShape(Part.Vertex)`로 역방향 편차. 부피 차·bbox 차는 그대로.
+- 출력: `{"volume_a", "volume_b", "volume_diff_pct", "bbox_diff", "deviation": {"max", "mean", "p95", "samples", "worst": [{"point", "distance", "face_b"}]}, "reverse_deviation": {...}, "verdict"}`. verdict: `max < 0.1 mm`·부피 0.5 % 안 → match, 그 밖에 different. 메시 대 메시는 지원하지 않는다.
+- `worst` 점의 위치가 곧 "어디가 틀렸나"다(퍼지 차집합 조각의 bbox 역할).
+
+### 7.27 `build_features`의 `helix` op (M9)
+나사·나선 홈. `PartDesign::SubtractiveHelix`/`AdditiveHelix` [확인됨: api-notes 16장].
+- 피처: `{"op": "helix", "name": "Thread", "profile": {"polygon": [[r, z], ...]}, "axis_center": [cx, cy], "pitch": 2.0, "height": 10.0 | "turns": 5, "angle": 0, "left_handed": false, "reversed": false, "subtractive": true, "outside": false}`
+- 프로파일은 축을 지나는 XZ 평면 스케치(로컬 x = 축에서의 반지름, y = 전역 Z). 스케치는 `AttachmentOffset`으로 축을 `axis_center`에 맞춘다(XZ 평면의 로컬 z가 전역 −Y).
+- 축은 Z만 지원한다(회전체 부품 기준). 시작 위상은 프로파일의 z가 정한다. 나선은 프로파일 각도(0°)에서 시작해 그 이전 각도의 첫 바퀴는 깎이지 않으므로, 나사가 어떤 면에서 끝나야 하면 한 피치 아래에서 시작하고 그 아래를 Pad로 되메운다(호출자가 한다 — 예제 `examples/stl_spool_guide_with_m7.py`).
+
+### 7.28 `open_document` / `save_document` (M9)
+- `open_document(path)` → FCStd를 연다(이미 열려 있으면 그 문서). 출력: `{"name", "label", "filename", "objects", "already_open"}`. 없는 파일·FCStd가 아니면 오류.
+- `save_document(doc=None, path=None, overwrite=False)` → `path`가 없으면 `doc.save()`(파일 이름이 없는 새 문서면 오류로 경로를 요구), 있으면 `saveAs`. 다른 기존 파일을 덮어쓸 때는 `overwrite=true`가 있어야 한다. 출력: `{"name", "filename", "bytes", "objects"}`. 사용자가 시키기 전에는 저장하지 않는다는 CLAUDE.md 규칙은 그대로다(툴이 있어도 부르는 건 사용자 지시가 있을 때).
+
 ---
 
 ## 8. Claude Code 연결
@@ -558,13 +595,23 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 5. **완료 기준**: `T7_rebuild`(전부 BSpline 면으로 바뀐 프리즘 부품)에서 `classify_faces`가 모든 면을 plane/cylinder로 판별하고 verdict가 prismatic, `section_profile`이 닫힌 윤곽을 Line/Arc만으로 주며, `build_features` 4단계로 재구성한 Body가 `compare_shapes`에서 identical(< 0.001 %). 벤더 부품 2B2를 새 툴만으로 다시 만들어 이전 손 작업과 같은 0.0004 % 이내.
 
 ### M7 부록 — 메시(STL)는 M7 툴 + `execute_code`로 (2026-09-11 확인, 별도 마일스톤 없음)
-STL은 면·솔리드가 없어 M6·M7 툴이 직접 못 읽지만, 스풀 가이드 STL(5,758면)을 M7 툴만으로 다시 그려 메시 정점 전부가 0.03 mm 안, 부피 차 0.014 %가 나왔다(`examples/stl_spool_guide_with_m7.py`). 절차는 CLAUDE.md "STL → 파라메트릭" 항목. 툴로 굳힐 후보(`import_mesh`, `analyze_mesh`, 메시 단면 피팅, 불리언 없는 비교, `helix` op)는 12장에 둔다. 주의: `makeShapeFromMesh` 솔리드에 `compare_shapes`를 부르면 불리언이 10분 넘게 메인 스레드를 잡는다 — 메시 비교는 `execute_code`의 광선 편차로 한다.
+STL은 면·솔리드가 없어 M6·M7 툴이 직접 못 읽지만, 스풀 가이드 STL(5,758면)을 M7 툴만으로 다시 그려 메시 정점 전부가 0.03 mm 안, 부피 차 0.014 %가 나왔다(`examples/stl_spool_guide_with_m7.py`). 절차는 CLAUDE.md "STL → 파라메트릭" 항목. 툴은 M9(7.23~7.27)에서 만든다. 주의: `makeShapeFromMesh` 솔리드에 `compare_shapes`를 부르면 불리언이 10분 넘게 메인 스레드를 잡는다 — 메시 비교는 `execute_code`의 광선 편차로 한다.
 
 ### M8 — 2D 도면 (M7 이후, 2026-09-11 추가)
 `execute_code`로 손으로 해 본 절차(`examples/techdraw_page_from_assembly.py`, api-notes §14)를 툴로 만든다.
 1. `make_drawing` (7.21) — 소스 객체(Body·Part·Link 그룹) → 페이지(템플릿·축척) + 뷰(정면/우측/평면/등각/상세) + 치수(3D 정점·모서리 참조, Projected) + 주석 + 표제란 → PDF/SVG. 뷰 X/Y는 addView 뒤에, 치수 축척은 뷰와 맞추는 규칙 내장
 2. `inspect_drawing` (7.22) — 페이지의 뷰·치수·주석 목록과 값, 상태(Touched/Invalid), 내보낸 파일 경로
 3. **완료 기준**: `T8_drawing`(T1 PartDesign 부품)에서 `make_drawing`이 3면도 + 치수 4개(길이·폭·높이·구멍 지름)를 만들고 값이 모델과 같으며, PDF가 A4 한 장으로 나온다. 철봉 프레임(Link 27개)에서 상세 2개·치수 13개짜리 페이지가 예제와 같은 결과를 낸다.
+
+### M9 — 문서 저장·열기 + 메시(STL) 툴 (M8 이후, 2026-09-11 추가)
+M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 굳힌다. 판독(어떤 피처로 볼지)은 여전히 Claude가 하고, 툴은 읽기·측정·단면 피팅·생성·비교만 한다.
+1. `open_document` / `save_document` (7.28)
+2. `import_mesh` (7.23), `analyze_mesh` (7.24) — `handlers/mesh.py`
+3. `section_profile` 메시 입력 (7.25), `build_features`의 `profile.section`도 메시를 받게
+4. `compare_shapes` 메시 입력 (7.26) — 불리언 없이 법선 광선 편차
+5. `build_features`의 `helix` op (7.27)
+6. `classify_faces`·`section_profile`의 `levels[].faces` 목록 상한(`max_level_faces`, 기본 20)
+7. **완료 기준**: `T9_mesh`(T7 "Plate"를 STL로 내보내 다시 읽은 "PlateMesh")에서 `import_mesh`가 is_solid, `analyze_mesh`가 levels [0, 6, 10] ±0.02·verdict prismatic, `section_profile(z=3)`이 선분 4개(안쪽 원 버림)·`z=8`이 선분 4개 + 원 2개(r 3.3 ±0.02), 그 단면으로 `build_features` → `compare_shapes(PlateMesh, Body)`가 max 편차 < 0.05 mm·부피 0.5 % 안. `helix` op로 판 위 원기둥에 피치 2 홈을 판 Body가 유효하고 부피가 줄며, 그것을 메시로 바꿔 `analyze_mesh`가 pitch 2 ±0.05를 잡는다. `save_document`→`open_document` 왕복 뒤 객체 수가 같다.
 
 ---
 
@@ -581,6 +628,7 @@ STL은 면·솔리드가 없어 M6·M7 툴이 직접 못 읽지만, 스풀 가�
 | `T6_step` | T1을 STEP으로 내보낸 뒤 다시 가져온 것 + Ø6.6 구멍 4개 판 + 일부러 겹치게 놓은 블록 2개 (fixtures가 `Import.export`로 생성) | 히스토리 없음(스케치 0), `find_holes`가 구멍 4개·Ø6.6, `check_interference`가 블록 쌍을 `interference`로 보고 |
 | `T7_rebuild` | 단차 판(60×40×10, 위 절반 4 mm 단차) + Ø6.6 관통 2개 + Ø10×3 카운터보어 + 0.5 챔퍼를 `Part::Feature` "Plate"로, 같은 형상을 `transformGeometry`로 전부 BSpline 면으로 바꾼 "PlateB" (M7) | `classify_faces(PlateB)`: 면 전부 plane/cylinder, verdict prismatic, levels [0, 6, 10]. `section_profile(z=3)`: 닫힌 선분 4개(구멍 메움). `build_features` Pad·Pad·Pocket·Pocket·Chamfer → `compare_shapes(Plate, Body)` identical |
 | `T8_drawing` | T1(PartDesign 판 + 구멍)과 pole_frame(Link 27개, `examples/pole_frame_from_dxf.py`) (M8) | `make_drawing(T1)`: 뷰 3개·치수 4개 값이 모델과 같음, PDF A4 1장. `inspect_drawing`이 치수 값을 그대로 돌려줌 |
+| `T9_mesh` | T7의 "Plate"를 `MeshPart.meshFromShape`(LinearDeflection 0.02)로 STL에 내보내 `Mesh.insert`로 다시 읽은 `Mesh::Feature` "PlateMesh" (M9) | `import_mesh`: is_solid. `analyze_mesh`: levels [0, 6, 10], verdict prismatic. `section_profile(PlateMesh, z=3)`: 선분 4개. `build_features` → `compare_shapes(PlateMesh, Body)` max 편차 < 0.05 |
 
 ### CLAUDE.md에 넣을 진단 워크플로 (이 MCP를 사용하는 AI용)
 1. `ping` → 연결·버전 확인
@@ -611,40 +659,10 @@ STL은 면·솔리드가 없어 M6·M7 툴이 직접 못 읽지만, 스풀 가�
 ## 12. 이후 확장 후보 (v1 이후, 지금은 구현하지 않음)
 
 - 헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)
-- `open_document(path)` / `save_document` (FCStd 저장·열기 — STEP은 7.12로 해결)
 - 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
 - 제약 오류 자동 수정 제안(`autoconstraint`, `detectMissingPointOnPointConstraints` 활용)
 - 원격 호스트 접속(허용 IP 목록)
 - Addon Manager 배포용 `package.xml` 완성
-
-### 12.1 메시(STL) 전용 툴 후보 — M7 툴 + execute_code로 대신하고 있음(M7 부록)
-
-#### 7.21 `import_mesh` (후보)
-STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 않는다). 투명도를 올려 새로 그리는 Body와 겹쳐 보게 한다.
-- 입력: `path, doc=None, transparency=70, label=None`
-- 출력: `{"name", "label", "facets", "points", "is_solid", "non_manifold", "self_intersections", "bbox", "size", "volume"(is_solid일 때), "elapsed_ms"}`
-- `is_solid`가 false면 경고(부피·비교 신뢰 불가). 파일이 없거나 형식이 아니면 오류 봉투.
-- 방법 `[라이브 1.1.3]`: `Mesh.insert(path, docName)` → `Mesh::Feature`; `Mesh.isSolid()`, `hasNonManifolds()`, `hasSelfIntersections()`, `BoundBox`, `Volume`. `ViewObject.Transparency`로 투명.
-
-#### 7.22 `analyze_mesh` (후보)
-메시의 **주축·띠(레벨)·단면 원**을 한 번에 뽑는다. `classify_faces`의 메시판 — 삼각형 면을 하나씩 보지 않고 평면 세그먼트와 단면 원 피팅으로 정체를 잡는다.
-- 입력: `name, doc=None, axis=None(자동), dev=0.05, min_facets=10, max_levels=30, max_segments=50`
-- 출력: `{"main_axis", "main_axis_letter", "levels": [{"position", "area", "facets"}], "center": [x, y] | null(단면 원들의 공통 중심), "bands": [{"from", "to", "mid", "circles": [{"center", "r", "rms"}], "wires": n}], "segments": [{"normal", "position", "area", "facets"}], "verdict": "prismatic|revolved|mixed|free_form", "notes": [...]}`
-- 방법 `[라이브 1.1.3]`: `getPlanarSegments(dev, min_facets)`로 평면 세그먼트 → 법선을 면적 가중으로 묶어 주축(가장 큰 평면 면적의 법선) → 주축에 수직인 세그먼트의 위치가 `levels`. 레벨 사이 중간 높이마다 `crossSections`로 폴리라인을 얻어 최소제곱 원 피팅(rms < dev면 원). 원들의 중심이 모두 같으면 `center`(회전체 계열). `getSegmentsOfType("Cylinder")`는 원통을 못 찾는 경우가 많아(스풀 가이드 STL에서 0개) 쓰지 않는다.
-- **목록은 개수만**: `levels[].facets`는 숫자다(면 인덱스 목록을 넣으면 5,758면 메시에서 응답이 수백 KB가 된다 — `classify_faces`가 메시 솔리드에서 그랬다).
-
-#### 7.23 `section_profile` 메시 입력 (후보)
-`name`이 `Mesh::Feature`면 `crossSections`의 폴리라인을 **직선·원호·원으로 피팅**해 7.17과 같은 형식(`elements`, `sketch_plane`)으로 준다. `build_features`의 `profile.section`도 그대로 메시를 받는다.
-- 추가 입력: `fit_tolerance=0.05`(피팅 허용 rms, 메시 편차보다 크게), `corner_tolerance=0.15`(꼭짓점 검출 RDP)
-- 방법: 폴리라인 전체가 한 원에 맞으면 `circle`. 아니면 Douglas-Peucker로 꼭짓점을 뽑고, 인접 구간을 늘려 가며 원 피팅이 되면 `arc`, 아니면 `line`. 맞지 않는 구간은 그 폴리라인 조각을 `line` 여러 개로 남기고 `unsupported`에 센다(`approximate_bspline`과 같은 취급).
-- 출력에 `fit`: `{"points_in", "elements_out", "max_residual"}` 추가. `fill_holes`는 메시에서는 "반지름 `max_fill_radius` 이하의 닫힌 안쪽 원을 버린다"로 동작한다.
-- 높이별 단면의 최대 반지름 각도가 z에 비례해 돌면 **나사**다(스풀 가이드: 1 mm당 180° = 피치 2). `analyze_mesh`가 `thread: {major_r, minor_r, pitch, start_z, length, handedness}`로 보고하고, 생성은 `build_features`에 `helix` op(SubtractiveHelix, api-notes §16)를 추가해 받는다. 원·직선으로도 나사로도 안 떨어지는 단면만 폴리라인을 `polygon`으로 쓴다.
-
-#### 7.24 `compare_shapes` 메시 입력 (후보)
-`a`가 `Mesh::Feature`면 **불리언을 쓰지 않는다**. 5,758면 메시 솔리드의 퍼지 차집합은 FreeCAD 메인 스레드를 10분 넘게 잡았다 `[라이브 1.1.3, 2026-09-11]`.
-- 방법: `b`(Body)의 면마다 표본점(면 중심 + UV 격자, 전체 ≤ `samples`=2000)을 잡고 법선 방향 ±로 `Mesh.nearestFacetOnRay`를 쏴 메시까지의 거리 = 편차. 반대로 메시 정점 표본(≤ 2000)에서 `b.distToShape(Part.Vertex)`로 역방향 편차. 부피 차·bbox 차는 그대로.
-- 출력: `{"volume_a", "volume_b", "volume_diff_pct", "bbox_diff", "deviation": {"max", "mean", "p95", "samples", "worst": [{"point", "distance", "face_b"}]}, "reverse_deviation": {...}, "verdict"}`. verdict: `max < 0.1 mm`·부피 0.5 % 안 → match, 그 밖에 different. 메시 대 메시는 지원하지 않는다.
-- `worst` 점의 위치가 곧 "어디가 틀렸나"다(퍼지 차집합 조각의 bbox 역할).
 
 
 ---

@@ -48,13 +48,13 @@
 6. `build_features`가 `stopped_at`을 돌려주면 그 피처의 `status`가 원인이다. 실패한 객체는 문서에 남는다(Body.Tip이 그것을 가리키므로 지우면 Tip을 되돌린다)
 7. 어셈블리 전체를 다시 만들 때: 같은 부품(면 수·부피·크기가 같은 것)은 **종류당 Body 하나**만 만들고, 인스턴스는 `align_shapes(기준 인스턴스, 인스턴스)`의 `matrix`를 `App::Link.Placement`에 넣는다. STEP의 `Placement`는 인스턴스 변환이 아니다. `mirrored: true`면 `Part::Mirroring` 본을 만들어 그것을 다시 정렬한다. 한 문서에 여러 종류를 만들 때는 파라미터·피처 이름에 종류 접두사를 붙인다(`examples/assemble_from_bodies.py`)
 
-### STL(메시) → 파라메트릭 워크플로 (M7 툴 + execute_code, `examples/stl_spool_guide_with_m7.py`)
-1. `execute_code`: `Mesh.insert(path, doc)`로 참고 메시를 읽고 `ViewObject.Transparency = 70`. `isSolid()`가 False면 부피·비교를 믿지 않는다
-2. `execute_code`: `Part.Shape().makeShapeFromMesh(mesh.Topology, 0.01)` → `Part.makeSolid` → `Part::Feature`로 두고 `classify_faces`를 부른다. 면은 전부 plane으로 나오지만 `rebuild.levels`(띠 경계 z)와 `main_axis`는 맞다. `find_holes`는 0개다
-3. `execute_code`: 띠 중간 높이마다 `mesh.crossSections([((0,0,z),(0,0,1))], 0.001)` 폴리라인을 최소제곱 원 피팅(Kasa) → 원이면 반지름·중심(0.01 mm 안), 아니면 (각도, 반지름)으로 펼쳐 모양을 읽는다. 결과는 **평탄한 문자열/짧은 튜플**로 돌려준다(중첩 리스트는 직렬화 깊이 제한에 걸린다)
-4. 높이별 단면의 최대 반지름 각도가 z에 비례해 돌면 나사다(1 mm당 180° = 피치 2). 정점을 (각도, z)로 펼쳐 그리면 사선 줄무늬로 확인된다
-5. 그 값으로 `build_features`(원·호·선 `wires`, 원 요소의 `expr`는 **지름** 수식). 나사는 `PartDesign::SubtractiveHelix`를 `execute_code`로: 프로파일 스케치를 XZ에 붙이고 `AttachmentOffset = Placement(Vector(cx, 0, -cy))`로 축을 부품 중심에, 골 단면 한 피치 전체, 한 피치 아래에서 시작, 아래 잘린 곳은 Pad로 되메움 (api-notes §16)
-6. 검증은 **`compare_shapes`를 부르지 않는다**(메시 솔리드 불리언은 10분 넘게 멈춘다). `execute_code`로 Body 면 표본점에서 `mesh.nearestFacetOnRay`(법선 ±, 시작점 0.6 mm 뒤) 편차와 메시 정점 → `distToShape` 역방향 편차를 잰다. 최대 편차가 큰 점의 위치가 틀린 곳이다
+### STL(메시) → 파라메트릭 워크플로 (M9 툴, `examples/stl_spool_guide_with_m7.py`는 툴 전 손 절차)
+1. `import_mesh(path)` → 참고 메시(투명 70). `is_solid`가 false면 부피·비교를 믿지 않는다
+2. `analyze_mesh(name)` → `main_axis`, `levels`(띠 경계), `bands[].circles`(띠별 단면 원의 중심·반지름), `center`(공통 중심), `thread`(피치·외경·골·방향·z 범위), `verdict`. 축이 이상하면 `axis="X|Y|Z"`
+3. 띠마다 `build_features`의 `profile.section={"of": 메시이름, "position": z}` 로 Pad/Pocket (좌표를 토큰에 싣지 않는다). 원은 `analyze_mesh`의 반지름·중심을 `circles`로 직접 써도 된다. 단면이 원·직선으로 안 떨어지면 `section_profile(name, position, fit_tolerance=…)`로 먼저 보고, `unsupported` 구간은 `polygon`으로
+4. 나사는 `{"op": "helix", "profile": {"polygon": [[r, z], ...]}, "axis_center": center, "pitch": …, "height": …}` — 골 단면 한 피치 전체, 한 피치 아래에서 시작(Height +2피치), 아래 잘린 곳은 Pad로 되메움. 위상은 프로파일 z가 정한다
+5. `compare_shapes(a=메시, b=Body)` → 불리언 없이 `deviation`(Body→메시)·`reverse_deviation`(메시→Body)의 max/p95와 `worst` 점. 최대 편차가 큰 점의 위치가 틀린 곳. `makeShapeFromMesh` 솔리드를 넘기지 않는다(불리언 10분)
+6. 저장은 `save_document(doc, path)` — 사용자가 시킬 때만
 
 ### 2D 도면 워크플로 (M8)
 1. 소스 정하기: Body 하나면 그 이름, Link 어셈블리면 그룹 이름(툴이 Part::Compound로 묶는다)
@@ -73,6 +73,8 @@
 - `check_interference`는 `distToShape`가 0일 때만 `common()`을 부른다. 큰 어셈블리는 `names`를 좁혀서 여러 번 부른다
 - `classify_faces`의 `method: "fit"` 면은 `residual`이 있다. free_form인데 `best_axis_fit.residual`이 작으면 `tolerance`를 그 값보다 크게 주고 다시 부른다
 - `section_profile`의 좌표는 스케치 로컬 2D다(XZ 평면은 (X, Z), YZ 평면은 (Y, Z)). `sketch_plane.build_features`를 그대로 `build_features`의 `plane`/`position`에 넣는다
+- `analyze_mesh`의 `thread.center`·`center`는 단면 좌표(축이 Z면 X,Y)다. `levels[].facets`는 개수뿐이다
+- `open_document`로 다시 연 문서의 이름은 파일명이다(원래 문서 이름은 남지 않는다)
 - `make_drawing`의 치수는 Projected 모드라 DistanceX/Y가 뷰 축을 따른다. 상세 뷰(`view`에 `ref` 글자)에서도 같은 방식으로 잰다
 - `compare_shapes`에서 `boolean_failed`가 true면 `missing/extra`는 무시하고 `volume_diff`·`area_diff`로만 판단한다
 

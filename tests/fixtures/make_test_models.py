@@ -269,7 +269,46 @@ def T7_rebuild():
     return doc
 
 
+# --- T9 메시(STL) --------------------------------------------------------------------
+
+T9_STL_PATH = None
+
+
+def _plate_shape():
+    s = Part.makeBox(60, 40, 10)
+    s = s.cut(Part.makeBox(30, 40, 4, Vec(30, 0, 6)))
+    for x in (15, 45):
+        s = s.cut(Part.makeCylinder(3.3, 10, Vec(x, 20, 0)))
+    s = s.cut(Part.makeCylinder(5.0, 3, Vec(15, 20, 7)))
+    bottom = [e for e in s.Edges if type(e.Curve).__name__ == "Circle" and abs(e.Curve.Radius - 3.3) < 1e-6 and abs(e.Curve.Center.z) < 1e-6]
+    return s.makeChamfer(0.5, bottom)
+
+
+def T9_mesh():
+    """T7의 판을 STL로 내보내 다시 읽은 Mesh::Feature "PlateMesh" (M9). 원본 "Plate"도 같이 둔다."""
+    import os
+    import tempfile
+
+    import Mesh
+    import MeshPart
+
+    global T9_STL_PATH
+    doc = _fresh("T9_mesh")
+    s = _plate_shape()
+    plate = doc.addObject("Part::Feature", "Plate")
+    plate.Shape = s
+    m = MeshPart.meshFromShape(Shape=s, LinearDeflection=0.02, AngularDeflection=0.2, Relative=False)
+    T9_STL_PATH = os.path.join(tempfile.gettempdir(), "cadxray_T9_plate.stl")
+    m.write(T9_STL_PATH)
+    Mesh.insert(T9_STL_PATH, doc.Name)
+    mf = [o for o in doc.Objects if o.TypeId == "Mesh::Feature"][-1]
+    mf.Label = "PlateMesh"
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T9_mesh": T9_mesh,
     "T7_rebuild": T7_rebuild,
     "T1_clean": T1_clean,
     "T2_underconstrained": T2_underconstrained,

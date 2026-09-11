@@ -370,6 +370,7 @@ def section_profile(
     fill_holes=True(기본)는 구멍·카운터보어·챔퍼 자리를 3D에서 메운 뒤 자르므로 바깥 윤곽만 나온다.
     포켓 안쪽 윤곽이 필요하면 False. 좌표는 sketch_plane의 로컬 2D(XY: X,Y / XZ: X,Z / YZ: Y,Z).
     build_features의 profile.section을 쓰면 이 좌표를 다시 보낼 필요가 없다.
+    name이 Mesh::Feature(STL)면 메시 단면 폴리라인을 직선·원호·원으로 피팅한다(fit_tolerance는 메시 편차보다 크게, 기본 0.05).
     """
     return client.call(
         "section_profile",
@@ -399,6 +400,8 @@ def build_features(
              | {"polygon": [[x, y], ...]} | {"rect": {"center": [x, y], "width": w, "height": h}}
     pocket: "through": true 또는 "length"; "reversed": true 로 방향 반전(YZ 평면은 −X로 판다).
     groove/revolution: "axis": {"x": v} 또는 {"y": v} (스케치 로컬), "angle": 360. 프로파일은 축 한쪽에만.
+helix(나사·나선 홈, 축 Z): {"op":"helix","profile":{"polygon":[[r,z],...]},"axis_center":[cx,cy],"pitch":2,"height":10,"subtractive":true,"left_handed":false}.
+       나선은 프로파일 각도 0°에서 시작하므로 한 피치 아래에서 시작하고 아래를 Pad로 되메운다.
     fillet/chamfer: "size", "edges": ["Edge3", ...] 또는 {"curve": "Circle", "radius": 1.7, "center": [x, null, null]}.
     params={"h": 16}는 Spreadsheet 'Params' 별칭으로 기록되어 수식에서 Params.h로 쓴다.
     떨어진 Pad는 한 Body에 못 넣는다 → 겹치게 순서대로. 실패하면 stopped_at과 status에 원인.
@@ -426,6 +429,7 @@ def compare_shapes(
     부피·면적·bbox 차와 퍼지 차집합 조각(missing_in_b: 원본에만 있음 / extra_in_b: 새 모델에만 있음)의
     bbox·중심을 준다 — 틀린 곳을 바로 짚는다. verdict: identical(< 0.001 %) / match(< 0.1 %) / different.
     b가 다른 문서면 doc_b. bbox 중심이 어긋나면 Body.Placement 경고.
+    a 또는 b가 Mesh::Feature(STL)면 불리언 없이 법선 광선 편차(deviation/reverse_deviation, worst 점)로 비교한다.
     """
     return client.call(
         "compare_shapes",
@@ -506,6 +510,48 @@ def inspect_drawing(page: str | None = None, doc: str | None = None) -> str:
     치수 value는 모델에서 잰 값. status가 Invalid면 참조가 깨진 치수, 뷰의 edges가 0이면 소스가 빈 뷰다.
     """
     return client.call("inspect_drawing", {"page": page, "doc": doc}, timeout=70)
+
+
+@mcp.tool()
+def open_document(path: str) -> str:
+    """FCStd 파일을 연다(이미 열려 있으면 그 문서를 알려준다). STEP은 import_step, STL은 import_mesh로. (M9)"""
+    return client.call("open_document", {"path": path}, timeout=190)
+
+
+@mcp.tool()
+def save_document(doc: str | None = None, path: str | None = None, overwrite: bool = False) -> str:
+    """문서를 저장한다 (M9). path 없으면 원래 파일에 덮어쓰고(새 문서면 오류), 있으면 그 경로로 saveAs.
+
+    다른 기존 파일을 덮어쓸 때만 overwrite=true. 사용자가 저장하라고 하기 전에는 부르지 않는다.
+    """
+    return client.call("save_document", {"doc": doc, "path": path, "overwrite": overwrite}, timeout=190)
+
+
+@mcp.tool()
+def import_mesh(path: str, doc: str | None = None, transparency: int = 70, label: str | None = None) -> str:
+    """STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다 (M9). 변환하지 않고 투명하게 띄운다.
+
+    is_solid가 false면 부피·비교를 믿지 말 것. 그다음 analyze_mesh → section_profile(메시 이름) → build_features →
+    compare_shapes(메시, Body) 순서로 다시 그린다 (CLAUDE.md "STL → 파라메트릭").
+    """
+    return client.call("import_mesh", {"path": path, "doc": doc, "transparency": transparency, "label": label}, timeout=190)
+
+
+@mcp.tool()
+def analyze_mesh(
+    name: str,
+    doc: str | None = None,
+    axis: str | None = None,
+    fit_tolerance: float = 0.05,
+    detect_thread: bool = True,
+) -> str:
+    """메시의 **주축·레벨(띠 경계)·띠별 단면 원·공통 중심·나사**를 한 번에 (M9). classify_faces의 메시판.
+
+    levels: 주축에 수직인 평면의 위치(면 개수만). bands: 레벨 사이 중간 높이 단면 — 원이면 center·r, 아니면 요소 수.
+    center: 단면 원들의 공통 중심(회전체 계열). thread: {pitch, major_r, minor_r, z_from, z_to, handedness} — helix op로 만든다.
+    verdict: revolved / prismatic / mixed. 축이 틀리면 axis="X|Y|Z"로.
+    """
+    return client.call("analyze_mesh", {"name": name, "doc": doc, "axis": axis, "fit_tolerance": fit_tolerance, "detect_thread": detect_thread}, timeout=190)
 
 
 @mcp.tool()

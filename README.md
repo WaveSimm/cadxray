@@ -33,7 +33,7 @@ uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray i
 claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
 ```
 
-첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 21개)`). 끝입니다.
+첫 줄이 애드온을 FreeCAD Mod 폴더에 복사하고(처음엔 내려받느라 10~30초), 둘째 줄이 Claude Code에 등록합니다. 그다음 **FreeCAD를 껐다 켜면** 서버가 자동으로 뜹니다(리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 25개)`). 끝입니다.
 
 이제 아무 폴더에서나 터미널에 `claude`를 쳐서 Claude Code를 열고, 4장처럼 말로 시키면 됩니다.
 
@@ -139,6 +139,11 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `align_shapes` | 같은 부품의 두 인스턴스 사이 강체 변환(관성 주축 + 표면 점 검증). 재구성한 Body를 Link로 여러 자리에 놓을 때. 거울상이면 `mirrored` |
 | `make_drawing` | **2D 도면(M8)**: Body·Part·Link 그룹 → TechDraw 페이지(ISO 표제란, 자동 축척·배치, 정면/우측/평면/등각/상세) + 치수(모델 정점·실루엣·원 참조, 값은 모델에서 잼) + 주석 + 표제란 → PDF/SVG. Link 27개 어셈블리 5뷰·치수 13개 87초 |
 | `inspect_drawing` | 페이지의 뷰·치수 값·주석·표제란 읽기. 빈 뷰(모서리 0)·깨진 치수(Invalid) 찾기 |
+| `import_mesh` | **STL(M9)**: STL/OBJ/PLY/3MF를 참고용 Mesh 객체로(투명), 닫힘·자기교차 검사 |
+| `analyze_mesh` | 메시의 주축·레벨(띠 경계)·띠별 단면 원·공통 중심·**나사(피치·외경·골·방향)**·verdict. `classify_faces`의 메시판 |
+| `section_profile` / `compare_shapes` 메시 입력 | 메시 단면 폴리라인을 직선·원호·원으로 피팅해 `build_features`가 그대로 받음 / 불리언 없이 법선 광선 편차(worst 점)로 비교 |
+| `build_features` `helix` op | 나사·나선 홈(SubtractiveHelix/AdditiveHelix), 축 중심·피치·높이·방향 |
+| `open_document` / `save_document` | FCStd 열기·저장(다른 파일 덮어쓰기는 overwrite 필요) |
 
 `find_holes`는 오목 원통면의 호 각도(`arc_deg`)로 **구멍 / 필렛 / 슬롯 끝**을 구분하고(`kind`), 같은 축이라도 떨어져 있는 자리파기는 따로 셉니다. `patterns`는 직경·축 방향별로 묶입니다.
 
@@ -150,7 +155,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 - `examples/techdraw_page_from_assembly.py` — 철봉 프레임 어셈블리의 TechDraw 페이지를 손으로 만든 기록(M8 `make_drawing`의 원형). `examples/pole_frame_from_dxf.py`·`cover_from_pdf_drawing.py`·`pcb_from_dxf.py`·`ink_holder_from_photo.py` — DXF·벡터 PDF·사진(조감도)에서 3D를 만든 기록
 - `examples/rebuild_2b2_with_tools.py` — 같은 클램프 조를 **M7 툴 네 개만으로** 다시 만든 기록. 손으로 쓰던 200줄이 피처 12개 목록 하나가 됐고, 스케치 12개 전부 DoF 0, `compare_shapes` 판정 identical(부피 차 0.0004 %). BSpline 전이면 8개는 `classify_faces`가 원뿔(축·꼭짓점·반각 59.63°)로 판별했습니다. 그때 확인한 것(법선 부호 뒤집힘, `common()`의 겹친 면, 구성점으로 호 고정, 반지름 반올림의 대가)은 13절
 
-**STL/OBJ는 분석 툴이 직접 못 읽습니다.** 메시(삼각형 뭉치)라 면·솔리드가 없어서 구멍·간섭 툴이 동작하지 않습니다. 대신 참고 메시를 띄우고 단면을 원 피팅해 `build_features`로 다시 그리는 절차가 있습니다(CLAUDE.md, `examples/stl_spool_guide_with_m7.py` — 3D 프린트용 스풀 가이드 STL 5,758면을 메시 정점 전부 0.03 mm 안, 부피 0.014 %로 재구성, 수나사 포함). 메시 솔리드에 `compare_shapes`는 부르지 마세요(불리언이 10분 넘게 걸립니다). 벤더에게 **STEP**을 받으세요.
+**STL/OBJ**는 구멍·간섭 툴이 직접 못 읽지만(면·솔리드 없음), M9 툴로 다시 그릴 수 있습니다: `import_mesh` → `analyze_mesh`(레벨·단면 원·나사) → `section_profile`(메시 단면 피팅) → `build_features`(`profile.section`에 메시 이름, 나사는 `helix` op) → `compare_shapes`(메시, Body: 광선 편차). 3D 프린트용 스풀 가이드 STL(5,758면)을 이 절차로 메시 정점 전부 0.03 mm 안, 부피 0.014 %로 재구성했습니다(수나사 M44.5×2 포함, `examples/stl_spool_guide_with_m7.py`). `makeShapeFromMesh`로 만든 솔리드에 예전 방식 `compare_shapes`를 부르면 불리언이 10분 넘게 걸리므로 메시 이름을 그대로 넘기세요. 벤더에게 **STEP**을 받으세요.
 
 모든 응답은 `{"ok", "data", "warnings", "truncated", "elapsed_ms"}` 봉투이고, 목록형 응답은 `max_*` 인자로 크기를 조절합니다. 요약(`summary`, `invalid_objects`)은 잘려도 항상 전체 기준입니다.
 

@@ -48,7 +48,9 @@ import FreeCAD  # noqa: E402
 import make_test_models as fx  # noqa: E402
 from CadXray import rpc_server  # noqa: E402
 from CadXray.handlers import (  # noqa: E402
+    documents,
     drawing,
+    mesh as mesh_mod,
     REGISTRY,
     document_graph,
     documents,
@@ -404,6 +406,104 @@ def test_drawing_tools():
     check("없는 템플릿 → 후보 안내", not r5["ok"] and "ISO/" in r5["error"])
 
 
+def test_mesh_tools():
+    section("M9: import_mesh / analyze_mesh / section_profile(메시) / build_features / compare_shapes(메시) / helix / save·open")
+    doc = FreeCAD.getDocument("T9_mesh")
+    mesh_name = [o for o in doc.Objects if o.TypeId == "Mesh::Feature"][0].Name
+    r = measure("import_mesh", "판 STL", mesh_mod.import_mesh(path=fx.T9_STL_PATH, doc="T9_mesh", label="PlateMesh2"))
+    check("import_mesh ok, 솔리드", r["ok"] and r["data"]["is_solid"] and r["data"]["facets"] > 100, str(r.get("error") or r["data"]))
+    check("import_mesh 크기 60×40×10", r["ok"] and [round(v) for v in r["data"]["size"]] == [60, 40, 10], str(r.get("data", {}).get("size")))
+    r = mesh_mod.import_mesh(path="C:/nope.stl")
+    check("없는 파일 → 오류", not r["ok"])
+    r = mesh_mod.import_mesh(path=__file__)
+    check("메시 파일 아님 → 오류", not r["ok"] and "STL" in r["error"])
+
+    r = measure("analyze_mesh", "판 메시", mesh_mod.analyze_mesh(name=mesh_name, doc="T9_mesh"))
+    check("analyze_mesh ok", r["ok"], str(r.get("error")))
+    d = r["data"]
+    pos = sorted(lv["position"] for lv in d["levels"])
+    check("주축 Z, levels ⊇ {0, 6, 10} ±0.02", d["main_axis_letter"] == "Z" and all(any(abs(p - t) < 0.02 for p in pos) for t in (0, 6, 10)), str(pos))
+    check("verdict prismatic", d["verdict"] == "prismatic", d["verdict"])
+    check("levels에 faces 목록 없음(개수만)", all(isinstance(lv.get("facets"), int) and "faces" not in lv for lv in d["levels"]))
+
+    r = measure("section_profile", "메시 z=3 (구멍 메움)", rebuild.section_profile(doc="T9_mesh", name=mesh_name, position=3.0))
+    check("메시 단면 ok, source=mesh", r["ok"] and r["data"]["source"] == "mesh", str(r.get("error")))
+    w = r["data"]["wires"]
+    check("z=3: 닫힌 윤곽 1개, 선분 4개, 구멍 2개 메움", len(w) == 1 and w[0]["elements_total"] == 4 and all(e["type"] == "line" for e in w[0]["elements"]) and r["data"]["filled_holes"] == 2,
+          str([(x["elements_total"], [e["type"] for e in x["elements"]]) for x in w]) + f" filled={r['data'].get('filled_holes')}")
+    r = rebuild.section_profile(doc="T9_mesh", name=mesh_name, position=8.0, fill_holes=False)
+    w = r["data"]["wires"]
+    circles = [e for x in w for e in x["elements"] if e["type"] == "circle"]
+    check("z=8: 선분 4 + 카운터보어 원 r5 ±0.02", len(w) == 2 and w[0]["elements_total"] == 4 and len(circles) == 1 and abs(circles[0]["radius"] - 5.0) < 0.02,
+          str([(x["elements_total"], [e["type"] for e in x["elements"]]) for x in w]) + str([c.get("radius") for c in circles]))
+    r = rebuild.section_profile(doc="T9_mesh", name=mesh_name)
+    check("position=None → 메시 levels", r["ok"] and {0.0, 6.0, 10.0} <= {round(lv["position"]) + 0.0 for lv in r["data"]["levels"]}, str(r["data"].get("levels")))
+
+    feats = [
+        {"op": "pad", "name": "PadLow", "plane": "XY", "position": 0.0, "length": 6.0, "profile": {"section": {"of": mesh_name, "position": 3.0}}},
+        {"op": "pad", "name": "PadHigh", "plane": "XY", "position": 5.0, "length": 5.0, "profile": {"section": {"of": mesh_name, "position": 8.0}}},
+        {"op": "pocket", "name": "PocketHoles", "plane": "XY", "position": 10.0, "through": True, "profile": {"circles": [{"center": [15, 20], "diameter": 6.6}, {"center": [45, 20], "diameter": 6.6}]}},
+        {"op": "pocket", "name": "PocketCB", "plane": "XY", "position": 10.0, "length": 3.0, "profile": {"circles": [{"center": [15, 20], "diameter": 10.0}]}},
+        {"op": "chamfer", "name": "ChamferBottom", "size": 0.5, "edges": {"curve": "Circle", "radius": 3.3, "center": [None, None, 0.0]}},
+    ]
+    r = measure("build_features", "메시 단면으로 재구성", rebuild.build_features(body="RebuiltM", doc="T9_mesh", features=feats))
+    check("메시 단면으로 build_features 완주", r["ok"] and r["data"]["stopped_at"] is None, str(r.get("error") or r["data"].get("stopped_at")) + str([(c["name"], c["status"][:40]) for c in r.get("data", {}).get("created", [])]))
+    check("스케치 전부 DoF 0", r["ok"] and all(c.get("dof") in (0, None) for c in r["data"]["created"]), str([c.get("dof") for c in r["data"]["created"]]))
+    r = measure("compare_shapes", "메시 vs Body", rebuild.compare_shapes(a=mesh_name, b="RebuiltM", doc="T9_mesh"))
+    check("메시 비교 ok, method mesh_deviation", r["ok"] and r["data"]["method"] == "mesh_deviation", str(r.get("error")))
+    d = r["data"]
+    check("최대 편차 < 0.05, 부피 0.5 % 안, verdict match", d["deviation"]["max"] < 0.05 and d["reverse_deviation"]["max"] < 0.05 and abs(d["volume_diff_pct"]) < 0.5 and d["verdict"] == "match",
+          f"dev={d['deviation']['max']} rev={d['reverse_deviation']['max']} vol={d['volume_diff_pct']} {d['verdict']}")
+    r = rebuild.compare_shapes(a=mesh_name, b=mesh_name, doc="T9_mesh")
+    check("메시 대 메시 → 오류", not r["ok"])
+
+    # helix: 원기둥에 피치 2 홈 → 메시로 바꿔 analyze_mesh가 나사를 잡는다
+    feats = [
+        {"op": "pad", "name": "PadCyl", "plane": "XY", "position": 0.0, "length": 20.0, "profile": {"circles": [{"center": [0, 0], "diameter": 20.0}]}},
+        {"op": "helix", "name": "Thread", "profile": {"polygon": [[11, -2.0], [10, -2.0], [9.0, -1.4], [9.0, -0.6], [10, 0.0], [11, 0.0]]},
+         "axis_center": [0, 0], "pitch": 2.0, "height": 24.0},
+    ]
+    r = measure("build_features", "helix 나사", rebuild.build_features(body="Screw", doc="T9_mesh", features=feats))
+    check("helix op 완주·유효", r["ok"] and r["data"]["stopped_at"] is None and r["data"]["created"][-1]["status"] == "Valid", str(r.get("error") or r["data"].get("created")))
+    v_cyl = math.pi * 100 * 20
+    check("나사 홈만큼 부피 감소", r["ok"] and 0.85 * v_cyl < r["data"]["created"][-1]["volume_after"] < 0.99 * v_cyl, str(r["data"]["created"][-1].get("volume_after")))
+    import MeshPart
+    screw = doc.getObject("Screw")
+    m = MeshPart.meshFromShape(Shape=screw.Shape, LinearDeflection=0.02, AngularDeflection=0.2, Relative=False)
+    mf = doc.addObject("Mesh::Feature", "ScrewMesh")
+    mf.Mesh = m
+    doc.recompute()
+    r = measure("analyze_mesh", "나사 메시", mesh_mod.analyze_mesh(name="ScrewMesh", doc="T9_mesh"))
+    th = r["data"].get("thread") if r["ok"] else None
+    check("나사 감지: 피치 2 ±0.05, 오른나사, 외경 r 10", bool(th) and abs(th["pitch"] - 2.0) < 0.05 and th["handedness"] == "right" and abs(th["major_r"] - 10.0) < 0.05, str(th))
+    check("공통 중심 (0, 0)", r["ok"] and r["data"]["center"] is not None and abs(r["data"]["center"][0]) < 0.05 and abs(r["data"]["center"][1]) < 0.05, str(r["data"].get("center")))
+
+    # save / open 왕복
+    import os
+    import tempfile
+    path = os.path.join(tempfile.gettempdir(), "cadxray_T9_roundtrip.FCStd")
+    if os.path.exists(path):
+        os.remove(path)
+    n_before = len(doc.Objects)
+    r = measure("save_document", "T9 저장", documents.save_document(doc="T9_mesh", path=path))
+    check("save_document ok, 파일 생김", r["ok"] and os.path.exists(path) and r["data"]["bytes"] > 0, str(r.get("error")))
+    r = documents.save_document(doc="T7_rebuild", path=path)
+    check("다른 기존 파일 덮어쓰기 거부(overwrite 없음)", not r["ok"] and "overwrite" in r["error"], str(r.get("error") or r.get("data")))
+    r = documents.save_document(doc="T9_mesh", path=os.path.join(tempfile.gettempdir(), "cadxray_T9_plate.stl"))
+    check("FCStd가 아닌 경로 → 오류", not r["ok"] and "FCStd" in r["error"])
+    r = documents.open_document(path=path)
+    check("열린 파일 open → already_open", r["ok"] and r["data"]["already_open"], str(r.get("error") or r["data"]))
+    FreeCAD.closeDocument("T9_mesh")
+    r = measure("open_document", "T9 다시 열기", documents.open_document(path=path))
+    check("open_document ok, 객체 수 같음(이름은 파일명)", r["ok"] and r["data"]["objects"] == n_before and r["data"]["name"] == "cadxray_T9_roundtrip", str(r.get("error") or r["data"]))
+    if r["ok"]:
+        FreeCAD.closeDocument(r["data"]["name"])
+    r = documents.open_document(path="C:/nope.FCStd")
+    check("없는 파일 → 오류", not r["ok"])
+    r = documents.save_document(doc="T2_underconstrained")
+    check("파일 없는 문서 save → 경로 요구", not r["ok"] and "path" in r["error"])
+
+
 def test_registry_and_cap():
     section("레지스트리 / 하드캡")
     expected = {
@@ -617,6 +717,7 @@ def main():
         ("step_tools", test_step_tools),
         ("rebuild_tools", test_rebuild_tools),
         ("drawing_tools", test_drawing_tools),
+        ("mesh_tools", test_mesh_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):
         run(name, fn)
