@@ -12,7 +12,7 @@ FreeCAD 안에서 exec 하거나, 같은 내용을 Claude가 MCP 툴 호출로 �
 """
 import FreeCAD
 
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 SRC_DOC, SRC_NAME = "Unnamed", "Part__Feature004"
 DOC = "jaw_2B2_tools"

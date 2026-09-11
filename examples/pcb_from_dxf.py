@@ -78,7 +78,7 @@ for key, fname in FILES.items():
     HOLES[key] = {"holes": uniq}
 
 import FreeCAD
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 W, H, R, T = 70.0, 55.0, 1.27, 1.6    # 파라미터 시트용 표기값 (외곽 자체는 DXF에서 읽은 요소를 쓴다)
 results = {}

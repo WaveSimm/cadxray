@@ -5,6 +5,8 @@ InitGui.py 안에서 클래스를 정의하면 FreeCAD의 exec 방식 때문에 
 """
 
 import FreeCAD
+import os
+
 import FreeCADGui
 
 from . import rpc_server, settings
@@ -93,6 +95,7 @@ class CadXraySetPort:
 class CadXrayWorkbench(FreeCADGui.Workbench):
     MenuText = "CAD X-ray"
     ToolTip = "FreeCAD 모델 진단용 MCP 서버"
+    Icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "icon.svg")
 
     def Initialize(self):
         FreeCADGui.addCommand("CadXray_StartServer", CadXrayStartServer())

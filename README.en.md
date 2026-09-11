@@ -5,7 +5,7 @@
 An MCP server that lets Claude Code **diagnose** FreeCAD models. Ask "why is Sketch003 red?" or "why does Pad001 fail?" and Claude inspects the live document with dedicated tools, explains the cause, fixes it with `execute_code`, and verifies with `tracked_recompute` and a screenshot.
 
 - FreeCAD **1.0.x / 1.1.x** (verified on 1.1.3), Windows · macOS · Linux
-- Two parts: a FreeCAD **addon** (`addon/CadXray`, stdlib + PySide only) and an MCP **bridge** (`bridge/`, depends on `mcp` only)
+- Two parts: a FreeCAD **addon** (`freecad/cadxray`, stdlib + PySide only) and an MCP **bridge** (`bridge/`, depends on `mcp` only)
 - They talk over `127.0.0.1:9877` only — nothing leaves your machine
 
 ## Install — two commands

@@ -4,9 +4,9 @@
 → 사각 슬롯 → 끝단 63° 베벨 → 발/바닥의 육각 너트 자리 → 구멍.
 """
 import FreeCAD
-from CadXray.handlers import reload_handlers
+from freecad.cadxray.handlers import reload_handlers
 reload_handlers()
-from CadXray.handlers import rebuild, shape_features
+from freecad.cadxray.handlers import rebuild, shape_features
 
 SRC = "Unnamed"
 results = {}

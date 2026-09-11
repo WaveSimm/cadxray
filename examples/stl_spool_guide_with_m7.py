@@ -13,7 +13,7 @@ M7 툴이 메시에 대해 한 것/못 한 것:
 """
 import math
 import FreeCAD as App
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 DOC = "stl_test"
 doc = App.getDocument(DOC)

@@ -24,7 +24,7 @@
 
 ## 테스트
 - `"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" tests\in_freecad\test_handlers.py` — 서버 없이 핸들러를 직접 돌린다. GUI가 없어 스크린샷은 SKIP
-- 핸들러를 고쳤으면 `reload_handlers` 툴로 다시 읽는다. `InitGui.py`·`rpc_server.py`·`handlers/__init__.py`·`main_thread.py`를 고쳤을 때만 FreeCAD 재시작
+- 핸들러를 고쳤으면 `reload_handlers` 툴로 다시 읽는다. `init_gui.py`·`rpc_server.py`·`handlers/__init__.py`·`main_thread.py`를 고쳤을 때만 FreeCAD 재시작
 - 브릿지(`bridge/`)를 고쳤으면 Claude Code에서 `/mcp` → Reconnect
 
 ## 진단 워크플로 (이 MCP를 쓰는 Claude용)

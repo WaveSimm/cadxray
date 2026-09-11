@@ -12,7 +12,7 @@ import math
 
 import FreeCAD
 
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 DOC = "tutorial_drawing"
 if DOC in FreeCAD.listDocuments():

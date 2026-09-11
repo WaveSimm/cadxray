@@ -4,7 +4,7 @@
     cadxray install [--dev] [--dest 경로]   애드온을 FreeCAD에 설치
     cadxray doctor                   무엇이 안 되는지 진단
 
-install은 패키지에 동봉된 애드온(addon/CadXray)을 FreeCAD Mod 폴더에 복사한다.
+install은 패키지에 동봉된 애드온(freecad/cadxray + package.xml)을 FreeCAD Mod/cadxray 에 복사한다.
 --dev 는 저장소 체크아웃을 심링크로 연결한다(코드를 고치면 바로 반영).
 """
 
@@ -20,7 +20,9 @@ from pathlib import Path
 
 from . import client
 
-ADDON_NAME = "CadXray"
+ADDON_NAME = "cadxray"
+LEGACY_ADDON_NAME = "CadXray"
+ADDON_PARTS = ("freecad", "package.xml", "LICENSE")
 REPO_URL = "https://github.com/WaveSimm/cadxray"
 GIT_SPEC = f"git+{REPO_URL}#subdirectory=bridge"
 
@@ -29,17 +31,18 @@ GIT_SPEC = f"git+{REPO_URL}#subdirectory=bridge"
 
 
 def bundled_addon_dir() -> Path | None:
-    p = Path(__file__).resolve().parent / "addon" / ADDON_NAME
-    return p if (p / "InitGui.py").is_file() else None
+    """휠에 동봉된 애드온 루트(freecad/, package.xml, LICENSE가 있는 폴더)."""
+    p = Path(__file__).resolve().parent / "addon"
+    return p if (p / "freecad" / "cadxray").is_dir() else None
 
 
 def repo_addon_dir() -> Path | None:
-    """저장소 체크아웃에서 실행 중이면 addon/CadXray (bridge/src/cadxray/cli.py 기준)."""
+    """저장소 체크아웃에서 실행 중이면 저장소 루트 (freecad/cadxray 가 있는 곳)."""
     try:
-        p = Path(__file__).resolve().parents[3] / "addon" / ADDON_NAME
+        p = Path(__file__).resolve().parents[3]
     except IndexError:
         return None
-    return p if (p / "InitGui.py").is_file() else None
+    return p if (p / "freecad" / "cadxray").is_dir() else None
 
 
 def mod_candidates() -> list[Path]:
@@ -81,9 +84,10 @@ def installed_addons() -> list[tuple[Path, str | None, bool]]:
     """(경로, 버전, 심링크 여부) - 존재하는 Mod 폴더 안의 CadXray."""
     out = []
     for mod in mod_candidates():
-        target = mod / ADDON_NAME
-        if target.is_dir() or target.is_symlink():
-            out.append((target, addon_version(target), target.is_symlink()))
+        for name in (ADDON_NAME, LEGACY_ADDON_NAME):
+            target = mod / name
+            if target.is_dir() or target.is_symlink():
+                out.append((target, addon_version(target), target.is_symlink()))
     return out
 
 
@@ -94,7 +98,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     if args.dev:
         src = repo_addon_dir()
         if src is None:
-            print("--dev 는 저장소 체크아웃(bridge/ 옆에 addon/ 이 있는 곳)에서만 됩니다.", file=sys.stderr)
+            print("--dev 는 저장소 체크아웃(bridge/ 옆에 freecad/cadxray 가 있는 곳)에서만 됩니다.", file=sys.stderr)
             return 1
     else:
         src = bundled_addon_dir() or repo_addon_dir()
@@ -114,23 +118,34 @@ def cmd_install(args: argparse.Namespace) -> int:
     dest_dir.mkdir(parents=True, exist_ok=True)
     target = dest_dir / ADDON_NAME
 
-    if target.is_symlink() or target.exists():
-        print(f"기존 설치를 지웁니다: {target}")
-        if target.is_symlink() or target.is_file():
-            target.unlink()
-        else:
-            shutil.rmtree(target)
+    for old in (target, dest_dir / LEGACY_ADDON_NAME):   # 0.6 이하의 Mod/CadXray(옛 레이아웃)도 치운다 — 둘 다 있으면 서버가 두 번 뜬다
+        if old.is_symlink() or old.exists():
+            print(f"기존 설치를 지웁니다: {old}")
+            if old.is_symlink() or old.is_file():
+                old.unlink()
+            else:
+                shutil.rmtree(old)
+
+    def copy_parts() -> None:
+        # 저장소 루트 전체가 아니라 애드온에 필요한 것만 (freecad/, package.xml, LICENSE)
+        target.mkdir(parents=True, exist_ok=True)
+        for part in ADDON_PARTS:
+            sp = src / part
+            if sp.is_dir():
+                shutil.copytree(sp, target / part, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            elif sp.is_file():
+                shutil.copy2(sp, target / part)
 
     mode = "복사"
     if args.dev:
         try:
-            target.symlink_to(src, target_is_directory=True)
+            target.symlink_to(src, target_is_directory=True)   # 저장소 루트를 통째로 — FreeCAD는 freecad/ 만 본다
             mode = "심링크"
         except (OSError, NotImplementedError) as e:
             print(f"심링크 실패({e}) - 복사로 전환합니다. (Windows는 개발자 모드가 필요합니다)")
-            shutil.copytree(src, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            copy_parts()
     else:
-        shutil.copytree(src, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        copy_parts()
 
     print(f"애드온 {mode} 완료: {target}  (버전 {addon_version(target) or '?'})")
     print()
@@ -148,7 +163,7 @@ def register_command() -> str:
     """이 실행 파일이 어떻게 설치됐는지에 따라 알맞은 claude mcp add 명령."""
     repo = repo_addon_dir()
     if repo is not None:
-        bridge = repo.parents[1] / "bridge"
+        bridge = repo / "bridge"
         return f'claude mcp add --scope user cadxray -- uv --directory "{bridge}" run cadxray'
     return f"claude mcp add --scope user cadxray -- uvx --from {GIT_SPEC} cadxray"
 

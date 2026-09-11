@@ -12,9 +12,9 @@ import time
 
 import FreeCAD
 import JointObject
-from CadXray.handlers import reload_handlers
+from freecad.cadxray.handlers import reload_handlers
 reload_handlers()
-from CadXray.handlers import rebuild, shape_features, util
+from freecad.cadxray.handlers import rebuild, shape_features, util
 
 SRC = "Unnamed"
 DOC = "clamp_param"

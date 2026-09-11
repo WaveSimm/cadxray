@@ -6,7 +6,7 @@ import traceback
 
 import FreeCAD
 
-ADDON_VERSION = "0.6.0"
+ADDON_VERSION = "0.7.0"
 
 # 하드캡. 이 크기를 넘으면 응답을 잘라서 경고를 붙인다 (명세 3장 원칙 4).
 HARD_CAP_BYTES = 100 * 1024

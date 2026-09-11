@@ -46,8 +46,13 @@ for p in (os.path.join(ROOT, "addon"), os.path.join(ROOT, "tests", "fixtures")):
 import FreeCAD  # noqa: E402
 
 import make_test_models as fx  # noqa: E402
-from CadXray import rpc_server  # noqa: E402
-from CadXray.handlers import (  # noqa: E402
+import freecad  # noqa: E402
+
+_ns = os.path.join(ROOT, "freecad")
+if _ns not in list(freecad.__path__):
+    freecad.__path__.append(_ns)  # 저장소 체크아웃을 Mod 없이 네임스페이스에 붙인다
+from freecad.cadxray import rpc_server  # noqa: E402
+from freecad.cadxray.handlers import (  # noqa: E402
     documents,
     drawing,
     mesh as mesh_mod,

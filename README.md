@@ -5,7 +5,7 @@
 FreeCAD 모델을 Claude Code가 **진단**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
 - 지원: FreeCAD **1.0.x / 1.1.x** (1.1.3에서 검증), Windows · macOS · Linux
-- 구성: FreeCAD 안에서 도는 **애드온**(`addon/CadXray`) + Claude Code가 띄우는 **브릿지**(`bridge/`)
+- 구성: FreeCAD 안에서 도는 **애드온**(`freecad/cadxray`) + Claude Code가 띄우는 **브릿지**(`bridge/`)
 - 두 프로그램은 `127.0.0.1:9877`로만 통신합니다 (외부 접속 없음)
 
 ---
@@ -227,7 +227,7 @@ macOS는 `/Applications/FreeCAD.app/Contents/MacOS/FreeCADCmd`, Linux는 `freeca
 ## 8. 저장소 구성
 
 ```
-addon/CadXray/     FreeCAD 애드온 (stdlib + PySide만 사용)
+freecad/cadxray/     FreeCAD 애드온 (stdlib + PySide만 사용)
   handlers/            툴 구현 — 파일마다 TOOLS 선언, 자동 등록
 bridge/                MCP 브릿지 (의존성: mcp)
 scripts/install_addon.py

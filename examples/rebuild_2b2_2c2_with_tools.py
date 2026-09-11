@@ -1,8 +1,8 @@
 """2B2·2C2(배럴 + 더브테일 홈 + 시트 립 + 구멍) 공통 빌더. execute_code에서 exec."""
 import FreeCAD
-from CadXray.handlers import reload_handlers
+from freecad.cadxray.handlers import reload_handlers
 reload_handlers()
-from CadXray.handlers import rebuild, shape_features
+from freecad.cadxray.handlers import rebuild, shape_features
 
 SRC = "Unnamed"
 Z0, TOP, HZ = 53.679659, 69.679659, 61.679659

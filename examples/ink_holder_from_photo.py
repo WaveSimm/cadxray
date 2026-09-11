@@ -4,7 +4,7 @@
 나머지(깊이 35, 윗바 12, 옆벽 10, 아랫바 21, 구멍 위치, 받침 홈 2, 장식판 홈 1, 병 Ø26/캡 Ø28)는 사진 비율로 정한 값.
 좌표: X 폭(0~163), Y 깊이(앞면 y=0), Z 높이(0~82)."""
 import FreeCAD as App
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 DOC = "ink_holder"
 if DOC in App.listDocuments():

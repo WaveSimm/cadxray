@@ -177,7 +177,7 @@ def stop():
 
 - 워크벤치 이름: **CAD X-ray**. 명령 3개: `CadXray_StartServer`, `CadXray_StopServer`, `CadXray_ToggleAutoStart`.
 - 상태는 `FreeCAD.Console.PrintMessage`로 리포트 뷰에 출력(포트, 실행 중 여부).
-- 자동시작: `FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/CadXray")`에 `AutoStart` bool 저장. 켜져 있으면 GUI 로딩 완료 후 서버 시작(neka-nat 방식 참고 — QTimer.singleShot으로 지연 시작).
+- 자동시작: `FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/cadxray")`에 `AutoStart` bool 저장. 켜져 있으면 GUI 로딩 완료 후 서버 시작(neka-nat 방식 참고 — QTimer.singleShot으로 지연 시작).
 - 포트는 같은 ParamGet에 `Port` int로 저장, 기본 9877.
 
 ### 6.4 핸들러 공통 (util.py)
@@ -570,7 +570,7 @@ Claude Code 안에서 `/mcp`로 연결 상태를 본다. README에는 위 두 �
 ## 9. 구현 순서 (마일스톤)
 
 ### M1 — 골격과 왕복 확인
-1. `addon/CadXray`: `main_thread.py`, `rpc_server.py`, `InitGui.py`, `handlers/documents.py`(`ping`, `list_documents`), `handlers/execute.py`
+1. `freecad/cadxray`: `main_thread.py`, `rpc_server.py`, `InitGui.py`, `handlers/documents.py`(`ping`, `list_documents`), `handlers/execute.py`
 2. `bridge`: `client.py`, `server.py`에 `ping`, `list_documents`, `execute_code`
 3. `scripts/install_addon.py`: OS·버전별 Mod 경로 탐지 → 심링크(실패 시 복사). 경로 후보:
    - macOS: `~/Library/Application Support/FreeCAD/v1-0/Mod/`, `.../v1-1/Mod/`

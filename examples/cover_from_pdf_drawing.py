@@ -8,7 +8,7 @@
 - 커넥터 플랜지 사각형과 그 안의 작은 구멍 4개는 치수가 없어(커넥터 외형 참고선) 가공하지 않았다
 """
 import FreeCAD
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 PW, PH, INS, T = 224.28, 169.37, 8.79, 3.0
 def P(x, y): return [round(INS + x, 3), round(INS + y, 3)]

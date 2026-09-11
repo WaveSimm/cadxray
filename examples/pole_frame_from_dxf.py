@@ -13,7 +13,7 @@ ezdxf.addons.drawing으로 영역별 PNG를 그려 눈으로 대조했다. 부�
 """
 import math
 import FreeCAD as App
-from CadXray.handlers import rebuild
+from freecad.cadxray.handlers import rebuild
 
 DOC = "pole_frame"
 if DOC in App.listDocuments():

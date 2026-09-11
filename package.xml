@@ -1,22 +1,31 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- FreeCAD Addon Manager용. 애드온 본체는 addon/CadXray/ 에 있다.
-     Addon Manager 설정 → 사용자 저장소에 https://github.com/WaveSimm/cadxray 를 추가하면 설치된다. -->
+<!-- FreeCAD Addon Manager manifest. Layout: freecad/cadxray/ (namespace package, no sys.path changes).
+     Reference install: Addon Manager → Preferences → custom repository → https://github.com/WaveSimm/cadxray
+     The Claude Code side (MCP bridge) is registered separately — see README. -->
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
   <name>CAD X-ray</name>
-  <description>FreeCAD 모델 진단용 MCP 서버. 문서 구조·스케치 제약·형상 유효성·구멍·간섭을 JSON으로 내보낸다.</description>
-  <version>0.6.0</version>
-  <date>2026-09-10</date>
-  <maintainer email="yunsim@gmail.com">Wave</maintainer>
+  <description>MCP server that lets Claude Code diagnose and edit the open FreeCAD document: document graph, sketch constraint diagnostics and fix proposals, shape validity, holes, interference, STEP/STL rebuild into parametric features, TechDraw pages. Runs a localhost-only XML-RPC listener (127.0.0.1:9877) inside FreeCAD; nothing leaves the machine. Needs the companion bridge (uv/mcp) registered in Claude Code — see README.</description>
+  <version>0.7.0</version>
+  <date>2026-09-11</date>
+  <maintainer email="yunsim@gmail.com">Wave (WaveSimm)</maintainer>
   <license file="LICENSE">MIT</license>
-  <url type="repository" branch="master">https://github.com/WaveSimm/cadxray</url>
-  <url type="readme">https://github.com/WaveSimm/cadxray/blob/master/README.md</url>
+  <url type="repository" branch="release">https://github.com/WaveSimm/cadxray</url>
+  <url type="readme">https://github.com/WaveSimm/cadxray/blob/release/README.en.md</url>
+  <url type="bugtracker">https://github.com/WaveSimm/cadxray/issues</url>
+  <icon>freecad/cadxray/resources/icon.svg</icon>
+  <tag>mcp</tag>
+  <tag>claude</tag>
+  <tag>diagnostics</tag>
+  <tag>sketcher</tag>
+  <tag>techdraw</tag>
   <content>
     <workbench>
       <classname>CadXrayWorkbench</classname>
-      <subdirectory>addon/CadXray/</subdirectory>
+      <subdirectory>./</subdirectory>
       <name>CAD X-ray</name>
-      <description>진단 MCP 서버 (127.0.0.1:9877)</description>
-      <freecadmin>1.0</freecadmin>
+      <description>Diagnostic MCP server for Claude Code (localhost 127.0.0.1:9877)</description>
+      <icon>freecad/cadxray/resources/icon.svg</icon>
+      <freecadmin>1.0.0</freecadmin>
     </workbench>
   </content>
 </package>
