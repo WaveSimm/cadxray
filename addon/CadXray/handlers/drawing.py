@@ -177,30 +177,44 @@ def _nearest_vertex(shape, p, tol):
     return f"Vertex{bi}", best
 
 
+def _visible_edges(view):
+    """뷰의 가시 모서리. conventional=True(y 위쪽 +)를 먼저, 안 되면 기본."""
+    try:
+        return view.getVisibleEdges(True)
+    except Exception:  # noqa: BLE001
+        return view.getVisibleEdges()
+
+
 def _find_edge(view, kind, value, tol_mm=0.05):
-    """뷰의 가시 모서리에서 kind='x'|'y'(값 = 뷰 좌표 mm, 축척 후)인 세로/가로 직선 중 가장 긴 것 → 'EdgeN'."""
-    edges = view.getVisibleEdges()
-    best = None
-    for i, e in enumerate(edges):
-        if len(e.Vertexes) < 2:
-            continue
-        a, b = e.Vertexes[0].Point, e.Vertexes[-1].Point
-        if kind == "x":
-            if abs(a.x - b.x) < 1e-3 and abs(a.x - value) < tol_mm:
-                L = abs(a.y - b.y)
-                if best is None or L > best[1]:
-                    best = (i, L)
-        else:
-            if abs(a.y - b.y) < 1e-3 and abs(a.y - value) < tol_mm:
-                L = abs(a.x - b.x)
-                if best is None or L > best[1]:
-                    best = (i, L)
-    return f"Edge{best[0]}" if best else None
+    """뷰의 가시 모서리에서 kind='x'|'y'(값 = 뷰 좌표 mm, 축척 후)인 세로/가로 직선 중 가장 긴 것 → 'EdgeN'.
+
+    y는 정확한 부호로 먼저 찾고, 없을 때만 반대 부호(y-아래 좌표계)로 다시 찾는다.
+    """
+    edges = _visible_edges(view)
+    for sign in ((1,) if kind == "x" else (1, -1)):
+        best = None
+        for i, e in enumerate(edges):
+            if len(e.Vertexes) < 2:
+                continue
+            a, b = e.Vertexes[0].Point, e.Vertexes[-1].Point
+            if kind == "x":
+                if abs(a.x - b.x) < 1e-3 and abs(a.x - value) < tol_mm:
+                    L = abs(a.y - b.y)
+                    if best is None or L > best[1]:
+                        best = (i, L)
+            else:
+                if abs(a.y - b.y) < 1e-3 and abs(a.y - sign * value) < tol_mm:
+                    L = abs(a.x - b.x)
+                    if best is None or L > best[1]:
+                        best = (i, L)
+        if best:
+            return f"Edge{best[0]}"
+    return None
 
 
 def _find_circle_edge(view, center2d, radius_scaled, tol_mm=0.05):
     """뷰의 가시 모서리에서 중심(축척 후 뷰 좌표)·반지름이 맞는 원/호 → 'EdgeN'. y 부호는 양쪽 다 시도."""
-    edges = view.getVisibleEdges()
+    edges = _visible_edges(view)
     cands = []
     for i, e in enumerate(edges):
         c = e.Curve
