@@ -478,6 +478,7 @@ def make_drawing(
     wait_seconds: int = 60,
     line_width: float = 0.35,
     smooth_edges: bool = True,
+    avoid_overlap: bool = True,
 ) -> str:
     """3D 객체로 **TechDraw 2D 도면 페이지**를 만들고 PDF/SVG로 내보낸다 (M8).
 
@@ -493,12 +494,13 @@ def make_drawing(
     title: {"title":..,"subtitle":..,"author":..,"date":..,"scale":..,"number":..,"sheet":..} (템플릿 칸 이름도 됨).
     export: "pdf"|"svg"|"both"|"none". GUI가 없으면 내보내기는 건너뛴다. 배치는 기본값이고 세밀한 위치는 GUI에서 옮긴다.
     line_width: 화면·출력 선 굵기 mm(기본 0.35; FreeCAD 기본 0.7은 화면에서 뭉쳐 보인다). smooth_edges=False면 곡면 경계선(나사 등) 숨김.
+    avoid_overlap(기본 True): 치수 글자가 뷰 이름·다른 치수와 겹치면 바깥으로 밀어낸다(offset을 준 것도 겹치면 민다).
     """
     return client.call(
         "make_drawing",
         {"source": source, "doc": doc, "page": page, "template": template, "scale": scale, "views": views,
          "dimensions": dimensions, "notes": notes, "title": title, "export": export, "out_dir": out_dir,
-         "vertex_tolerance": vertex_tolerance, "wait_seconds": wait_seconds, "line_width": line_width, "smooth_edges": smooth_edges},
+         "vertex_tolerance": vertex_tolerance, "wait_seconds": wait_seconds, "line_width": line_width, "smooth_edges": smooth_edges, "avoid_overlap": avoid_overlap},
         timeout=310,
     )
 

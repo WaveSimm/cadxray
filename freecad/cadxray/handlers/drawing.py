@@ -233,9 +233,36 @@ def _find_circle_edge(view, center2d, radius_scaled, tol_mm=0.05):
     return None
 
 
+def _boxes_overlap(a, b, pad=1.0):
+    (ax, ay, aw, ah), (bx, by, bw, bh) = a, b
+    return abs(ax - bx) < (aw + bw) / 2 + pad and abs(ay - by) < (ah + bh) / 2 + pad
+
+
+def _avoid_overlap(kind, x, y, label_w, placed, step=7.0, tries=8):
+    """치수 글자 상자(x, y, w, h)가 이미 놓인 상자(뷰 이름·다른 치수)와 겹치면 바깥쪽으로 밀어낸다.
+
+    세로 치수(DistanceY)는 X로, 가로 치수(DistanceX)는 Y로, 나머지는 원래 오프셋 방향으로 step씩. 완벽한 배치가 아니라 "겹치지 않게"까지.
+    """
+    h = 5.0
+    for _ in range(tries):
+        box = (x, y, label_w, h)
+        if not any(_boxes_overlap(box, b) for b in placed):
+            break
+        if kind == "DistanceY":
+            x += step if x >= 0 else -step
+        elif kind == "DistanceX":
+            y += step if y >= 0 else -step
+        else:
+            n = math.hypot(x, y) or 1.0
+            x += step * x / n
+            y += step * y / n
+    placed.append((x, y, label_w, h))
+    return x, y
+
+
 def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, views=None, dimensions=None,
                  notes=None, title=None, export="pdf", out_dir=None, vertex_tolerance=0.05, max_dimensions=50,
-                 wait_seconds=60, line_width=0.35, smooth_edges=True):
+                 wait_seconds=60, line_width=0.35, smooth_edges=True, avoid_overlap=True):
     """3D 객체 → TechDraw 페이지(뷰·치수·주석·표제란) → PDF/SVG. [확인됨: api-notes 14장]"""
     t0 = time.time()
     d, err = util.get_doc(doc)
@@ -358,6 +385,18 @@ def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, 
 
         # --- 치수 -----------------------------------------------------------------
         dims_out = []
+        circ_count, lin_count = {}, {}
+        t_of = {vname: t for vname, (v, t) in created.items()}
+        placed = {}   # 뷰 이름 → 놓인 글자 상자 목록 (뷰 중심 기준 페이지 mm). 뷰 이름(Caption) 상자를 먼저 넣는다
+        for vname, (v, t) in created.items():
+            boxes = []
+            sc_ = v.getScale()
+            vb0 = v.Source[0].Shape.BoundBox if v.Source else bb
+            vh = (vb0.YLength if t in ("top", "bottom") else vb0.ZLength) * sc_
+            cap = getattr(v, "Caption", "") or ""
+            if cap:
+                boxes.append((0.0, -vh / 2 - 6.0, 3.5 * len(cap) + 2, 6.0))
+            placed[vname] = boxes
         dim_specs = list(dimensions or [])
         if len(dim_specs) > max_dimensions:
             warnings.append(f"dimensions는 {max_dimensions}개까지만 만듭니다({len(dim_specs)}개 요청).")
@@ -419,16 +458,40 @@ def make_drawing(source=None, doc=None, page="Page", template=None, scale=None, 
                 pg.addView(dim)
                 off = ds.get("offset")
                 if off and len(off) == 2:
-                    dim.X, dim.Y = float(off[0]), float(off[1])
+                    dx, dy = float(off[0]), float(off[1])
                 else:
                     # 기본 오프셋: 뷰 밖으로 (DistanceX는 아래, DistanceY는 왼쪽)
                     vb_ = view.Source[0].Shape.BoundBox if view.Source else bb
                     if kind == "DistanceY":
-                        dim.X, dim.Y = -(vb_.XLength * sc / 2 + 12 + 6 * (i % 3)), 0
+                        # 좌/우 번갈아, 같은 쪽은 7 mm씩 바깥으로. 페이지 밖으로 나가면 반대편
+                        n_y = lin_count.get((view.Name, "Y"), 0); lin_count[(view.Name, "Y")] = n_y + 1
+                        side = -1.0 if n_y % 2 == 0 else 1.0
+                        dist = vb_.XLength * sc / 2 + 12 + 7 * (n_y // 2)
+                        if float(view.X) + side * dist < 12 or float(view.X) + side * dist > W - 12:
+                            side = -side
+                        dx, dy = side * dist, 0.0
                     elif kind == "DistanceX":
-                        dim.X, dim.Y = 0, -(vb_.ZLength * sc / 2 + 12 + 6 * (i % 3))
+                        n_x = lin_count.get((view.Name, "X"), 0); lin_count[(view.Name, "X")] = n_x + 1
+                        side = -1.0 if n_x % 2 == 0 else 1.0
+                        vh_ = (vb_.YLength if t_of.get(view.Name) in ("top", "bottom") else vb_.ZLength) * sc
+                        dist = vh_ / 2 + 12 + 7 * (n_x // 2)
+                        if float(view.Y) + side * dist < 12 or float(view.Y) + side * dist > H - 12:
+                            side = -side
+                        dx, dy = 0.0, side * dist
+                    elif kind in ("Diameter", "Radius") and ds.get("center") is not None:
+                        # 원 치수는 원 밖으로, 뷰마다 부채꼴로 각도를 돌려 가며 놓는다(한 대각선에 몰리면 글자가 포개진다)
+                        n_circ = circ_count.get(view.Name, 0)
+                        circ_count[view.Name] = n_circ + 1
+                        ang = math.radians((35.0 + 47.0 * n_circ) % 360.0)
+                        cu, cv = _project(view, _vec(ds["center"]))
+                        dist = float(ds.get("radius", 0.0)) * sc + 10.0
+                        dx, dy = cu * sc + dist * math.cos(ang), cv * sc + dist * math.sin(ang)
                     else:
-                        dim.X, dim.Y = 8 + 6 * (i % 3), 8 + 6 * (i % 3)
+                        dx, dy = 8.0, 8.0
+                if avoid_overlap:
+                    label_w = 3.2 * (len(str(ds.get("label") or "")) if False else 6) + 4   # 값 글자 대략 6자
+                    dx, dy = _avoid_overlap(kind, dx, dy, label_w, placed.setdefault(view.Name, []))
+                dim.X, dim.Y = dx, dy
                 dim.ScaleType = "Custom"
                 dim.Scale = sc
                 dims_out.append((dim, view, kind, label, refs))

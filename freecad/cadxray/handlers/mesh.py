@@ -46,8 +46,9 @@ def fit_circle(pts):
     if r2 <= 0:
         return None
     r = math.sqrt(r2)
-    rms = math.sqrt(sum((math.hypot(p[0] - cx, p[1] - cy) - r) ** 2 for p in pts) / n)
-    return cx, cy, r, rms
+    res = [abs(math.hypot(p[0] - cx, p[1] - cy) - r) for p in pts]
+    rms = math.sqrt(sum(v * v for v in res) / n)
+    return cx, cy, r, rms, max(res)
 
 
 def _rdp(pts, eps):
@@ -73,7 +74,7 @@ def _rdp(pts, eps):
 
 
 def _arc_element(run, c):
-    cx, cy, r, _ = c
+    cx, cy, r = c[0], c[1], c[2]
     (x0, y0), (x1, y1) = run[0], run[-1]
     mid = run[len(run) // 2]
     a0 = math.atan2(y0 - cy, x0 - cx)
@@ -98,15 +99,26 @@ def polyline_to_elements(pts, closed, fit_tol=0.05, corner_tol=0.15, max_radius=
         return [], 0, 0.0
     if closed and n >= 8:
         c = fit_circle(pts)
-        if c and c[3] < fit_tol and c[2] < max_radius:
+        if c and c[4] < 2 * fit_tol and c[3] < fit_tol and c[2] < max_radius:
             return [{"type": "circle", "center": [round(c[0], 6), round(c[1], 6)], "radius": round(c[2], 6)}], 0, round(c[3], 6)
+    # 꼭짓점 검출 허용값은 피팅 허용값보다 크면 안 된다: 직선 끝에 붙은 필렛 첫 점(편차 0.09)이 직선 구간에 섞여
+    # "직선도 원도 아님"이 된다 [스풀 가이드 슬롯 실측, 2026-09-11]. 메시 정점은 원래 곡선 위에 있으므로 작아도 된다
+    eps = min(float(corner_tol), float(fit_tol))
     ring = list(pts) + ([pts[0]] if closed else [])
-    corners = _rdp(ring, corner_tol)
+    corners = _rdp(ring, eps)
     if closed and len(corners) > 2:
-        # 닫힌 고리는 임의 점에서 시작하므로 꼭짓점이 아닌 시작점을 없앤다: 첫 꼭짓점을 기준으로 다시 돈다
-        k = corners[1] if corners[0] == 0 and len(corners) > 2 else corners[0]
+        # 닫힌 고리는 임의 점에서 시작한다. 호 중간에서 시작하면 그 호가 둘로 갈라지므로, 꺾임각이 가장 큰
+        # 꼭짓점(진짜 모서리)에서 시작하도록 고리를 돌린다 [스풀 가이드 창 윤곽 실측]
+        def turn(i):
+            a, b, c = pts[(i - 1) % n], pts[i], pts[(i + 1) % n]
+            v1 = (b[0] - a[0], b[1] - a[1]); v2 = (c[0] - b[0], c[1] - b[1])
+            l1 = math.hypot(*v1) or 1e-12; l2 = math.hypot(*v2) or 1e-12
+            cosang = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2)))
+            return math.degrees(math.acos(cosang))
+        cand = [c for c in corners[:-1]]
+        k = max(cand, key=turn) if cand else 0
         ring = pts[k:] + pts[:k] + [pts[k]]
-        corners = _rdp(ring, corner_tol)
+        corners = _rdp(ring, eps)
     els, unsupported, max_res = [], 0, 0.0
     i = 0
     while i < len(corners) - 1:
@@ -115,7 +127,7 @@ def polyline_to_elements(pts, closed, fit_tol=0.05, corner_tol=0.15, max_radius=
         while j + 1 < len(corners):
             run = ring[corners[i]:corners[j + 1] + 1]
             c = fit_circle(run)
-            if c and c[3] < fit_tol and c[2] < max_radius and len(run) >= 4:
+            if c and c[4] < fit_tol and c[2] < max_radius and len(run) >= 4:
                 # 호가 실제로 휘었는지: 현에서 최대 거리 > fit_tol
                 (x0, y0), (x1, y1) = run[0], run[-1]
                 L = math.hypot(x1 - x0, y1 - y0) or 1e-12

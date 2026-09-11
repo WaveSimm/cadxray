@@ -385,6 +385,7 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - `PartDesign::SubtractiveHelix`(`AdditiveHelix`도 같음): `Profile=(sketch, [""])`, `ReferenceAxis=(sketch, ["V_Axis"])`, `Mode="pitch-height-angle"`, `Pitch`, `Height`, `Angle`, `LeftHanded`, `Reversed`, `Outside`. 프로파일 스케치를 XZ 평면에 붙일 때 축을 부품 중심 (cx, cy)로 옮기려면 `AttachmentOffset = Placement(Vector(cx, 0, -cy))` — XZ 평면의 로컬 z가 전역 **−Y**다(로컬 x=X, y=Z). 오른나사(z 증가에 각도 증가)는 `LeftHanded=False`
 - 나선은 프로파일 각도(0°)에서 시작해 그 이전 각도 구간의 첫 바퀴는 깎이지 않는다 → 한 피치 아래에서 시작하고(Height +2 피치) 아래쪽에 잘린 부분은 Pad로 되메운다. 위상: 프로파일의 골 중심 z가 각도 0°에서의 골 위치와 같아야 한다(단면에서 z별 최대 반지름 각도로 잰다)
 - 나사 판별 신호: 높이별 단면의 최대 반지름 각도가 z에 비례해 돈다(피치 2 → 1 mm당 180°). 정점을 (각도, z)로 펼쳐 그리면 사선 줄무늬. 단면 z 간격은 피치의 절반보다 작아야 각도가 접히지 않는다(`analyze_mesh`는 0.2 mm, 최대 60장). 한 단면의 원 피팅 중심은 산 쪽으로 치우치므로 여러 높이의 피팅 중심을 평균한다
+- 메시 단면 폴리라인 피팅 규칙(`handlers/mesh.py::polyline_to_elements`, 스풀 가이드 실측 2026-09-11): (1) 꼭짓점 검출(RDP) 허용값은 피팅 허용값 이하 — 크면 직선 끝에 붙은 필렛 첫 점이 직선 구간에 섞여 "직선도 원도 아님"이 된다. (2) 호 병합 판정은 rms가 아니라 **최대 잔차** — 긴 호 끝에 직선 점 한두 개가 섞여도 rms는 작아 가짜 호(R70.6)가 생긴다. (3) 닫힌 고리는 꺾임각이 가장 큰 꼭짓점에서 시작 — 호 중간에서 시작하면 그 호가 둘로 갈라진다. 결과: 슬롯(호·직선·R10·호·R10·직선) 6요소, 창 4요소, 최대 잔차 0.022
 - `Mesh.Facet`: `Area`, `Normal`, `Points`(3점), `PointIndices`, `NeighbourIndices`. `getPlanarSegments(dev, min_facets)`는 면이 min_facets보다 적은 평면을 버린다(작은 면은 삼각형 2개) → 레벨은 면별 법선으로 직접 묶는다(`handlers/mesh.py::_mesh_levels`)
 - `FreeCAD.openDocument(path)`로 연 문서의 `Name`은 파일명에서 온다(저장 전 이름은 남지 않는다). 소문자로 정규화한 경로를 넘기면 이름도 소문자가 된다 — 비교만 `os.path.normcase(realpath)`로, 열 때는 원래 경로로
 

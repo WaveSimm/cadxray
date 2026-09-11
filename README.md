@@ -138,7 +138,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `build_features` | 스케치 + Pad/Pocket/Groove/Revolution/Fillet/Chamfer 목록을 Body에 **순서대로 쌓고 피처마다 검증**. `profile.section`이면 원본을 직접 트레이스해 좌표가 대화를 오가지 않음. Block·구성점 고정·구성선 축 규칙 내장, `params`는 Spreadsheet로 |
 | `compare_shapes` | 부피·면적·bbox 차 + 퍼지 차집합 조각의 bbox — **어디가 틀렸는지** 바로 짚음 |
 | `align_shapes` | 같은 부품의 두 인스턴스 사이 강체 변환(관성 주축 + 표면 점 검증). 재구성한 Body를 Link로 여러 자리에 놓을 때. 거울상이면 `mirrored` |
-| `make_drawing` | **2D 도면(M8)**: Body·Part·Link 그룹 → TechDraw 페이지(ISO 표제란, 자동 축척·배치, 정면/우측/평면/등각/상세) + 치수(모델 정점·실루엣·원 참조, 값은 모델에서 잼) + 주석 + 표제란 → PDF/SVG. Link 27개 어셈블리 5뷰·치수 13개 87초 |
+| `make_drawing` | **2D 도면(M8)**: Body·Part·Link 그룹 → TechDraw 페이지(ISO 표제란, 자동 축척·배치, 정면/우측/평면/등각/상세) + 치수(모델 정점·실루엣·원 참조, 값은 모델에서 잼; 뷰 이름·다른 치수와 겹치면 자동으로 밀어냄) + 주석 + 표제란 → PDF/SVG. Link 27개 어셈블리 5뷰·치수 13개 87초 |
 | `inspect_drawing` | 페이지의 뷰·치수 값·주석·표제란 읽기. 빈 뷰(모서리 0)·깨진 치수(Invalid) 찾기 |
 | `import_mesh` | **STL(M9)**: STL/OBJ/PLY/3MF를 참고용 Mesh 객체로(투명), 닫힘·자기교차 검사 |
 | `analyze_mesh` | 메시의 주축·레벨(띠 경계)·띠별 단면 원·공통 중심·**나사(피치·외경·골·방향)**·verdict. `classify_faces`의 메시판 |
