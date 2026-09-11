@@ -1,8 +1,4 @@
-/* 오션테크 사내 포털 공통 디자인 토큰
-   2026-09-07 ERP-OT(apps/web/tailwind.config.ts brand=#2563eb, Tailwind 기본 회색 팔레트, Pretendard) 와 대조해 확정.
-   교육 포털·HF Radar 포털은 이 파일을 src/styles/tokens.css 로 그대로 복사해 쓴다(도커 빌드 컨텍스트가 앱 폴더라 참조 불가).
-   여기를 고치면 두 복사본도 같이 고친다.
-   Tailwind를 쓰는 경우 theme.extend.colors 등에 같은 이름으로 매핑한다. */
+/* 디자인 토큰 — 색·간격·반경·글꼴. 값을 바꾸면 사이트 전체에 적용된다. */
 
 :root {
   /* ---- 강조색 (단일) ---- */

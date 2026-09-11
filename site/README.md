@@ -9,4 +9,4 @@ cd site && npm ci && npm run build   # dist/ 생성. 미리보기: npm run dev
 Astro + Starlight 정적 사이트. `.github/workflows/site.yml` 이 master 의 `site/**` 변경을 GitHub Pages 로 배포한다.
 실습 입력·완성 파일은 Release [practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1) 자산이다(리포에 넣지 않는다 — Addon Manager 가 리포 전체를 clone 한다).
 
-이 폴더는 내부 포털에서 스크립트로 내보낸 사본이라 직접 고친 내용은 다음 내보내기 때 덮인다. 고칠 것은 Issues 로.
+콘텐츠는 `src/content/docs/` 의 MDX 다. 고칠 것은 이 폴더를 직접 수정하거나 Issues 로.

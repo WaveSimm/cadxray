@@ -1,7 +1,4 @@
-/* FreeCAD AI 모델링 교육 포털 — 사이트 전용 스타일.
-   공통 토큰은 tokens.css, Starlight 테마는 oceantech-starlight.css (astro.config.mjs customCss 순서대로 적용).
-   사이트별 허용 범위(디자인 시스템 §4): 전기전자 교육 포털과 같음(본문 15px/1.75). 그 외는 공통 규칙.
-   프롬프트는 코드펜스(```text title="이렇게 말한다")로 쓴다 — Starlight 가 복사 버튼을 붙여 주므로 별도 컴포넌트가 없다. */
+/* 가이드 사이트 전용 스타일. 토큰은 tokens.css, Starlight 테마는 starlight-theme.css. 프롬프트는 코드펜스(title="이렇게 말한다")로 쓴다. */
 :root {
   --ot-logo-text: 'CAD';
 }
