@@ -128,6 +128,111 @@ def _face_samples(face, n_side):
     return out
 
 
+def _planar_normal(f):
+    try:
+        if f.Surface.__class__.__name__ != "Plane":
+            return None
+        u0, u1, v0, v1 = f.ParameterRange
+        return f.normalAt((u0 + u1) / 2, (v0 + v1) / 2)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _attached_edges(shape, f, n):
+    """평면 오버행 면 f(바깥 법선 n, 아래쪽)에서 재료에 붙어 있는 모서리들: [(edge, mid, o)] o = 면 안쪽에서 바깥으로 나가는 면내 방향."""
+    out = []
+    for e in f.OuterWire.Edges:
+        try:
+            mid = e.valueAt((e.FirstParameter + e.LastParameter) / 2)
+            t = e.tangentAt((e.FirstParameter + e.LastParameter) / 2)
+        except Exception:  # noqa: BLE001
+            continue
+        o = t.cross(n)
+        if o.Length < 1e-9:
+            continue
+        o.normalize()
+        if f.isInside(mid + o * 0.2, 1e-4, True):     # 안쪽을 향하면 뒤집는다
+            o = o * -1.0
+        q = mid + o * 0.3 - n * 0.3                     # 모서리 너머 + 재료 쪽(법선 반대)
+        if shape.isInside(q, 1e-4, True):
+            out.append((e, mid, o))
+    return out
+
+
+def _wedge_below(shape, f, n, angle_deg=45.0):
+    """f 아래를 45°(angle) 경사로 메우는 솔리드. 붙은 모서리에서 멀어질수록 tan(angle)만큼 내려간다. 없으면 None."""
+    att = _attached_edges(shape, f, n)
+    if not att or len(att) >= len(f.OuterWire.Edges):
+        return None
+    angle_deg = max(5.0, float(angle_deg) - 1.0)      # 한계각보다 1° 세워서 다시 검사해도 오버행으로 안 잡히게
+    zmin = shape.BoundBox.ZMin
+    fb = f.BoundBox
+    # 붙은 모서리에서 가장 먼 점까지의 수평 거리
+    reach = 0.0
+    for v in f.Vertexes:
+        dmin = min(e.distToShape(Part.Vertex(v.Point))[0] for e, _, _ in att)
+        reach = max(reach, dmin)
+    drop = reach / math.tan(math.radians(angle_deg)) + fb.ZLength
+    depth = min(drop, fb.ZMax - zmin) + 0.01
+    if depth <= 0.05:
+        return None
+    solid = f.extrude(Vec(0, 0, -depth))
+    size = shape.BoundBox.DiagonalLength * 2.0 + 10.0
+    for e, mid, o in att:
+        # o는 면에서 벽 쪽(모서리 너머)으로 나가는 방향. 벽에서 멀어지는 방향 a = -o 로 갈수록 tan(angle)만큼 내려가는 경사면:
+        # (p-mid)·a ≤ (mid.z - p.z)·tan  ⇔  (p-mid)·N ≤ 0,  N = a + Z·tan(angle)  → N 반대쪽을 남긴다
+        # 남길 쪽: 벽에서 d만큼 떨어진 곳의 바닥 z ≥ z0 − d/tan(angle) ⇔ (p−mid)·N ≥ 0 (angle은 수직 기준 기울기 = 오버행 한계각과 같은 척도)
+        a = Vec(-o.x, -o.y, 0.0)                     # o는 기운 면 안의 방향이라 수평 성분만 쓴다(아니면 각도가 어긋난다)
+        if a.Length < 1e-9:
+            continue
+        a.normalize()
+        N = Vec(a.x, a.y, math.tan(math.radians(angle_deg)))
+        N.normalize()
+        # makeHalfSpace + common은 무한 반공간이라 잘리지 않는다 [라이브 1.1.3] → 로컬 Z를 −N에 맞춘 큰 상자를 −N 쪽(버릴 쪽)에 놓고 cut
+        rot = FreeCAD.Rotation(Vec(0, 0, 1), N * -1.0)
+        box = Part.makeBox(size, size, size)
+        box.Placement = FreeCAD.Placement(mid - rot.multVec(Vec(size / 2, size / 2, 0)), rot)
+        try:
+            solid = solid.cut(box)
+        except Exception:  # noqa: BLE001
+            return None
+    # 모델 바닥 아래로는 안 내려간다
+    if solid.BoundBox.ZMin < zmin - 1e-6:
+        box = Part.makeBox(size, size, size, Vec(fb.Center.x - size / 2, fb.Center.y - size / 2, zmin))
+        solid = solid.common(box)
+    if solid.isNull() or solid.Volume < 1e-6:
+        return None
+    return solid
+
+
+def _split_pieces(shape, axis, count=None, size=None, positions=None):
+    """축 방향으로 잘라 조각 솔리드 목록. positions(절단 좌표) > count > size 순."""
+    bb = shape.BoundBox
+    lo, hi = getattr(bb, axis.upper() + "Min"), getattr(bb, axis.upper() + "Max")
+    if positions:
+        cuts = sorted(float(x) for x in positions if lo < float(x) < hi)
+    else:
+        if not count:
+            count = max(2, int(math.ceil((hi - lo) / float(size))))
+        step = (hi - lo) / int(count)
+        cuts = [lo + step * i for i in range(1, int(count))]
+    bounds = [lo - 1.0] + cuts + [hi + 1.0]
+    pieces = []
+    big = bb.DiagonalLength * 2 + 10
+    for i in range(len(bounds) - 1):
+        a, b = bounds[i], bounds[i + 1]
+        if axis == "x":
+            box = Part.makeBox(b - a, big, big, Vec(a, bb.YMin - 1, bb.ZMin - 1))
+        elif axis == "y":
+            box = Part.makeBox(big, b - a, big, Vec(bb.XMin - 1, a, bb.ZMin - 1))
+        else:
+            box = Part.makeBox(big, big, b - a, Vec(bb.XMin - 1, bb.YMin - 1, a))
+        piece = shape.common(box)
+        if not piece.isNull() and piece.Volume > 1e-6:
+            pieces.append(piece)
+    return cuts, pieces
+
+
 def _analyze(shape, prof, samples=2000, max_items=30, with_holes=True, doc=None, obj=None):
     """check_printability의 본체. shape는 이미 놓인 상태(출력 방향 +Z)."""
     bb = shape.BoundBox
@@ -263,6 +368,37 @@ def _analyze(shape, prof, samples=2000, max_items=30, with_holes=True, doc=None,
     if bottom_area < 1e-6:
         issues.append({"kind": "adhesion", "severity": "high", "detail": "바닥에 평평한 면이 없습니다", "fix": "suggest_orientation"})
         score -= 15
+    # --- M15 자동 수정 후보: 평면 얇은 면은 Pad로 두껍게, 붙은 모서리가 있는 평면 오버행은 45° 쐐기, 베드 초과는 분할
+    thick_faces = []
+    for t in thin_spots:
+        f = faces[int(t["face"][4:]) - 1]
+        if _planar_normal(f) is not None and f.Area > 1.0:
+            thick_faces.append({"face": t["face"], "point": t["point"], "thickness": t["thickness"], "add": round(prof["min_wall"] - t["thickness"] + 0.05, 3)})
+    if thick_faces:
+        fixes.append({"fix": "thicken", "faces": [x["face"] for x in thick_faces][:max_items], "spots": thick_faces[:max_items],
+                      "detail": f"평면 얇은 면 {len(thick_faces)}곳을 바깥쪽으로 Pad 해 {prof['min_wall']} mm로 (같은 벽의 양면이 잡히면 한쪽만 적용)"})
+    wedge_faces = []
+    for o in over_faces:
+        if o["kind"] != "overhang":
+            continue
+        f = faces[int(o["face"][4:]) - 1]
+        n = _planar_normal(f)
+        if n is None:
+            continue
+        att = _attached_edges(shape, f, n)
+        if att and len(att) < len(f.OuterWire.Edges):
+            wedge_faces.append({"face": o["face"], "tilt_deg": o["tilt_deg"], "area": o["area"], "attached_edges": len(att)})
+    if wedge_faces:
+        fixes.append({"fix": "overhang_chamfer", "faces": [x["face"] for x in wedge_faces][:max_items], "angle": limit_tilt,
+                      "detail": f"평면 오버행 {len(wedge_faces)}면 아래를 {limit_tilt}° 경사로 메움(서포트 대신 재료 추가 → 무게·모양이 바뀜)"})
+    if not fits:
+        axis = "x" if bb.XLength >= bb.YLength else "y"
+        if bb.ZLength > bed[2] and bb.ZLength >= max(bb.XLength, bb.YLength):
+            axis = "z"
+        limit = {"x": max(bed[0], bed[1]), "y": max(bed[0], bed[1]), "z": bed[2]}[axis]
+        length = {"x": bb.XLength, "y": bb.YLength, "z": bb.ZLength}[axis]
+        count = int(math.ceil(length / limit))
+        fixes.append({"fix": "split", "axis": axis, "count": count, "detail": f"{axis.upper()} 방향 {length:.1f} mm를 {count}조각(각 ≤ {limit})으로 분할 — 조각은 Part::Feature로 따로 만든다(접합용 핀·홈은 수동)"})
     for i, it in enumerate(issues):
         it["id"] = i + 1
     return {
@@ -428,7 +564,7 @@ def suggest_orientation(name=None, doc=None, profile=None, apply=None, samples=8
 
 
 def apply_print_fixes(name=None, doc=None, profile=None, fixes=None):
-    """elephant_foot / hole_comp / teardrop 을 Body에 PartDesign 피처로 (명세 7.35)."""
+    """elephant_foot / hole_comp / teardrop / thicken / overhang_chamfer / split (명세 7.35, M15 확장)."""
     t0 = time.time()
     d, err = util.get_doc(doc)
     if err:
@@ -439,7 +575,7 @@ def apply_print_fixes(name=None, doc=None, profile=None, fixes=None):
     if obj.TypeId != "PartDesign::Body":
         return util.error(f"'{obj.Name}'은(는) PartDesign::Body가 아닙니다({obj.TypeId}). 피처를 쌓으려면 Body가 필요합니다.")
     if not fixes:
-        return util.error("fixes 목록이 필요합니다: [{'fix': 'elephant_foot'|'hole_comp'|'teardrop', ...}]")
+        return util.error("fixes 목록이 필요합니다: [{'fix': 'elephant_foot'|'hole_comp'|'teardrop'|'thicken'|'overhang_chamfer'|'split', ...}]")
     try:
         prof = resolve_profile(profile)
     except _PrintError as e:
@@ -516,8 +652,117 @@ def apply_print_fixes(name=None, doc=None, profile=None, fixes=None):
                 if not feats:
                     continue
                 r = build_features(body=obj.Name, doc=d.Name, create_body=False, features=feats)
+            elif kind == "thicken":
+                min_wall = float(fx.get("min_wall") or prof["min_wall"])
+                spots = fx.get("spots")
+                if not spots:
+                    # 후보를 안 넘겼으면 검사에서 다시 찾는다
+                    a = _analyze(obj.Shape, prof, samples=1500, max_items=200, with_holes=False)
+                    spots = next((f_["spots"] for f_ in a["fixes"] if f_["fix"] == "thicken"), [])
+                if not spots:
+                    skipped.append({"fix": kind, "reason": "두껍게 할 평면 얇은 면이 없습니다."}); continue
+                done = []
+                mesh = None
+                for i, sp in enumerate(spots):
+                    cur = obj.Shape
+                    pnt = Vec(*sp["point"])
+                    # 지금 형상에서 그 점에 가장 가까운 평면 면을 다시 찾는다(앞 Pad로 번호가 바뀐다)
+                    best = None
+                    for fi_, f in enumerate(cur.Faces, 1):
+                        if _planar_normal(f) is None:
+                            continue
+                        fb = f.BoundBox
+                        fb.enlarge(0.5)
+                        if not fb.isInside(pnt):
+                            continue
+                        dist = f.distToShape(Part.Vertex(pnt))[0]
+                        if best is None or dist < best[0]:
+                            best = (dist, fi_, f)
+                    if best is None or best[0] > 0.5:
+                        skipped.append({"fix": kind, "reason": f"{sp.get('face')} 근처({sp['point']})에 평면이 없습니다."}); continue
+                    n = _planar_normal(best[2])
+                    mesh = _mesh_of(cur)
+                    t_now = _ray(mesh, pnt, Vec(-n.x, -n.y, -n.z), back_off=-_INSET)
+                    if t_now is None or t_now >= min_wall - 1e-3:
+                        done.append({"face": f"Face{best[1]}", "skipped": "이미 충분", "thickness": round(t_now, 3) if t_now else None}); continue
+                    add = round(min_wall - t_now + 0.05, 3)
+                    tip = obj.Tip
+                    pad = obj.newObject("PartDesign::Pad", f"Thicken{k + 1}_{i + 1}")
+                    pad.Profile = (tip, [f"Face{best[1]}"])
+                    pad.Length = add
+                    d.recompute()
+                    if "Invalid" in pad.State:
+                        st = pad.getStatusString()
+                        obj.removeObject(pad); d.removeObject(pad.Name); obj.Tip = tip; d.recompute()
+                        skipped.append({"fix": kind, "reason": f"Face{best[1]} Pad 실패: {st}"}); continue
+                    applied.append({"fix": kind, "feature": pad.Name, "status": "Valid", "face": f"Face{best[1]}", "added": add, "volume_after": round(obj.Shape.Volume, 2)})
+                    done.append({"face": f"Face{best[1]}", "added": add})
+                continue
+            elif kind == "overhang_chamfer":
+                angle = float(fx.get("angle") or prof["overhang_deg"])
+                want = fx.get("faces")
+                cur = obj.Shape
+                a = _analyze(cur, prof, samples=1500, max_items=200, with_holes=False)
+                cand = next((f_["faces"] for f_ in a["fixes"] if f_["fix"] == "overhang_chamfer"), [])
+                if want:
+                    cand = [c for c in cand if c in want]
+                if not cand:
+                    skipped.append({"fix": kind, "reason": "쐐기를 붙일 평면 오버행 면이 없습니다."}); continue
+                wedges = []
+                for fid in cand:
+                    f = cur.Faces[int(fid[4:]) - 1]
+                    n = _planar_normal(f)
+                    w = _wedge_below(cur, f, n, angle)
+                    if w is not None:
+                        wedges.append((fid, w))
+                if not wedges:
+                    skipped.append({"fix": kind, "reason": "쐐기 솔리드를 만들지 못했습니다."}); continue
+                fused = wedges[0][1]
+                for _, w in wedges[1:]:
+                    fused = fused.fuse(w)
+                helper = d.addObject("PartDesign::Body", f"{obj.Name}_OverhangFill{k + 1}")
+                hb = d.addObject("Part::Feature", f"{obj.Name}_OverhangFill{k + 1}_Base")
+                hb.Shape = fused.removeSplitter()
+                helper.BaseFeature = hb
+                d.recompute()
+                tip = obj.Tip
+                bo = obj.newObject("PartDesign::Boolean", f"OverhangFill{k + 1}")
+                bo.Type = "Fuse"
+                bo.addObjects([helper])
+                d.recompute()
+                if helper.ViewObject:
+                    helper.ViewObject.Visibility = False
+                if "Invalid" in bo.State:
+                    st = bo.getStatusString()
+                    obj.removeObject(bo); d.removeObject(bo.Name); obj.Tip = tip
+                    d.removeObject(helper.Name); d.removeObject(hb.Name); d.recompute()
+                    skipped.append({"fix": kind, "reason": f"Boolean Fuse 실패: {st}"}); continue
+                applied.append({"fix": kind, "feature": bo.Name, "status": "Valid", "faces": [fid for fid, _ in wedges], "helper_body": helper.Name,
+                                "added_volume": round(fused.Volume, 2), "volume_after": round(obj.Shape.Volume, 2)})
+                continue
+            elif kind == "split":
+                axis = str(fx.get("axis") or "x").lower()
+                if axis not in ("x", "y", "z"):
+                    skipped.append({"fix": kind, "reason": "axis는 x/y/z"}); continue
+                bed = prof["bed"]
+                size = fx.get("size") or ({"x": max(bed[0], bed[1]), "y": max(bed[0], bed[1]), "z": bed[2]}[axis])
+                cuts, pieces = _split_pieces(obj.Shape, axis, count=fx.get("count"), size=size, positions=fx.get("positions"))
+                if len(pieces) < 2:
+                    skipped.append({"fix": kind, "reason": "조각이 하나뿐입니다(절단 위치가 형상 밖)."}); continue
+                made = []
+                for i, pc in enumerate(pieces):
+                    pf = d.addObject("Part::Feature", f"{obj.Name}_Split{i + 1}")
+                    pf.Shape = pc
+                    pf.Label = f"{util.label(obj)} 조각 {i + 1}"
+                    made.append({"name": pf.Name, "bbox": util.serialize(pc.BoundBox), "volume": round(pc.Volume, 2), "solids": len(pc.Solids)})
+                d.recompute()
+                if obj.ViewObject:
+                    obj.ViewObject.Visibility = False
+                applied.append({"fix": kind, "axis": axis, "cuts": [round(c, 2) for c in cuts], "pieces": made,
+                                "note": "조각은 Body 밖의 Part::Feature다(원본은 숨김). 접합 핀·홈은 수동"})
+                continue
             else:
-                skipped.append({"fix": kind, "reason": "모르는 fix. elephant_foot / hole_comp / teardrop"}); continue
+                skipped.append({"fix": kind, "reason": "모르는 fix. elephant_foot / hole_comp / teardrop / thicken / overhang_chamfer / split"}); continue
             if not r["ok"]:
                 skipped.append({"fix": kind, "reason": r.get("error")}); continue
             st = r["data"].get("stopped_at")

@@ -67,7 +67,7 @@
 1. 프로파일을 확인한다: 재질(PLA/PETG/ABS/ASA/TPU/Nylon)·노즐·레이어·베드. 모르면 PLA·0.4·0.2·220×220×250으로 하고 그렇게 말한다. 출력 방향은 +Z, 바닥은 가장 낮은 면
 2. `check_printability(name, profile)` → `issues`를 번호 목록으로(종류·심각도·위치·fix 힌트). `score`는 참고값. 재질 표는 경험값이라 `warnings`를 그대로 전한다
 3. 오버행이 크면 `suggest_orientation` 후보 순위를 보여 주고 사용자가 고르면 `apply=<rank>`
-4. `fixes` 중 사용자가 고른 것만 `apply_print_fixes(fixes=[...])` (Body만). 오버행 챔퍼·얇은 벽·분할은 `fix: manual` — `build_features`로 손으로
+4. `fixes` 중 사용자가 고른 것만 `apply_print_fixes(fixes=[...])` (Body만). `thicken`은 check의 `spots`를 그대로 넘긴다(바깥쪽으로 두꺼워져 외형 치수가 변함을 말한다). `overhang_chamfer`는 재료가 추가돼 무게·모양이 바뀐다. `split`은 Body 밖에 조각 Part::Feature를 만들고 원본을 숨긴다(접합 핀은 수동). 곡면 얇은 벽·곡면 오버행은 여전히 manual
 5. 다시 `check_printability`로 확인, `estimate_print`로 무게·시간·비용
 
 ### 구조 해석(FEM) 워크플로 (M13)

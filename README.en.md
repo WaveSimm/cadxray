@@ -68,7 +68,7 @@ Also installable from FreeCAD's **Addon Manager** (add this repo as a custom rep
 | `check_printability` | **3D printing (M12)**: with a material/nozzle/bed profile, checks thin walls, overhangs and bridges (support area), small and horizontal holes, bed fit, first-layer contact → score, issues, fix candidates; `paint=True` colors the faces by result |
 | `estimate_print` | material volume, mass, filament length, rough time and cost (material density table) |
 | `suggest_orientation` | scores 6 orientations plus the current one by support area, bed contact and height; applies the chosen one |
-| `apply_print_fixes` | design-for-print edits as PartDesign features: elephant-foot chamfer, vertical hole compensation, teardrop for horizontal holes |
+| `apply_print_fixes` | design-for-print edits as PartDesign features: elephant-foot chamfer, vertical hole compensation, teardrop for horizontal holes, thicken thin faces, 45° fill under overhangs, split oversize parts (M15) |
 | `setup_analysis` | **structural FEM (M13)**: material (table or E/ν/density/yield) + fixed faces + loads (force, pressure, self-weight) + Gmsh 2nd-order mesh + CalculiX solver in one call |
 | `run_analysis` | CalculiX static run → max von Mises stress and where, max displacement, safety factor (yield/max), verdict, stress colormap in the 3D view |
 | `inspect_results` | top nodes and per-face maxima for stress/displacement fields, switch the colormap field |
@@ -79,7 +79,7 @@ Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_
 
 ## What it has been tested on
 
-- 268 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
+- 277 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.

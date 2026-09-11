@@ -151,7 +151,7 @@ FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 | `check_printability` | **3D 프린트(M12)**: 재질·노즐·베드 프로파일로 얇은 벽, 오버행/브릿지(서포트 면적), 작은·수평 구멍, 베드 적합, 첫 층 접지를 검사 → 점수·issues·fix 후보. `paint=True`면 면을 결과 색으로 |
 | `estimate_print` | 재료 부피·무게·필라멘트 길이·대략 시간·비용(재질 밀도 표) |
 | `suggest_orientation` | 출력 방향 6개 + 현재를 서포트·접지·높이로 채점, 고르면 Placement 적용 |
-| `apply_print_fixes` | 출력용 설계 수정을 PartDesign 피처로: 코끼리발 챔퍼, 수직 구멍 지름 보정, 수평 구멍 눈물방울 |
+| `apply_print_fixes` | 출력용 설계 수정을 PartDesign 피처로: 코끼리발 챔퍼, 수직 구멍 지름 보정, 수평 구멍 눈물방울, 얇은 면 두껍게, 오버행 아래 45° 쐐기, 베드 초과 분할(M15) |
 | `setup_analysis` | **구조 해석(M13)**: 재질(표 또는 E·ν·밀도·항복) + 고정 면 + 하중(힘·압력·자중) + Gmsh 2차 메시 + CalculiX 솔버를 한 번에 |
 | `run_analysis` | CalculiX 정적 해석 → 최대 von Mises 응력·위치, 최대 변위, 안전율(항복/최대), verdict, 3D 뷰에 응력 컬러맵 |
 | `inspect_results` | 응력·변위 상위 절점과 면별 최대, 컬러맵 필드 전환 |

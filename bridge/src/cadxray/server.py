@@ -629,9 +629,12 @@ def suggest_orientation(name: str, doc: str | None = None, profile: dict | None 
 def apply_print_fixes(name: str, fixes: list[dict], doc: str | None = None, profile: dict | None = None) -> str:
     """출력용 설계 수정을 Body에 PartDesign 피처로 쌓는다 (M12). 되돌리기 = 피처 삭제.
 
-    fixes: [{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical"|"all", "comp": 0.2}, {"fix": "teardrop", "holes": [[x,y,z],...]}]
-    elephant_foot = 바닥 바깥 모서리 챔퍼, hole_comp = 수직 구멍 지름 보정 Pocket, teardrop = 수평 구멍 위 45° 눈물방울 Pocket.
-    오버행 챔퍼·얇은 벽 두껍게·분할은 v1에서 제안만(check의 issues fix: manual). 사용자가 고른 것만 적용한다.
+    fixes: [{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical"|"all", "comp": 0.2}, {"fix": "teardrop", "holes": [[x,y,z],...]},
+            {"fix": "thicken", "spots": check의 fixes[thicken].spots (비우면 다시 검사)}, {"fix": "overhang_chamfer", "faces": ["Face7"], "angle": 45},
+            {"fix": "split", "axis": "x", "count": 2 | "positions": [x1, x2]}]
+    elephant_foot = 바닥 바깥 모서리 챔퍼, hole_comp = 수직 구멍 지름 보정 Pocket, teardrop = 수평 구멍 위 45° 눈물방울 Pocket,
+    thicken = 평면 얇은 면을 바깥으로 Pad(M15), overhang_chamfer = 평면 오버행 아래를 45° 쐐기로 메움(보조 Body + Boolean Fuse, M15),
+    split = 베드보다 큰 형상을 축 방향으로 잘라 Part::Feature 조각으로(M15, 원본은 숨김). 사용자가 고른 것만 적용한다.
     """
     return client.call("apply_print_fixes", {"name": name, "fixes": fixes, "doc": doc, "profile": profile}, timeout=190)
 

@@ -618,6 +618,35 @@ def test_print_tools():
     check("Body가 아니면 오류", not r["ok"] and "Body" in r["error"])
 
 
+def test_print_fixes_m15():
+    section("M15: apply_print_fixes thicken / overhang_chamfer / split")
+    prof = {"material": "PLA", "nozzle": 0.4, "layer": 0.2, "bed": [220, 220, 250]}
+    fx.build("T12_print")
+    r = printing.check_printability(name="PrintBody", doc="T12_print", profile=prof)
+    fixes = {f["fix"]: f for f in r["data"]["fixes"]}
+    check("후보에 thicken(리브 옆면)·overhang_chamfer(캔틸레버·기운 면)", "thicken" in fixes and "overhang_chamfer" in fixes and len(fixes["overhang_chamfer"]["faces"]) >= 1, str(list(fixes)))
+    v0 = FreeCAD.getDocument("T12_print").getObject("PrintBody").Shape.Volume
+    r = measure("apply_print_fixes", "T12 thicken", printing.apply_print_fixes(name="PrintBody", doc="T12_print", profile=prof, fixes=[{"fix": "thicken", "spots": fixes["thicken"]["spots"]}]))
+    check("thicken ok, Pad ≥ 1, 부피 증가, 유효", r["ok"] and any(a["fix"] == "thicken" for a in r["data"]["applied"]) and r["data"]["volume_after"] > v0 and r["data"]["valid"], str(r.get("error") or r["data"]))
+    r2 = printing.check_printability(name="PrintBody", doc="T12_print", profile=prof)
+    check("thicken 뒤 얇은 벽 없음", r2["ok"] and r2["data"]["thin_walls"]["spots_total"] == 0, str(r2["data"]["thin_walls"]))
+    v1 = FreeCAD.getDocument("T12_print").getObject("PrintBody").Shape.Volume
+    sa0 = r2["data"]["overhangs"]["support_area"]
+    r = measure("apply_print_fixes", "T12 overhang_chamfer", printing.apply_print_fixes(name="PrintBody", doc="T12_print", profile=prof, fixes=[{"fix": "overhang_chamfer"}]))
+    check("overhang_chamfer ok, Boolean Fuse 유효, 부피 증가", r["ok"] and any(a["fix"] == "overhang_chamfer" for a in r["data"]["applied"]) and r["data"]["volume_after"] > v1 + 100 and r["data"]["valid"], str(r.get("error") or r["data"]))
+    r3 = printing.check_printability(name="PrintBody", doc="T12_print", profile=prof)
+    check("쐐기 뒤 서포트 면적 감소", r3["ok"] and r3["data"]["overhangs"]["support_area"] < sa0 * 0.5, str((sa0, r3["data"]["overhangs"]["support_area"])))
+    r = measure("apply_print_fixes", "T12 split x2", printing.apply_print_fixes(name="PrintBody", doc="T12_print", profile=dict(prof, bed=[30, 30, 30]), fixes=[{"fix": "split", "axis": "x", "count": 2}]))
+    check("split ok, 조각 2개, 각 X 폭 ≤ 30", r["ok"] and len(r["data"]["applied"][0]["pieces"]) == 2 and all(p["bbox"]["size"][0] <= 30.01 for p in r["data"]["applied"][0]["pieces"]), str(r.get("error") or r["data"]["applied"]))
+    tot = sum(p["volume"] for p in r["data"]["applied"][0]["pieces"])
+    check("조각 부피 합 = 원본", abs(tot - FreeCAD.getDocument("T12_print").getObject("PrintBody").Shape.Volume) < 1.0, str(tot))
+    r = printing.check_printability(name="Part", doc="T12_print", profile=dict(prof, bed=[30, 30, 30]))
+    check("베드 초과 → split 후보(count 2)", r["ok"] and any(f["fix"] == "split" and f["count"] == 2 for f in r["data"]["fixes"]), str([f for f in r["data"]["fixes"] if f["fix"] == "split"]))
+    r = printing.apply_print_fixes(name="PrintBody", doc="T12_print", profile=prof, fixes=[{"fix": "split", "axis": "q"}])
+    check("axis 오류 → skipped", r["ok"] and r["data"]["skipped"] and "axis" in r["data"]["skipped"][0]["reason"])
+    fx.build("T12_print")
+
+
 def test_fem_tools():
     section("M13: setup_analysis / run_analysis / inspect_results / suggest_reinforcement (+ paint, stability)")
     load = [{"type": "force", "faces": ["xmax"], "value": 20, "direction": [0, 0, -1]}]
@@ -924,6 +953,7 @@ def main():
         ("mesh_tools", test_mesh_tools),
         ("sketch_fix_tools", test_sketch_fix_tools),
         ("print_tools", test_print_tools),
+        ("print_fixes_m15", test_print_fixes_m15),
         ("fem_tools", test_fem_tools),
         ("link_tools", test_link_tools),
         ("registry_and_cap", test_registry_and_cap),

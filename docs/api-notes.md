@@ -430,3 +430,12 @@ FreeCAD 1.x 내장 Assembly를 `execute_code`로 만들 수 있다 (MCP 전용 �
 - Link 배열: `ElementCount=3, ShowElement=False`면 `ElementList`는 비어 있다(요소 객체를 안 만든다)
 - 부모 문서를 `openDocument`하면 링크된 문서가 자동으로 같이 열린다(`listDocuments`에 보임). 링크된 파일이 없으면 부모만 열리고 Link는 `State ['Touched','Invalid']`, `getStatusString()` = `"Link not restored\nLinked object: Body\nLinked file: T14_part.FCStd"`, `LinkedObject`는 None. 파일 이름은 상태 문자열에서만 읽을 수 있다
 - `doc.getLinksTo(obj, options, maxCount)`는 **그 문서 안**의 링크만 돌려준다(다른 문서에서 오는 링크는 안 잡힘)
+
+## 20. PartDesign에 임의 솔리드 합치기·면에서 Pad `[라이브 1.1.3 확인, 2026-09-11]`
+
+`handlers/printing.py`의 M15 수정에서 사용.
+
+- 임의 Part 솔리드를 Body에 더하기: 보조 `PartDesign::Body`에 `BaseFeature = Part::Feature(솔리드)` → 본 Body에 `body.newObject("PartDesign::Boolean", name)`, `Type = "Fuse"`, `addObjects([helper_body])`. 부피가 정확히 합산된다(상자+캔틸레버+쐐기 26700 확인). 보조 Body는 트리에 남고 보이므로 `ViewObject.Visibility = False`
+- 면에서 바로 Pad: `pad.Profile = (body.Tip, ["FaceN"])`, `Length` → 면 법선(바깥) 방향으로 재료 추가. 평면만 된다
+- `Part.Face.makeHalfSpace(refPoint)`는 있지만 **`solid.common(half)`가 아무것도 자르지 않는다**(무한 반공간 불리언 불안정). 경사면 절단은 `Rotation(Z→N)`으로 돌린 큰 `makeBox`를 N 쪽에 놓고 `solid.cut(box)`
+- 쐐기 후 face 번호가 바뀐다 — 후보는 점 좌표(`point`)로 저장하고 적용 시 가장 가까운 평면을 다시 찾는다

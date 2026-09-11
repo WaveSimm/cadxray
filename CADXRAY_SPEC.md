@@ -563,7 +563,8 @@ STL/OBJ/PLY/3MF 메시를 **참고용 Mesh 객체**로 읽는다(변환하지 �
 
 ### 7.35 `apply_print_fixes` (M12)
 - 입력: `name(Body), doc=None, profile={...}, fixes=[{"fix": "elephant_foot", "size": 0.3}, {"fix": "hole_comp", "holes": "vertical|all", "comp": null}, {"fix": "teardrop", "holes": [...]}]`
-- PartDesign 피처로 쌓는다(되돌리기 = 피처 삭제): `elephant_foot` = 바닥 바깥 모서리 Chamfer, `hole_comp` = 수직 구멍을 보정값만큼 키우는 Pocket(`find_holes` 값), `teardrop` = 수평 구멍 위에 45° 눈물방울 Pocket. 오버행 아래 챔퍼·얇은 벽 두껍게·분할은 v1에서 제안만 한다(issues에 "manual").
+- PartDesign 피처로 쌓는다(되돌리기 = 피처 삭제): `elephant_foot` = 바닥 바깥 모서리 Chamfer, `hole_comp` = 수직 구멍을 보정값만큼 키우는 Pocket(`find_holes` 값), `teardrop` = 수평 구멍 위에 45° 눈물방울 Pocket.
+- M15 확장(2026-09-11): `thicken` = 평면 얇은 면을 `Pad(Profile=(Tip, ["FaceN"]))`로 바깥쪽에 `min_wall − 현재 두께 + 0.05`만큼(적용 직전에 광선으로 다시 재서 이미 충분하면 건너뜀 — 같은 벽의 양면 후보 중 한쪽만 적용됨). `overhang_chamfer` = 평면 오버행 면 중 재료에 붙은 모서리가 있는 것(캔틸레버·기운 면) 아래를 45°(profile overhang_deg) 경사로 메우는 쐐기: 면을 아래로 extrude → 붙은 모서리를 지나는 경사면에 맞춰 돌린 큰 상자로 잘라(반공간 불리언은 안 먹힘) → 보조 Body(BaseFeature) + `PartDesign::Boolean Fuse`. `split` = 베드보다 큰 형상을 축 방향으로 `count`/`size`/`positions`로 잘라 `Part::Feature` 조각(`<Body>_SplitN`)으로, 원본은 숨김. check의 `fixes`에 세 후보가 조건에 맞을 때 들어간다(thicken: 평면 얇은 면 + spots, overhang_chamfer: faces, split: axis·count)
 - 출력: `{"applied": [{"fix", "feature", "status"}], "skipped": [...], "volume_before", "volume_after"}`. Body가 아니면 오류.
 
 ### 7.36 `setup_analysis` (M13)
@@ -725,6 +726,10 @@ FreeCAD 1.1은 CalculiX(ccx)·Gmsh를 동봉한다(bin/). FEM 워크벤치를 �
 5. 부가: `check_printability(paint=)` (7.40), `get_mass_properties(stability=)` (7.41)
 6. CLAUDE.md 워크플로: 재질·고정·하중 확인 → setup → run → 스크린샷 + 안전율 → 미달이면 suggest 번호 목록 → 사용자 선택 → build_features → run 재확인
 7. **완료 기준**: `T13_fem`(외팔보 100×10×5, PETG, 자유단 20 N −Z)에서 최대 von Mises가 이론 48 MPa ±10 %, 최대 변위가 32 mm ±5 %(2차 요소; 1차는 절반 수준으로 나와 기본값이 아니다), 핫스팟이 고정단, 안전율 <1 → fail, suggest에 thicken·material·load. 스풀 가이드(나사 있는 실물)에서 Gmsh 2차 메시가 CalculiX "nonpositive jacobian"을 내지 않는다(SecondOrderLinear)
+
+### M15 — 3D 프린트 자동 수정 확장 (M14 이후, 2026-09-11 추가)
+1. `apply_print_fixes`에 `thicken` / `overhang_chamfer` / `split` (7.35 확장), `check_printability.fixes`에 후보
+2. **완료 기준**: `T12_print`의 PrintBody에서 thicken 뒤 얇은 벽 0, overhang_chamfer 뒤 서포트 면적이 절반 미만으로, split(x, 2)로 조각 2개(각 ≤ 30, 부피 합 = 원본), 베드 30에서 split 후보 count 2
 
 ### M14 — 어셈블리 Link 너머 문서 추적 (M13 이후, 2026-09-11 추가)
 1. `trace_links` (7.42) — `handlers/links.py`
