@@ -1,6 +1,6 @@
 # cadxray (브릿지)
 
-Claude Code와 FreeCAD 애드온(XML-RPC 127.0.0.1:9877)을 잇는 MCP 서버. 애드온(`addon/CadXray`)이 패키지에 동봉되어 있다.
+Claude Code와 FreeCAD 애드온(XML-RPC 127.0.0.1:9877)을 잇는 MCP 서버. 애드온(`freecad/cadxray`)이 패키지에 동봉되어 있다.
 
 ```bash
 cadxray                 # MCP 서버 실행 (Claude Code가 부른다)

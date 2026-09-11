@@ -639,6 +639,15 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 3. CLAUDE.md 진단 워크플로 5단계에 넣는다: 진단 → 후보 목록(번호) → 사용자 선택 → 적용 → `tracked_recompute`
 4. **완료 기준**: `T4_open_wire`에서 열린 끝점 쌍에 `add_coincident` 후보가 나오고 적용하면 `open_vertices`가 0, `T3_conflict`에서 충돌 치수 둘에 대해 `delete_constraint` 후보 두 개가 `exclusive_with`로 묶여 나오며 하나를 적용하면 solve 0, `T2_underconstrained`에서 `add_dimension`/`add_horizontal` 후보 적용으로 DoF 0. `T10_fixes`(0.02 벌어진 사각형 + 0.3° 기운 선 + 같은 길이 선 + 같은 반지름 원)에서 후보 4종이 모두 나오고 `recommended`만 적용하면 열린 끝점 0·DoF 감소. 원본 스케치는 evaluate 뒤에도 제약 수가 같다. 잘못된 id·바뀐 fingerprint는 오류.
 
+### M11 — 배포 (M10 이후, 2026-09-11 추가)
+세 경로 모두 연다: (1) README 두 줄(uvx 설치 + claude mcp add), (2) Addon Manager 사용자 저장소 URL, (3) 공식 인덱스(FreeCAD/Addons의 "Addon - Addition" 이슈 → 팀 검토 → 릴리스 태그 → Index.json 등재).
+1. 애드온을 `freecad/cadxray/` 네임스페이스 레이아웃으로(Addon Academy Qualities: sys.path 조작 금지, 옛 Init.py/InitGui.py 비권장). 진입점 `init_gui.py`
+2. `package.xml` 하나(루트): 아이콘·저장소/README/버그트래커 URL·태그·freecadmin·SPDX 라이선스. `<url branch>`는 인덱스가 추적할 `release` 브랜치
+3. 설치기(`cadxray install`)는 `freecad/`·`package.xml`·`LICENSE`만 Mod/cadxray에 복사, 0.6 이하의 Mod/CadXray는 치운다
+4. `release` 브랜치 + `v0.7.0` 태그. 개발은 master, 릴리스 때만 release로 merge하고 version·date를 올린다
+5. GitHub 토픽 `freecad`, `addon`. FreeCAD/Addons에 Addon-Addition 이슈(저장소 URL + 노트: localhost 전용 리스너 자동 시작, 브릿지는 별도 등록, 외부 전송 없음)
+6. **완료 기준**: `FreeCAD.Metadata("package.xml")`이 오류 없이 읽히고 content/workbench classname이 `gui.CadXrayWorkbench`와 같다. 새 Mod/cadxray로 FreeCAD를 재시작하면 서버가 뜨고 `ping`이 0.7.0을 준다. 헤드리스 테스트 전부 통과. 이슈가 올라가 있다(등재는 팀 검토 뒤).
+
 ---
 
 ## 10. 검증 시나리오와 CLAUDE.md 워크플로
@@ -688,7 +697,6 @@ M7 부록의 손 절차(스풀 가이드에서 `execute_code` 200줄)를 툴로 
 - ~~헤드리스 배치(FreeCADCmd + 파일 경로로 문서 열기 툴)~~ — 2026-09-11 사용자 판단으로 제외
 - 벽 두께 분석(단면 `slice` 기반 근사), 어셈블리 Link 너머 문서 추적
 - ~~원격 호스트 접속(허용 IP 목록)~~ — 2026-09-11 제외. 다른 PC의 FreeCAD가 필요해지면 코드 수정 없이 SSH 터널(`ssh -L 9877:localhost:9877 원격PC`)로 먼저 쓴다. execute_code가 있어 원격을 여는 것은 그 PC를 여는 것과 같다
-- Addon Manager 배포용 `package.xml` 완성
 
 
 ---
