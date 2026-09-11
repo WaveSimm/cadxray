@@ -12,3 +12,12 @@ docs/freecad-src-ref/
 
 # bkit 플러그인 산출물
 docs/.pdca-snapshots/
+
+# 사용자 작업 파일(도면·사진·메시·저장본)은 루트에 두더라도 올리지 않는다
+/*.dxf
+/*.pdf
+/*.png
+/*.stl
+/*.FCStd
+/*.step
+/*.stp
