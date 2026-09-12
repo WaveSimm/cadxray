@@ -256,8 +256,9 @@ starlight-theme-select select,
 mobile-starlight-toc nav { border-color: var(--color-border); background: var(--color-surface); }
 starlight-menu-button button { border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
 
-/* ── 6. 버튼(Button) — 위젯·퀴즈·댓글·게시판 공통. 기본=secondary, 화면당 primary 1개, ghost=텍스트. pill 금지.
-      (클래스 이름의 ee- 는 교육 포털에서 먼저 쓰던 접두어. 두 포털이 같이 쓴다) ── */
+/* ── 6. 버튼(Button). 기본=secondary, 화면당 primary 1개, ghost=텍스트. pill 금지.
+      ※ 아래 6~8절(버튼·폼·게시판)은 덧글/게시판 기능을 위해 미리 잡아 둔 규격이다.
+         현재 이 사이트의 MDX 는 쓰지 않는다 — 기능을 붙일 때 그대로 쓴다. ── */
 .ee-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1);
   height: var(--button-height);

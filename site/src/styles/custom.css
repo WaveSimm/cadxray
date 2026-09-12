@@ -6,10 +6,6 @@
 /* 넓은 표(툴 목록·비교표)는 가로 스크롤 */
 .sl-markdown-content table { display: block; overflow-x: auto; }
 
-/* 실습 머리표(입력·시간·결과)는 내용 폭만큼 */
-.sl-markdown-content table.spec { display: table; width: auto; }
-.sl-markdown-content table.spec th { white-space: nowrap; }
-
 /* ── 실습 «원본과 완성» 그림 쌍 — 카드 규격(흰 표면 + 1px 테두리 + radius lg) 안에 그림, 아래 회색 설명 ── */
 .sl-markdown-content .file-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4); margin: var(--space-4) 0; }
 .sl-markdown-content .file-pair figure { margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-3); }

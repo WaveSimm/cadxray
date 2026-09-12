@@ -5,7 +5,6 @@
   --color-primary: #2563eb;        /* blue-600 : 주 버튼, 링크, 활성 글자, 진행률 채움 */
   --color-primary-hover: #1d4ed8;  /* blue-700 */
   --color-primary-soft: #eff6ff;   /* blue-50  : 활성 pill/사이드바 배경, 콜아웃 info 배경 */
-  --color-primary-soft-2: #dbeafe; /* blue-100 : 캘린더 이벤트 칩, 인사 배너 */
   --color-on-primary: #ffffff;     /* 파란 채움 위 글자 (라이트·다크 공통) */
 
   /* ---- 의미색 ----  기본색=테두리·아이콘·점, -soft=콜아웃/배지 배경, -strong=soft 배경 위 글자 */
@@ -32,21 +31,6 @@
   --color-text-2: #374151;         /* gray-700: 비활성 탭, 보조 본문 */
   --color-text-3: #6b7280;         /* gray-500: 메타, 표 헤더, 빈 상태 */
   --color-text-4: #9ca3af;         /* gray-400: 플레이스홀더 */
-
-  /* ---- 아바타 팔레트 (이름 해시 → 8색) ---- */
-  --avatar-1: #2563eb; --avatar-2: #16a34a; --avatar-3: #d97706; --avatar-4: #db2777;
-  --avatar-5: #0891b2; --avatar-6: #7c3aed; --avatar-7: #ea580c; --avatar-8: #4b5563;
-  /* 아바타 안에서만 보라(--avatar-6) 허용. 다른 UI 요소에는 금지. */
-
-  /* ---- 교육 포털 전용: 학습 모듈 A~H 아이콘 배지 ---- */
-  --module-a-bg: #fef3c7; --module-a-fg: #92400e;
-  --module-b-bg: #ede9fe; --module-b-fg: #5b21b6;
-  --module-c-bg: #dbeafe; --module-c-fg: #1e40af;
-  --module-d-bg: #dcfce7; --module-d-fg: #166534;
-  --module-e-bg: #fce7f3; --module-e-fg: #9d174d;
-  --module-f-bg: #ffedd5; --module-f-fg: #9a3412;
-  --module-g-bg: #cffafe; --module-g-fg: #155e75;
-  --module-h-bg: #f3f4f6; --module-h-fg: #374151;
 
   /* ---- 타이포 ---- */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
@@ -82,7 +66,7 @@
   --input-height: 40px;
   --row-height: 44px;
   --progress-height: 6px;
-  --avatar-size: 28px;
+  --avatar-size: 28px;  /* 헤더 로고 배지 */
   --sidebar-width: 260px;
   --toc-width: 220px;
   --content-max: 720px; /* 문서 사이트 본문 */
@@ -92,13 +76,12 @@
   --shadow-md: 0 4px 12px rgba(0,0,0,.08);
 }
 
-/* 다크 모드 — 세 사이트 모두 테마 전환 UI가 있으므로 함께 정의.
-   ERP 다크는 text-blue-400 계열을 쓰므로 강조색도 한 단계 밝힌다. */
+/* 다크 모드 — Starlight 의 테마 전환 스위치가 [data-theme] 를 바꾼다.
+   어두운 바탕에서 파랑이 가라앉으므로 강조색을 한 단계 밝힌다. */
 [data-theme="dark"] {
   --color-primary: #3b82f6;        /* blue-500 */
   --color-primary-hover: #60a5fa;  /* blue-400 */
   --color-primary-soft: #1e3a8a33;
-  --color-primary-soft-2: #1e40af4d;
   --color-success-soft: #16a34a26;  --color-success-strong: #4ade80;
   --color-warning-soft: #d9770626;  --color-warning-strong: #fbbf24;
   --color-danger-soft: #dc262626;   --color-danger-strong: #f87171;
