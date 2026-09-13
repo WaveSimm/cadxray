@@ -1,5 +1,5 @@
 ---
-title: "Exercise 10. Building a pull-up bar frame from a DXF (the full run)"
+title: "Exercise 10. Building an observation frame from a DXF (the full run)"
 description: Have the AI read a 1/40 structural DXF, pull specifications out of the bill of materials, dimensions and notes, build seven part types as parametric Bodies, and assemble them with Links. The heart of it is receiving the AI's «assumptions» as a table and confirming them.
 sidebar:
   order: 10
@@ -17,17 +17,17 @@ import img1 from '../../../../assets/practice/10-pole-frame-final.png';
 | What you end up with | Seven part Bodies (column, cross pipe, square tube, gusset, base plate, cap, foundation) + a frame group of 27 Links, and a parameter table |
 | What you learn | How to decide what to follow when the drawing, the bill of materials and the notes disagree; the conversation of receiving the AI's «assumptions» as a table and approving them one at a time; the one-Body-per-type plus Link-instance structure; the habit of breaking a long job up part by part |
 
-Every exercise so far was a single part. This time you build a structure of seven part types and 27 instances from a real site drawing (a pull-up bar frame with a square tube attached). The specifications are scattered across three places in the drawing — the BOM text, the dimensions and the geometry — and they disagree in places. So half of this exercise is not modeling but **receiving what the AI read and what it assumed as a table, and confirming it**.
+Every exercise so far was a single part. This time you build a structure of seven part types and 27 instances from a real site drawing (an observation frame with a square tube attached). The specifications are scattered across three places in the drawing — the BOM text, the dimensions and the geometry — and they disagree in places. So half of this exercise is not modeling but **receiving what the AI read and what it assumed as a table, and confirming it**.
 
 ## Original and finished
 
 <div class="file-pair">
   <figure>
-    <Image src={img0} alt="Original: the pull-up bar frame DXF" />
+    <Image src={img0} alt="Original: the observation frame DXF" />
     <figcaption><b>Original</b> 10-pole-frame-drawing.dxf imported into FreeCAD as a flat view (stray objects outside the drawing hidden) — a 1/40 drawing with front, side and plan views and the BOM</figcaption>
   </figure>
   <figure>
-    <Image src={img1} alt="Finished: the pull-up bar frame in 3D" />
+    <Image src={img1} alt="Finished: the observation frame in 3D" />
     <figcaption><b>Finished</b> The seven Bodies (12 features) hidden, showing only the 27 Links — columns, cross pipe, square tube, gussets, base plates, caps and foundations, all valid</figcaption>
   </figure>
 </div>
