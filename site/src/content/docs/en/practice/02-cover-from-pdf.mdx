@@ -13,7 +13,7 @@ import img1 from '../../../../assets/practice/02-cover-final.png';
 
 | Item | Detail |
 |---|---|
-| Input files | `02-cover/cover_machining.pdf` (two 1:1 vector drawings — data logger cover + sensor-extension logger cover) |
+| Input files | `02-cover-drawing.pdf` (two 1:1 vector drawings — data logger cover + sensor-extension logger cover) |
 | Time | 3 min (building the two plates takes under a second) |
 | What you end up with | Two documents (`cover_logger`, `cover_sensor`), each with one Body + a `Params` spreadsheet |
 | What you learn | How to have the AI read a PDF drawing, how to confirm the scale, and how to fill in a dimension the drawing lacks (thickness) as an assumption with its reasoning recorded |
@@ -25,7 +25,7 @@ In Exercise 1 you read out every dimension yourself. This time you hand over a d
 <div class="file-pair">
   <figure>
     <Image src={img0} alt="Original: the cover machining drawing PDF" />
-    <figcaption><b>Original</b> cover_machining.pdf — two 1:1 vector drawings (data logger, sensor-extension logger). This image is page 1 of the PDF drawn as-is (the client's markings removed)</figcaption>
+    <figcaption><b>Original</b> 02-cover-drawing.pdf — two 1:1 vector drawings (data logger, sensor-extension logger). This image is page 1 of the PDF drawn as-is (the client's markings removed)</figcaption>
   </figure>
   <figure>
     <Image src={img1} alt="Finished: the data logger cover plate" />
@@ -39,11 +39,11 @@ In Exercise 1 you read out every dimension yourself. This time you hand over a d
 
 | | File | Description | Size |
 |---|---|---|---|
-| Original | [cover_machining.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | The PDF drawing | 776 KB |
-| Finished | [cover_logger.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | Data logger cover | 32 KB |
-| Finished | [cover_sensor.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | Sensor-extension cover | 19 KB |
-| Finished | [Cover_DataLogger.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
-| Finished | [Cover_SensorExt.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
+| Original | [02-cover-drawing.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | The PDF drawing | 776 KB |
+| Finished | [02-cover_logger-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | Data logger cover | 32 KB |
+| Finished | [02-cover_sensor-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | Sensor-extension cover | 19 KB |
+| Finished | [02-Cover_DataLogger-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
+| Finished | [02-Cover_SensorExt-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
 
 :::tip[The finished files are real]
 They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
@@ -52,7 +52,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ## Setup
 
 1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)` in the Report view.
-2. Download the PDF into a folder with a short path (for example `C:\cad\cover_machining.pdf`). Avoid spaces in the path.
+2. Download the PDF into a folder with a short path (for example `C:\cad\02-cover-drawing.pdf`). Keep the filename exactly as the release gives it.
 3. In PowerShell, move to that folder and type `claude` to open your AI tool (Codex and Gemini CLI open in the same folder).
 4. Close any other FreeCAD documents. That cuts down on the AI asking which document to build in.
 
@@ -61,7 +61,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Have it read the drawing and confirm the scale first
 
 ```text title="Say this"
-C:\cad\cover_machining.pdf is a machining drawing for cover plates. Don't build the model yet —
+C:\cad\02-cover-drawing.pdf is a machining drawing for cover plates. Don't build the model yet —
 1) how many pages there are and which part each one is
 2) whether the scale really is 1:1, by comparing the circle and rectangle coordinates against the dimension text
 3) anywhere the written dimensions disagree with the drawn positions

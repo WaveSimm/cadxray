@@ -14,7 +14,7 @@ import img2 from '../../../../assets/practice/04-clamp-final.png';
 
 | Item | Detail |
 |---|---|
-| Input files | `04-clamp/tt_fractal_vise_assembly.step` (a vendor vise assembly STEP, 80 parts of 20 types. You redraw the clamp jaw **2B2** — 44 faces, including BSpline transition faces) |
+| Input files | `04-tt_fractal_vise_assembly.step` (a vendor vise assembly STEP, 80 parts of 20 types. You redraw the clamp jaw **2B2** — 44 faces, including BSpline transition faces) |
 | Time | 5 min (2 s to open the STEP, 8 s to rebuild, 1 s to compare) |
 | What you end up with | A new document `jaw_2B2_tools` with one Body (12 features, all 12 sketches at DoF 0, a parameter sheet) |
 | What you learn | Reading holes and pitches out of a STEP, the procedure for turning a history-less lump into a model with features, and boolean verification against the original |
@@ -40,11 +40,11 @@ A vendor STEP is a lump with no features, so you cannot change its dimensions. T
 
 | | File | Description | Size |
 |---|---|---|---|
-| Original | [tt_fractal_vise_assembly.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-tt_fractal_vise_assembly.step) | Assembly STEP | 3.1 MB |
-| Original | [jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-original.step) | Just 2B2, extracted | 75 KB |
-| Finished | [jaw_2B2.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.FCStd) | 2B2 redrawn (includes the hidden original copy Ref_2B2) | 398 KB |
-| Finished | [jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.step) | STEP | 98 KB |
-| Finished | [assembly.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-assembly-done.FCStd) | The 80-part assembly converted to Bodies + grounded joints | 4.5 MB |
+| Original | [04-tt_fractal_vise_assembly.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-tt_fractal_vise_assembly.step) | Assembly STEP | 3.1 MB |
+| Original | [04-jaw_2B2-original.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-original.step) | Just 2B2, extracted | 75 KB |
+| Finished | [04-jaw_2B2-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.FCStd) | 2B2 redrawn (includes the hidden original copy Ref_2B2) | 398 KB |
+| Finished | [04-jaw_2B2-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.step) | STEP | 98 KB |
+| Finished | [04-assembly-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-assembly-done.FCStd) | The 80-part assembly converted to Bodies + grounded joints | 4.5 MB |
 
 :::tip[The finished files are real]
 They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
@@ -53,7 +53,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ## Setup
 
 1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작` in the Report view.
-2. Put the STEP at `C:\cad\tt_fractal_vise_assembly.step`.
+2. Put the STEP at `C:\cad\04-tt_fractal_vise_assembly.step`.
 3. In PowerShell, move to `C:\cad` and open `claude`.
 4. Do not open a document first. The AI creates one when it opens the STEP.
 
@@ -62,7 +62,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Open the STEP and look at the structure
 
 ```text title="Say this"
-Open C:\cad\tt_fractal_vise_assembly.step and summarise how many parts there are and how many of each type. Then check whether the clamp jaw labelled 2B2 has a valid shape. Don't build anything yet.
+Open C:\cad\04-tt_fractal_vise_assembly.step and summarise how many parts there are and how many of each type. Then check whether the clamp jaw labelled 2B2 has a valid shape. Don't build anything yet.
 ```
 
 **What the AI does** — opens the STEP into a new document and reads the part hierarchy. It is an assembly, so 80 parts come in; the internal name of an object imported from STEP is `Part__Feature…` and the original name is in the Label. It groups parts with the same face count, volume and size into types and counts them, then checks the validity of 2B2 (solid count, face count, self-intersection).

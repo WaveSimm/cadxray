@@ -12,7 +12,7 @@ import img1 from '../../../assets/practice/03-pcb-final.png';
 
 | 항목 | 내용 |
 |---|---|
-| 입력 파일 | `03-pcb/MYB-6ULX_2D.dxf`, `03-pcb/MYS-6ULX_2D.dxf` |
+| 입력 파일 | `03-MYB-6ULX_2D.dxf`, `03-MYS-6ULX_2D.dxf` |
 | 걸리는 시간 | 3분 (보드 2장 생성 8초) |
 | 결과물 | 문서 2개(`pcb_MYB`, `pcb_MYS`), 각각 보드 Body 1개(두께 1.6, 장착 구멍 Ø3.3 파라미터) |
 | 배우는 것 | DXF 에서 필요한 레이어만 골라 읽히는 법, 폴리라인의 둥근 모서리(bulge)가 호로 옮겨지는 것, 구멍을 종류별로 나누는 법 |
@@ -34,12 +34,12 @@ PCB 를 케이스에 넣으려면 보드 외곽과 장착 구멍만 있는 3D �
 
 | 구분 | 파일 | 설명 | 크기 |
 |---|---|---|---|
-| 원본 | [MYB-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB-6ULX_2D.dxf) | DXF | 479 KB |
-| 원본 | [MYS-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS-6ULX_2D.dxf) | DXF | 461 KB |
-| 완성 | [완성-pcb_MYB.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYB-done.FCStd) | MYB 보드 | 91 KB |
-| 완성 | [완성-pcb_MYS.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYS-done.FCStd) | MYS 보드 | 79 KB |
-| 완성 | [완성-MYB_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB_6ULX-done.step) | STEP | 200 KB |
-| 완성 | [완성-MYS_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS_6ULX-done.step) | STEP | 173 KB |
+| 원본 | [03-MYB-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB-6ULX_2D.dxf) | DXF | 479 KB |
+| 원본 | [03-MYS-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS-6ULX_2D.dxf) | DXF | 461 KB |
+| 완성 | [03-pcb_MYB-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYB-done.FCStd) | MYB 보드 | 91 KB |
+| 완성 | [03-pcb_MYS-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYS-done.FCStd) | MYS 보드 | 79 KB |
+| 완성 | [03-MYB_6ULX-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB_6ULX-done.step) | STEP | 200 KB |
+| 완성 | [03-MYS_6ULX-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS_6ULX-done.step) | STEP | 173 KB |
 
 :::tip[완성 파일은 실제로 만든 것입니다]
 이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
@@ -57,7 +57,7 @@ PCB 를 케이스에 넣으려면 보드 외곽과 장착 구멍만 있는 3D �
 ### 1. DXF 안에 무엇이 있는지 먼저 보게 한다
 
 ```text title="이렇게 말한다"
-C:\cad\MYB-6ULX_2D.dxf 는 PCB 2D 도면이야. FreeCAD 로 열지 말고 파일을 직접 읽어서
+C:\cad-MYB-6ULX_2D.dxf 는 PCB 2D 도면이야. FreeCAD 로 열지 말고 파일을 직접 읽어서
 레이어 이름별로 폴리라인·원이 몇 개씩 있는지, OUTLINE 레이어의 폴리라인이 닫혀 있는지, 원의 반지름 종류를 표로 보여 줘.
 ```
 
@@ -106,7 +106,7 @@ MYB_6ULX 완료. PadBoard(요소 8, 자유도 0) → PocketMount(4) → PocketPi
 ### 4. 두 번째 보드도 같은 규칙으로
 
 ```text title="이렇게 말한다"
-MYS-6ULX_2D.dxf 도 같은 규칙으로 새 문서 pcb_MYS 에 Body MYS_6ULX 로 만들어 줘.
+03-MYS-6ULX_2D.dxf 도 같은 규칙으로 새 문서 pcb_MYS 에 Body MYS_6ULX 로 만들어 줘.
 ```
 
 **AI 가 하는 일** — 앞 단계의 규칙을 그대로 적용합니다. 규칙을 한 번 정해 두면 같은 계열 보드는 한 줄로 끝납니다.

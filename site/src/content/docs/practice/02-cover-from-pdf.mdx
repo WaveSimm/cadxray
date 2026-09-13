@@ -13,7 +13,7 @@ import img1 from '../../../assets/practice/02-cover-final.png';
 
 | 항목 | 내용 |
 |---|---|
-| 입력 파일 | `02-cover/커버가공_수치.pdf` (1:1 벡터 도면 2장, 데이터로거 커버 + 센서 확장 로거 커버) |
+| 입력 파일 | `02-cover-drawing.pdf` (1:1 벡터 도면 2장, 데이터로거 커버 + 센서 확장 로거 커버) |
 | 걸리는 시간 | 3분 (판 2장 생성은 1초 미만) |
 | 결과물 | 문서 2개(`cover_logger`, `cover_sensor`), 각각 Body 1개 + Spreadsheet `Params` |
 | 배우는 것 | 도면 PDF 를 AI 에 읽히는 법, 축척 확인, 도면에 없는 치수(두께)를 가정으로 채우고 근거를 남기는 법 |
@@ -25,7 +25,7 @@ import img1 from '../../../assets/practice/02-cover-final.png';
 <div class="file-pair">
   <figure>
     <Image src={img0} alt="원본: 커버 가공도 PDF" />
-    <figcaption><b>원본</b> 커버가공_수치.pdf — 1:1 벡터 도면 2장(데이터로거·센서 확장 로거). 이 그림만 PDF 1페이지를 그대로 그린 것(발주처 표시는 지움)</figcaption>
+    <figcaption><b>원본</b> 02-cover-drawing.pdf — 1:1 벡터 도면 2장(데이터로거·센서 확장 로거). 이 그림만 PDF 1페이지를 그대로 그린 것(발주처 표시는 지움)</figcaption>
   </figure>
   <figure>
     <Image src={img1} alt="완성: 데이터로거 커버 판" />
@@ -39,11 +39,11 @@ import img1 from '../../../assets/practice/02-cover-final.png';
 
 | 구분 | 파일 | 설명 | 크기 |
 |---|---|---|---|
-| 원본 | [커버가공_수치.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | PDF 도면 | 776 KB |
-| 완성 | [완성-cover_logger.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | 데이터로거 커버 | 32 KB |
-| 완성 | [완성-cover_sensor.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | 센서 확장 로거 커버 | 19 KB |
-| 완성 | [완성-Cover_DataLogger.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
-| 완성 | [완성-Cover_SensorExt.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
+| 원본 | [02-cover-drawing.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | PDF 도면 | 776 KB |
+| 완성 | [02-cover_logger-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | 데이터로거 커버 | 32 KB |
+| 완성 | [02-cover_sensor-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | 센서 확장 로거 커버 | 19 KB |
+| 완성 | [02-Cover_DataLogger-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
+| 완성 | [02-Cover_SensorExt-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
 
 :::tip[완성 파일은 실제로 만든 것입니다]
 이 페이지의 절차를 FreeCAD 1.1.3 에서 그대로 돌려 만든 파일이고, 그림은 그 파일을 FreeCAD 1.1.3 GUI 에서 열어 찍은 실제 화면(등각, 흰 배경)입니다. 내려받아 열면 트리·스케치·Params 를 그대로 볼 수 있습니다.
@@ -52,7 +52,7 @@ import img1 from '../../../assets/practice/02-cover-final.png';
 ## 준비
 
 1. FreeCAD 1.1.3 을 켭니다. 리포트 뷰에 `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)` 가 보이면 됩니다.
-2. PDF 를 내려받아 경로가 짧은 폴더(예: `C:\cad\커버가공_수치.pdf`)에 둡니다. 한글 경로도 되지만 공백은 피합니다.
+2. PDF 를 내려받아 경로가 짧은 폴더(예: `C:\cad-cover-drawing.pdf`)에 둡니다. 파일명은 릴리스에서 받은 그대로 쓰면 됩니다.
 3. PowerShell 에서 그 폴더로 이동한 뒤 `claude` 를 쳐서 AI 툴을 엽니다(Codex·Gemini CLI 도 같은 폴더에서 엽니다).
 4. FreeCAD 에 다른 문서가 열려 있으면 닫아 둡니다. AI 가 "어느 문서에 만들까요"를 묻는 일이 줄어듭니다.
 
@@ -61,7 +61,7 @@ import img1 from '../../../assets/practice/02-cover-final.png';
 ### 1. 도면을 읽히고 축척부터 확인한다
 
 ```text title="이렇게 말한다"
-C:\cad\커버가공_수치.pdf 는 커버 판 가공 도면이야. 아직 모델은 만들지 말고,
+C:\cad-cover-drawing.pdf 는 커버 판 가공 도면이야. 아직 모델은 만들지 말고,
 1) 페이지가 몇 장인지, 각 장이 무슨 부품인지
 2) 그림의 원·사각형 좌표와 치수 글자를 대조해서 1:1 축척이 맞는지
 3) 도면에 적힌 치수와 그려진 위치가 어긋나는 곳이 있는지

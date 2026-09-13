@@ -12,7 +12,7 @@ import img1 from '../../../../assets/practice/03-pcb-final.png';
 
 | Item | Detail |
 |---|---|
-| Input files | `03-pcb/MYB-6ULX_2D.dxf`, `03-pcb/MYS-6ULX_2D.dxf` |
+| Input files | `03-MYB-6ULX_2D.dxf`, `03-MYS-6ULX_2D.dxf` |
 | Time | 3 min (8 seconds to build both boards) |
 | What you end up with | Two documents (`pcb_MYB`, `pcb_MYS`), each with one board Body (1.6 thick, Ø3.3 mounting holes as a parameter) |
 | What you learn | How to have only the layers you need read out of a DXF, how a polyline's rounded corners (bulge) become arcs, and how to split holes by type |
@@ -34,12 +34,12 @@ To fit a PCB into an enclosure you need a 3D board with just the outline and the
 
 | | File | Description | Size |
 |---|---|---|---|
-| Original | [MYB-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB-6ULX_2D.dxf) | DXF | 479 KB |
-| Original | [MYS-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS-6ULX_2D.dxf) | DXF | 461 KB |
-| Finished | [pcb_MYB.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYB-done.FCStd) | MYB board | 91 KB |
-| Finished | [pcb_MYS.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYS-done.FCStd) | MYS board | 79 KB |
-| Finished | [MYB_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB_6ULX-done.step) | STEP | 200 KB |
-| Finished | [MYS_6ULX.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS_6ULX-done.step) | STEP | 173 KB |
+| Original | [03-MYB-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB-6ULX_2D.dxf) | DXF | 479 KB |
+| Original | [03-MYS-6ULX_2D.dxf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS-6ULX_2D.dxf) | DXF | 461 KB |
+| Finished | [03-pcb_MYB-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYB-done.FCStd) | MYB board | 91 KB |
+| Finished | [03-pcb_MYS-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-pcb_MYS-done.FCStd) | MYS board | 79 KB |
+| Finished | [03-MYB_6ULX-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYB_6ULX-done.step) | STEP | 200 KB |
+| Finished | [03-MYS_6ULX-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/03-MYS_6ULX-done.step) | STEP | 173 KB |
 
 :::tip[The finished files are real]
 They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
@@ -57,7 +57,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Have it look at what is inside the DXF first
 
 ```text title="Say this"
-C:\cad\MYB-6ULX_2D.dxf is a 2D PCB drawing. Don't open it in FreeCAD — read the file directly and show me a table of how many polylines and circles there are per layer name, whether the OUTLINE layer polyline is closed, and what circle radii exist.
+C:\cad\03-MYB-6ULX_2D.dxf is a 2D PCB drawing. Don't open it in FreeCAD — read the file directly and show me a table of how many polylines and circles there are per layer name, whether the OUTLINE layer polyline is closed, and what circle radii exist.
 ```
 
 **What the AI does** — reads the DXF text directly and extracts only the POLYLINE entries (layer, closed flag, vertices and bulge) and CIRCLE entries (layer, centre, radius) from the ENTITIES section. Use FreeCAD's DXF import and hundreds of silkscreen and dimension polylines each become a Draft object, which took over two minutes on MYB-6ULX when measured. That is why you say "don't open it in FreeCAD" from the start.
@@ -105,7 +105,7 @@ MYB_6ULX done. PadBoard (8 elements, DoF 0) → PocketMount (4) → PocketPins (
 ### 4. The second board, same rules
 
 ```text title="Say this"
-Do MYS-6ULX_2D.dxf with the same rules, in a new document pcb_MYS with the Body MYS_6ULX.
+Do 03-MYS-6ULX_2D.dxf with the same rules, in a new document pcb_MYS with the Body MYS_6ULX.
 ```
 
 **What the AI does** — applies the rules from the previous step unchanged. Once the rules are set, a board in the same family takes one line.

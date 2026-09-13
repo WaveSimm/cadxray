@@ -12,7 +12,7 @@ import img1 from '../../../../assets/practice/05-spool-final.png';
 
 | Item | Detail |
 |---|---|
-| Input file | `05-spool/STING3D SPOOL GUIDE AMS Male 201mm.stl` (a filament spool guide, 5,758 faces, with a male thread) |
+| Input file | `05-spool-guide.stl` (a filament spool guide, 5,758 faces, with a male thread) |
 | Time | 5 min (25 s for analysis, rebuild and comparison together) |
 | What you end up with | A document `stl_test` with the reference mesh plus a Body `SpoolGuide` (8 features, 1 thread, a parameter sheet) |
 | What you learn | That a mesh (STL) has no faces and no solid, how to read bands, section circles and threads by measurement, and how to verify by deviation without booleans |
@@ -24,7 +24,7 @@ An STL is a pile of triangles, so shape tools like hole finding and interference
 <div class="file-pair">
   <figure>
     <Image src={img0} alt="Original: the spool guide STL" />
-    <figcaption><b>Original</b> STING3D SPOOL GUIDE AMS Male 201mm.stl read in as a Mesh object, isometric (pale because it is the default mesh colour) — 5,758 triangles</figcaption>
+    <figcaption><b>Original</b> 05-spool-guide.stl read in as a Mesh object, isometric (pale because it is the default mesh colour) — 5,758 triangles</figcaption>
   </figure>
   <figure>
     <Image src={img1} alt="Finished: the spool guide redrawn" />
@@ -34,9 +34,9 @@ An STL is a pile of triangles, so shape tools like hole finding and interference
 
 | | File | Description | Size |
 |---|---|---|---|
-| Original | [STING3D SPOOL GUIDE AMS Male 201mm.stl](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-spool-guide.stl) | STL | 288 KB |
-| Finished | [spool_guide.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-spool_guide-done.FCStd) | Reference mesh included | 327 KB |
-| Finished | [SpoolGuide.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-SpoolGuide-done.step) | STEP | 167 KB |
+| Original | [05-spool-guide.stl](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-spool-guide.stl) | STL | 288 KB |
+| Finished | [05-spool_guide-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-spool_guide-done.FCStd) | Reference mesh included | 327 KB |
+| Finished | [05-SpoolGuide-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/05-SpoolGuide-done.step) | STEP | 167 KB |
 
 :::tip[The finished files are real]
 They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
@@ -45,7 +45,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ## Setup
 
 1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작` in the Report view.
-2. Copy the STL to `C:\cad\spool-guide.stl`. The original name (`STING3D SPOOL GUIDE AMS Male 201mm.stl`) has spaces, which means quoting the path in conversation — a short name is easier.
+2. Put the STL at `C:\cad\05-spool-guide.stl`. The original STL's name had spaces, but the release asset is short, so use it exactly as downloaded.
 3. In PowerShell, move to `C:\cad` and open `claude`.
 4. The AI creates the document. Close any that are already open.
 
@@ -54,7 +54,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Bring the mesh in as a reference
 
 ```text title="Say this"
-Load C:\cad\spool-guide.stl into a new document stl_test as a reference mesh (transparent). Tell me whether it's a closed mesh, whether there are self-intersections, and how big it is.
+Load C:\cad\05-spool-guide.stl into a new document stl_test as a reference mesh (transparent). Tell me whether it's a closed mesh, whether there are self-intersections, and how big it is.
 ```
 
 **What the AI does** — inserts the STL as a Mesh object at 70 % transparency. It does not convert it. It checks closure (is_solid), non-manifold geometry and self-intersections, plus the bbox and volume.
