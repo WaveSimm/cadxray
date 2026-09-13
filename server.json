@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.WaveSimm/cadxray",
+  "title": "cadxray - FreeCAD",
+  "description": "Your AI actually looks inside FreeCAD - diagnose red sketches, rebuild vendor STEP/STL parametrically, inspect holes and interference, make drawings, check printability, run FEM. 36 tools, local only.",
+  "repository": {
+    "url": "https://github.com/WaveSimm/cadxray",
+    "source": "github"
+  },
+  "websiteUrl": "https://wavesimm.github.io/cadxray/en/",
+  "version": "0.12.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "cadxray",
+      "version": "0.12.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

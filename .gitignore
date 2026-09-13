@@ -29,3 +29,6 @@ site/.astro/
 
 # FreeCAD 자동 백업
 *.FCBak
+
+# 패키지 빌드 산출물 (PyPI 업로드용, 커밋하지 않는다)
+bridge/dist/
