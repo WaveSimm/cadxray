@@ -1,0 +1,192 @@
+---
+title: "Exercise 4. Analysing a vendor STEP part and redrawing it"
+description: Read a vendor's STEP clamp jaw (44 faces), extract its holes and pitches, redraw it as a parametric Body from face measurements alone, and verify against the original with a boolean difference.
+sidebar:
+  order: 4
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/04-clamp-original.png';
+
+import img1 from '../../../../assets/practice/04-clamp-jaw-original.png';
+
+import img2 from '../../../../assets/practice/04-clamp-final.png';
+
+| Item | Detail |
+|---|---|
+| Input files | `04-clamp/tt_fractal_vise_assembly.step` (a vendor vise assembly STEP, 80 parts of 20 types. You redraw the clamp jaw **2B2** — 44 faces, including BSpline transition faces) |
+| Time | 5 min (2 s to open the STEP, 8 s to rebuild, 1 s to compare) |
+| What you end up with | A new document `jaw_2B2_tools` with one Body (12 features, all 12 sketches at DoF 0, a parameter sheet) |
+| What you learn | Reading holes and pitches out of a STEP, the procedure for turning a history-less lump into a model with features, and boolean verification against the original |
+
+A vendor STEP is a lump with no features, so you cannot change its dimensions. This exercise drives the whole cycle — **read, measure, restack as features, compare against the original** — by talking. In the original session the volume difference came out at +0.035 mm³ (0.0004 %), a verdict of identical.
+
+## Original and finished
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Original: the vise assembly STEP" />
+    <figcaption><b>Original</b> tt_fractal_vise_assembly.step imported, isometric — 80 parts of 20 types</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="Original: clamp jaw 2B2" />
+    <figcaption><b>2B2 from the original</b> — a featureless lump, 44 faces (8 BSpline)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="Finished: 2B2 redrawn" />
+    <figcaption><b>Finished</b> jaw_2B2 (reference Ref_2B2 hidden) — 12 features, every sketch at DoF 0, 0.000449 % volume difference from the original (identical)</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Original | [tt_fractal_vise_assembly.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-tt_fractal_vise_assembly.step) | Assembly STEP | 3.1 MB |
+| Original | [jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-original.step) | Just 2B2, extracted | 75 KB |
+| Finished | [jaw_2B2.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.FCStd) | 2B2 redrawn (includes the hidden original copy Ref_2B2) | 398 KB |
+| Finished | [jaw_2B2.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-jaw_2B2-done.step) | STEP | 98 KB |
+| Finished | [assembly.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/04-assembly-done.FCStd) | The 80-part assembly converted to Bodies + grounded joints | 4.5 MB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작` in the Report view.
+2. Put the STEP at `C:\cad\tt_fractal_vise_assembly.step`.
+3. In PowerShell, move to `C:\cad` and open `claude`.
+4. Do not open a document first. The AI creates one when it opens the STEP.
+
+## Steps
+
+### 1. Open the STEP and look at the structure
+
+```text title="Say this"
+Open C:\cad\tt_fractal_vise_assembly.step and summarise how many parts there are and how many of each type. Then check whether the clamp jaw labelled 2B2 has a valid shape. Don't build anything yet.
+```
+
+**What the AI does** — opens the STEP into a new document and reads the part hierarchy. It is an assembly, so 80 parts come in; the internal name of an object imported from STEP is `Part__Feature…` and the original name is in the Label. It groups parts with the same face count, volume and size into types and counts them, then checks the validity of 2B2 (solid count, face count, self-intersection).
+
+:::note[What the AI says back]
+Document Unnamed has 80 parts of 20 types. 2B2 is Part__Feature004. 1 solid, 44 faces (8 of them BSpline), valid. The back face x is 20.34 and the bottom z is around 53.68.
+:::
+
+**How to check** — 80 parts in the tree and no errors in the Report view. From here on, put "2B2" in every sentence so the target is unambiguous. If the other parts get in the way, say "hide everything except 2B2".
+
+### 2. Extract the holes and pitches
+
+```text title="Say this"
+Find all the holes in this part and give me a table of diameter, depth, whether it's through, counterbores and chamfers. And the pitch between holes of the same diameter.
+```
+
+**What the AI does** — groups concave cylindrical faces by axis and centre to count holes, and attaches counterbores and chamfers on the same axis to their hole. It also matches the diameters against the ISO metric thread table and attaches an estimated thread specification.
+
+:::note[What the AI says back]
+One Ø3.4 through hole (counterbore Ø5.6, depth 4.0, 0.5 chamfer at the mouth, estimated M3 clearance), and two Ø2.2 pin holes 5.0 deep (28.5 between centres). The through/blind call is a heuristic.
+:::
+
+**How to check** — three holes (one Ø3.4 plus two Ø2.2). The "through/blind is a heuristic" caveat is expected.
+
+### 3. Classify the faces and judge whether it can be rebuilt
+
+```text title="Say this"
+Classify the faces: how many planes, cylinders, cones and free-form surfaces, what the main axis is, and list the band boundary heights and radii.
+Give me a verdict on whether it can be redrawn.
+```
+
+**What the AI does** — judges the identity of each face. BSpline faces get sampled and fitted against cylinders and cones, so "fake free-form" faces get filtered out. In the original session the 8 BSpline transition faces came out as cones (axis Z, half-angle 59.63°), with cylinder radii of 35 / 33.620391 / 17.75 / 16.12127.
+
+:::note[What the AI says back]
+Verdict prismatic. Main axis Z. 24 planes · 16 cylinders · 2 cones · 2 free-form (under 1 % of the area). Band boundary z: 53.68 (bottom) / 57.39 / 57.97 / 65.39 / 65.97 / 69.68 (top). Radii: 35.0 (barrel), 33.620391 (dovetail groove floor), 17.75 (seat), 16.12127 (lip).
+:::
+
+**How to check** — proceed if the verdict is `prismatic` or `mixed`. If it is `free_form`, go the BaseFeature route instead: lay the original down and stack features on top.
+
+### 4. Read the band boundaries and settle the design values
+
+```text title="Say this"
+Show me candidate section heights and the distribution of vertex z coordinates. Use that to lay out the z ranges of the bands, grooves and lips, and give me a table where the datum points (back face x, centre hole y, bottom z) are the values read from vertices and the rest — thicknesses, heights — are tidied design values (integers).
+```
+
+**What the AI does** — reads the band, groove and lip z boundaries from a histogram of vertex coordinates. Measured values such as the datum points X0=20.343193, Y0=45.052724, Z0=53.679659 stay as they are, while design values like thickness 12, height 16 and hole height Z0+8 get tidied.
+
+:::caution[Radii and datum points are never rounded]
+Write 33.620391 as 33.6204 and the mating faces are off by 9e-6, and the fuse loses 0.6 mm³. Have the AI put measured values into the parameters at exactly the precision it gave you.
+:::
+
+**How to check** — the table should clearly separate measured values (six decimal places) from design values (integers).
+
+### 5. Stack the features in order
+
+```text title="Say this"
+Create a Body in a new document jaw_2B2_tools and redraw it. In this order:
+1) Pad the three bands by tracing the original sections (lower → middle → upper, overlapping each other)
+2) Cut the barrel dovetail groove as a revolved groove, and re-Pad the ear the groove removed, taking only what's outside the groove radius circle in the middle section
+3) Two revolved cuts for the seat-lip transition wedges, and restore the front face ear
+4) Pocket the holes using the values from step 2 (Ø3.4 through, two Ø2.2 5 deep, counterbore Ø5.6 depth 4), with a 0.5 chamfer at the mouth
+Put every dimension in Params, and keep the cylinder radii and datum points exactly as measured. Verify after each feature and stop and tell me if one fails.
+```
+
+**What the AI does** — builds the 12 features as a single JSON list and stacks them in order. Section tracing cuts the original directly and transfers it into a sketch, so the coordinates never travel through the conversation. It recomputes after each feature to check validity, and stops at the feature that fails.
+
+:::note[What the AI says back]
+PadBand1 → PadMid → PadBand2 → GrooveBarrel → PadEars → GrooveLip1 → GrooveLip2 → PadSeatEars → PocketHole → PocketPins → PocketCbore → ChamferHoles. All 12 Valid, all 12 sketches at DoF 0. The volume is in line with the original.
+:::
+
+**How to check** — all 12 features under the Body should be in black text, and the `Params` sheet should hold x_back, thickness, barrel_r, groove_r, hole_d, cbore_d and the rest. If it stops partway, the AI gives you the name and status string of the feature it stopped at, so you only fix that one.
+
+### 6. Compare against the original
+
+```text title="Say this"
+Compare the original 2B2 against the new Body and tell me the volume and area differences, and where the fragments present only in the original and only in the new model are.
+```
+
+**What the AI does** — takes a fuzzy boolean difference between the two shapes and gives you the volume difference and the bboxes of the missing and extra fragments. The verdict is identical (under 0.001 %), match (under 0.1 %) or different.
+
+:::note[What the AI says back]
+Volume difference +0.035 mm³ (0.0004 %), verdict identical. No missing_in_b, no extra_in_b.
+:::
+
+**How to check** — `identical` or `match` is a success. With `different`, the fragment bboxes are exactly where you went wrong; ask it to fix only the feature at that location.
+
+### 7. Save
+
+```text title="Say this"
+Show me an iso screenshot, and if it looks right save it to C:\cad\jaw_2B2.FCStd.
+```
+
+## Checking your result
+
+| Criterion | Value |
+|---|---|
+| Features | 12 (5 Pads, 3 Grooves, 3 Pockets, 1 Chamfer), all Valid |
+| Sketch DoF | all 12 at 0 |
+| Volume difference | +0.035 mm³ (0.0004 %) |
+| Comparison verdict | identical |
+| Time (rebuild tool calls) | about 2.0 s (including 5 section traces), 0.78 s to compare |
+
+## When it doesn't work
+
+- **The verdict is different and the fragments are near the barrel groove** — you rounded the groove radius. Say "put groove_r back to the measured 33.620391 and redo it".
+- **A Pad fails saying it is separated and cannot go in one Body** — the band Pads do not overlap. Ask for each band's height to be extended into its neighbour by the transition height.
+- **It says the free-form area is large** — go hybrid: lay the original down as a BaseFeature and stack only the holes and grooves as features. Say "keep the original as a BaseFeature and make only the holes parametric".
+- **The comparison reports boolean_failed** — overlapping faces defeated the boolean. Judge by volume and area difference alone in that case.
+- **You received an STL or OBJ** — with no faces and no solid, this exercise's hole and comparison methods do not work. Go to Exercise 5 (redrawing an STL).
+
+## Going further
+
+1. Change `Params.hole_d` to 4.5 (M4 clearance) and recompute, and see whether the counterbore and chamfer follow.
+2. Run an interference check over the whole assembly: "check whether any pair of parts overlaps". In the original session, 3,160 pairs across 80 parts were checked in 6.5 seconds — zero interference, nine touching pairs.
+3. Ask for the mass: "how much does it weigh in aluminium (2.7 g/cm³)?"
+4. Redraw the other 19 types the same way, then rebuild the whole assembly with one Body per type and 80 Link instances placed from it (3.5 minutes in the original session; of the 20 types, 15 identical and 4 match). The order is `examples/rebuild_*_with_tools.py` → `assemble_from_bodies.py`.
+
+---
+
+| What runs behind the scenes | |
+|---|---|
+| Reading | `import_step`, `get_document_graph`, `analyze_shape` |
+| Measuring | `find_holes`, `classify_faces`, `section_profile` |
+| Building and verifying | `build_features`, `compare_shapes` |
+| Checking | `get_screenshot`, `save_document` |
+
+Original session log: https://github.com/WaveSimm/cadxray/blob/master/examples/rebuild_2b2_with_tools.py · whole assembly: https://github.com/WaveSimm/cadxray/blob/master/examples/assemble_from_bodies.py

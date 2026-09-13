@@ -1,0 +1,80 @@
+---
+title: All 36 tools
+description: Every tool in cadxray v0.12.0 — the names the AI calls behind the scenes and what each one does
+sidebar:
+  order: 1
+---
+
+The full list of what the AI calls behind the scenes. You do not need any of it to use the tool, but when a name shows up in an answer, look it up here. Source: the cadxray README (v0.12.0).
+
+## Connection and structure
+
+| Tool | What it does |
+|---|---|
+| `ping` | Confirms the connection and the FreeCAD version |
+| `list_documents` | Lists open documents |
+| `get_document_graph` | Object tree, dependencies, problem objects. The starting point of any diagnosis |
+| `inspect_object` | Every property, expression and shape summary for one object |
+| `open_document` / `save_document` | Opens and saves FCStd (overwriting must be explicit) |
+| `reload_handlers` | Re-reads the addon code (for development) |
+
+## Sketches, shapes and checks
+
+| Tool | What it does |
+|---|---|
+| `get_sketch_diagnostics` | Sketch solve result, degrees of freedom, conflicting and redundant constraints, open vertices |
+| `suggest_sketch_fixes` | Constraint fix candidates (join endpoints, missing horizontal/vertical/equal, delete redundant or conflicting, dimensions). Effect and confidence measured on a copy. Never applied automatically |
+| `apply_sketch_fixes` | Applies only the chosen candidates, rolling back if things get worse. Refuses if the sketch changed meanwhile |
+| `analyze_shape` | Shape validity, volume, face and edge makeup |
+| `tracked_recompute` | Before-and-after comparison of a recompute — what got fixed, what newly broke |
+| `get_screenshot` | 3D view PNG (iso, front, top and 9 more) |
+| `execute_code` | Runs Python inside FreeCAD (for edits). On the main thread, so it cannot be interrupted |
+
+## STEP and inspection
+
+| Tool | What it does |
+|---|---|
+| `import_step` | Imports STEP/IGES with a part summary |
+| `find_holes` | Hole diameter, centre, depth and through-ness; counterbores, countersinks and chamfers; patterns and pitch; ISO metric thread estimates |
+| `check_interference` | Minimum distance and interference volume per part pair (3,160 pairs across 80 parts in 6.5 seconds) |
+| `get_mass_properties` | Volume, surface area, centre of gravity, inertia; mass from density; ground contact and tipping angle; assembly totals |
+
+## Redrawing (STEP and STL)
+
+| Tool | What it does |
+|---|---|
+| `classify_faces` | Per-face identity (plane, cylinder, cone, sphere, free-form), main axis, band heights, radii, rebuild verdict |
+| `section_profile` | The section outline at a height, as sketch elements (lines, arcs, circles). Accepts meshes too |
+| `build_features` | Stacks sketches plus Pad/Pocket/Groove/Revolution/Fillet/Chamfer/Helix in order, verifying each feature. Dimensions go into the `Params` spreadsheet |
+| `compare_shapes` | Volume, area and bbox differences plus the locations of the difference fragments. Ray deviation for meshes |
+| `align_shapes` | The rigid transform between two instances of the same part (for Link placement). Detects mirror images |
+| `import_mesh` | Brings STL/OBJ/PLY/3MF in as a transparent reference mesh; checks closure and self-intersection |
+| `analyze_mesh` | A mesh's main axis, bands, section circles, threads (pitch, major diameter, root, handedness) and verdict |
+
+## 2D drawings
+
+| Tool | What it does |
+|---|---|
+| `make_drawing` | A TechDraw page: front/right/top/isometric/detail views, dimensions, notes, title block → PDF/SVG |
+| `inspect_drawing` | Reads the page's views, dimension values and notes; finds empty views and broken dimensions |
+
+## 3D printing
+
+| Tool | What it does |
+|---|---|
+| `check_printability` | Checks thin walls, overhangs, small and horizontal holes, bed fit and adhesion against a material, nozzle and bed profile → score, problems, fix candidates |
+| `estimate_print` | Material volume, weight, filament length, time and cost |
+| `suggest_orientation` | Scores print orientation candidates and applies the one you pick |
+| `apply_print_fixes` | Elephant-foot chamfer, hole diameter compensation, teardrops, thickening, overhang wedges, splitting parts that exceed the bed |
+
+## Structural analysis and assemblies
+
+| Tool | What it does |
+|---|---|
+| `setup_analysis` | Material plus fixed faces plus loads plus a Gmsh mesh plus CalculiX, in one call. Multiple parts and natural frequencies |
+| `run_analysis` | Static solve → maximum stress and where, displacement, safety factor, colour map. Per-mode Hz for frequency |
+| `inspect_results` | Top stress and displacement nodes, per-face maxima, colour map switching |
+| `suggest_reinforcement` | Thickness, fillet, rib, material and load candidates when the safety factor falls short |
+| `trace_links` | The chain of Links pointing at other files, broken links, and errors in the linked documents |
+
+Every response is size-capped JSON, so the conversation does not blow up on a model with hundreds of objects.

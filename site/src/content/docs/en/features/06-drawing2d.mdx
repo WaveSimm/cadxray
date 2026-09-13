@@ -1,0 +1,70 @@
+---
+title: Producing 2D drawings
+description: Turn a Body or an assembly into a TechDraw page with three-view and isometric views, detail views, dimensions, notes and a title block, then export it as PDF.
+sidebar:
+  order: 6
+---
+
+When the model is done you need a drawing to send to the machine shop. Making a page in TechDraw, placing views and adding dimensions one by one is work you can ask for in words. The scale is chosen automatically to fit the page, and dimension values are measured off the model, so there are none of the typos you get from writing them in by hand.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Produce a 2D drawing of this" | An ISO A3 landscape template with front, right and top views (plus isometric), automatic scale, and a PDF |
+| "Add length, width, height and hole diameter dimensions" | Dimensions referencing model vertices, silhouettes and circles. The values are measured from the model |
+| "A detail view A of the hole area, 5×" | A detail view centred on a point in the front view (radius and scale specified) |
+| "Put 'chamfer C0.5, front anodised' in the notes" | A page annotation |
+| "Fill in the title block with part name, drawing number and scale" | The editable text in the ISO template |
+| "Do the dimension values on the drawing match the model?" | Reads the page's views, dimension values and status (Touched/Invalid) and compares |
+| "A drawing of the whole assembly" | Groups the Links into one compound and generates views. A 27-Link assembly with 5 views and 13 dimensions took 87 seconds |
+
+## A representative prompt
+
+```text title="Say this"
+Make an A3 drawing from the Body 'Bracket'.
+- Views: front, right, top, isometric
+- Dimensions: overall length (X), overall width (Y), height (Z), the diameter of one of the four holes, hole pitch (X direction)
+- Note: "Dimensions in mm, unmarked chamfers C0.5"
+- Title block: part name Bracket, drawing number OT-BR-001, material AL6061
+Export a PDF to D:\work\ and show me a table confirming the dimension values match the model.
+```
+
+:::note[What the AI says back]
+Created page `Page` (ISO A3 landscape, scale 1:2 chosen automatically). 4 views, 5 dimensions, 1 note, title block filled.
+
+| Dimension | Type | Value | Model value | Status |
+|---|---|---|---|---|
+| Overall length | DistanceX | 120.00 | 120.00 | Valid |
+| Overall width | DistanceY | 80.00 | 80.00 | Valid |
+| Height | DistanceY (right) | 60.00 | 60.00 | Valid |
+| Hole diameter | Diameter | Ø6.60 | 6.60 | Valid |
+| Hole pitch | DistanceX | 96.00 | 96.00 | Valid |
+
+PDF: D:\work\Bracket.pdf. Two dimensions overlapped the view labels and were nudged out automatically. If you dislike the layout, drag them in the GUI.
+:::
+
+## How dimensions get specified
+
+The AI locates dimensions by **model vertex coordinates**. So "overall length" comes from the bbox and "hole diameter" from the hole analysis, and it reads those coordinates in. Distances between cylinder silhouettes (two positions along an axis) and circle diameters work too. A dimension whose vertices it cannot find is skipped — just that one — and noted in the warnings. Dimensions inside a detail view work the same way.
+
+## Things to know
+
+- **The default layout is approximate.** If views overlap or dimensions bunch up, tell the AI "move the front view 40 to the right" or drag them in the GUI. Overlapping dimensions get nudged out automatically, but not perfectly.
+- **A view with zero edges** means the source was empty. For an assembly give the group name, for a Body the Body name, exactly.
+- **Big assemblies take over a minute** to project. When the AI says it is waiting, let it.
+- **Dimensions follow the view axes** (Projected). For a length along a slope say "Distance"; for an axis direction say "DistanceX/Y" and you get exactly that.
+- **The PDF only comes out with the drawing page window open.** Run headless and it creates the page but skips the export.
+- Scale is picked from 1:1, 1:2, 1:5, 1:10, 1:20, 1:50 and 1:100 so the views fill about 60 % of the page. To force one, say "use scale 1:1".
+
+## Related exercises
+
+- [07. Making a 2D drawing](/cadxray/en/practice/07-drawing-pdf/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `make_drawing` | Source → TechDraw page (template, scale, views, details, dimensions, notes, title block) → PDF/SVG |
+| `inspect_drawing` | Reads the page's views, dimension values, notes and title block; finds empty views and broken dimensions |
+| `find_holes` · `analyze_shape` | Where the dimension coordinates are read from |

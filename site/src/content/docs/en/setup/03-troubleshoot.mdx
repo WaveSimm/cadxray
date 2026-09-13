@@ -1,0 +1,68 @@
+---
+title: 3. Troubleshooting
+description: Connection failures, missing workbench, port conflicts, too few tools, FreeCAD freezing — symptoms, causes and fixes
+sidebar:
+  order: 3
+---
+
+Run the diagnostic command first. It usually finds the cause.
+
+```powershell title="Terminal"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
+```
+
+## "Cannot connect to FreeCAD (127.0.0.1:9877)"
+
+FreeCAD is closed, or the server did not start. Launch FreeCAD and check the Report view for `[CAD X-ray] 서버 시작`. If it is missing, check whether **CAD X-ray → Auto Start** is off in the workbench menu, and turn it on.
+
+## "CAD X-ray" is missing from the workbench list
+
+Item 1 of the diagnostic output shows the folder it installed into and the version. Check that the folder says `v1-1` and matches the version in FreeCAD's Help → About. If they differ, reinstall into the right folder.
+
+```powershell
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install --dest "%APPDATA%\FreeCAD\v1-1\Mod"
+```
+
+## "Cannot open port 9877"
+
+Either a server is already running (two copies of FreeCAD) or another program has the port. Run only one FreeCAD. If that does not help, use **Set Port…** to switch to 9878 and re-register with `--port 9878` appended.
+
+## Fewer than 36 tools / new features missing
+
+Your AI tool is holding an old tool list. In Claude Code: `/mcp` → `cadxray` → **Reconnect**. For Codex and Gemini, restart the tool.
+
+## "uvx not found" (Windows)
+
+Either you did not reopen the terminal after installing uv, or a GUI app has a different PATH. Find the path in PowerShell and use it in place of `uvx` in the registration command.
+
+```powershell
+(Get-Command uvx).Source
+```
+
+It is usually `C:\Users\<name>\.local\bin\uvx.exe`.
+
+## The first run is slow
+
+That is the 10–30 seconds spent downloading the bridge. Connect once more afterwards.
+
+## FreeCAD froze
+
+The AI ran a long stretch of Python inside FreeCAD. That code runs on FreeCAD's main thread, so it **cannot be interrupted.** Wait for it to finish or force-quit FreeCAD. Next time, say:
+
+```text title="Say this"
+Don't do it all at once — break it into steps and show me the result after each one.
+```
+
+Converting an STL to a solid for a boolean comparison is the worst offender: it can hold the thread for over ten minutes. Let STL comparisons run against the mesh directly, which is what the AI does by default.
+
+## The AI asks "several documents are open"
+
+That is normal. Tell it which document to work in. If it gets confusing, close the others and leave one.
+
+## Screenshots don't appear
+
+Claude Code shows images in the chat. Codex CLI and Gemini CLI may summarise an image as text depending on the version. When that happens, look at the FreeCAD window yourself. See [Comparing the three tools](/cadxray/en/ai/04-compare/).
+
+## My changes aren't taking effect
+
+This is the developer case, where you edited addon code yourself. `handlers/*.py` reload when you say "reload the handlers"; any other file needs a FreeCAD restart.

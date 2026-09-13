@@ -1,0 +1,80 @@
+---
+title: The five parts of a prompt
+description: A sentence that works the first time contains the subject, the dimensions, the datum, the check and the save
+sidebar:
+  order: 1
+---
+
+The AI reads inside FreeCAD, but it **cannot read your mind.** What you leave out, it either asks about or assumes. The way to cut down the asking is to put five things in from the start.
+
+## 1. The subject — which document, which object
+
+If only one document is open you can skip it. With two or more, name it. Refer to objects by the **Label** shown in the tree.
+
+```text title="Say this"
+In document bracket_v2, tell me why Sketch003 in the Body is red.
+```
+
+## 2. Dimensions and units — every number
+
+Lengths in mm, angles in degrees. For a plate: width × depth × thickness. For a hole: diameter, count, position (so many mm in from the edge, or a pitch). "About right" gets you a question back.
+
+```text title="Say this"
+A 100×60 plate, 5 thick. Four Ø6.6 through holes, 10 in from each corner.
+```
+
+## 3. The datum — which plane, which direction, measured from what
+
+Whether to draw on XY and pad up +Z, which side is the front. When transferring from a drawing, where to put the origin. Leave it out and the AI decides and tells you. Usually it draws on XY and pads upward.
+
+```text title="Say this"
+Draw it on XY and pad upward. The origin is the bottom-left corner of the plate.
+```
+
+## 4. The check — what you want shown
+
+By default the AI shows you the recompute result (no errors) and a screenshot. Say what else you want.
+
+```text title="Say this"
+When you're done, show me an iso screenshot, the volume and the sketch degrees of freedom.
+```
+
+## 5. The save — only when you ask
+
+The AI does not save until you tell it to. Give the full path.
+
+```text title="Say this"
+Save it to D:\models\plate.FCStd.
+```
+
+## All five in one sentence
+
+```text title="Say this"
+In a new document, draw a 100×60 plate 5 thick on XY and pad it upward, then drill four Ø6.6 through holes 10 in from each corner. Put the dimensions in a spreadsheet called Params, and when you're done show me an iso screenshot and the degrees of freedom. Don't save yet.
+```
+
+:::note[What the AI says back]
+Built a Pad (the plate) + a Pocket (four holes) in one Body. Both sketches at DoF 0, volume 29,316 mm³. Five parameters in `Params`: width, height, thickness, hole_d, margin. (screenshot)
+:::
+
+## What happens when something is missing
+
+| Missing | What the AI does |
+|---|---|
+| Thickness | Asks, or says "assuming 3 mm" and continues |
+| Hole positions | Asks. When transferring from a drawing, measures from the vectors and says so |
+| Plane and direction | Draws on XY, pads +Z. If the result looks flipped, say "mirror it about Y" |
+| Document name (several open) | Asks which document |
+| Material (analysis, printing) | Assumes PLA and says so |
+
+When the AI has assumed something, look for the word "assum" in its answer. If it got it wrong, correct it on the spot.
+
+```text title="Say this"
+The thickness is 5, not 3. Do it again.
+```
+
+## What not to do
+
+- **Ten things in one sentence.** Make the plate, drill the holes, add fillets, produce the drawing and check printability all at once, and when something goes wrong in the middle you cannot tell where. Break it into threes and fours.
+- **Reading out coordinates yourself.** When redrawing a STEP or STL, do not copy vertex coordinates out and feed them back in. The AI traces the original directly. "Trace the original section exactly" is enough.
+- **Asking for round numbers.** "Make the radius a clean 33.62" puts it out of line with the original and loses volume. Let it keep the measured value.

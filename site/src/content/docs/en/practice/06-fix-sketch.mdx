@@ -1,0 +1,193 @@
+---
+title: "Exercise 6. Fixing a red sketch"
+description: The AI diagnoses sketches with conflicting constraints and gaps at the endpoints, and applies only the fix candidates you pick by number, turning them green again.
+sidebar:
+  order: 6
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/06-fix-sketch-before.png';
+import img1 from '../../../../assets/practice/06-fix-sketch-final.png';
+
+| Item | Detail |
+|---|---|
+| Input files | none (the AI creates four practice sketches) |
+| Time | 5 min (diagnosis, candidates and application each take under a second) |
+| What you end up with | Four sketches at DoF 0 with no conflicts and no open vertices, and a Pad that recomputes cleanly |
+| What you learn | The three causes of a red sketch (over-constrained, under-constrained, open vertices), the conversation of picking fixes by number, and confirming «what got fixed / what newly broke» with recompute tracking |
+
+When a sketch goes red in FreeCAD you have to click through the constraint panel hunting for the cause. In this exercise you hand that job to the AI. It reads the sketch directly and tells you «which constraint numbers conflict», «how many degrees of freedom are left» and «which endpoint is apart», then offers fixes as a **numbered list**. You just pick numbers. The AI applies only what you picked, and rolls back on its own if the result gets worse.
+
+## Original and finished
+
+You can have the AI build the practice sketches, or start from the practice file below.
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Practice: the sketch before fixing, in edit mode" />
+    <figcaption><b>Practice file</b> The Sketch in sketch-before.FCStd opened in edit mode. Red dots = open vertices, blue dots = unconstrained circle centres. One sketch (DoF 19, 4 open vertices)</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Practice | [sketch-before.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/06-sketch-before.FCStd) | The sketch before fixing — DoF 19, 4 open vertices | 4 KB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작 http://127.0.0.1:9877` in the Report view (View → Panels → Report view).
+2. Open your AI tool in a terminal (PowerShell). For Claude Code that is `claude`; for the others see [Connect an AI tool](/cadxray/en/ai/01-claude-code/).
+3. In FreeCAD, File → New for an empty document. Closing the others stops the AI asking which one.
+
+## Steps
+
+### 1. Build the practice sketches
+
+```text title="Say this"
+In the new document I have open, create a practice PartDesign Body and put four deliberately broken sketches on the XY plane inside it.
+1. Sk_Under: a rectangle missing two dimensional constraints
+2. Sk_Conflict: a rectangle with two different length dimensions (40 and 45) on the same edge
+3. Sk_Open: a rectangle with one corner 0.5 mm apart so it doesn't close, and a Pad of 10 attempted from it
+4. Sk_Fixes: a rectangle with a 0.02 mm gap (only 3 endpoints coincident) + a line tilted 0.3° + two lines of equal length + two circles of equal radius
+When they're done, recompute and tell me which objects are red.
+```
+
+**What the AI does** — runs Python inside FreeCAD to create the Body and the four sketches, then recomputes. It then reads the document structure and reports the problem objects.
+
+**How to check** — look for red marks on `Sk_Conflict`, `Sk_Open` and `Pad` (the one built from Sk_Open) in the model tree. `Sk_Under` is not red, but open it and it is not green (fully constrained) either.
+
+:::note[What the AI says back]
+Three problem objects after the recompute.
+- Sk_Conflict — solver failed (over-constrained). Two conflicting constraints.
+- Pad — Invalid. The wire of sketch Sk_Open does not close.
+- Sk_Fixes — recomputes, but has 1 open vertex and DoF 6.
+Sk_Under has no errors but has DoF 2 remaining, so it is not fully constrained.
+:::
+
+### 2. Ask what the problem is
+
+```text title="Say this"
+Diagnose why Sk_Conflict is red. Tell me which constraint numbers are the problem, using the GUI constraint panel numbering.
+```
+
+**What the AI does** — reads the sketch's solver state. Two dimensions with different values come back as «over-constrained (-4)» with both constraints in the `conflicting` list. The AI gives you the constraint numbers as the GUI constraint panel shows them.
+
+**How to check** — double-click the sketch to open it and, in the constraint panel on the left, confirm the two numbers the AI named are marked red and carry the values 40 and 45.
+
+:::note[What the AI says back]
+Sk_Conflict is over-constrained because the same edge (Line1) has two length dimensions. Constraint 5 (40 mm) and constraint 6 (45 mm) conflict. One of them has to go, but I cannot tell whether the design dimension is 40 or 45.
+:::
+
+### 3. Get the fix candidates and pick by number
+
+```text title="Say this"
+Fix it. Show me the candidates as a numbered list, and don't apply anything before I pick.
+```
+
+**What the AI does** — applies each candidate to a **copy** of the sketch, measures the effect (change in DoF and state) and attaches a confidence level. The original is untouched. The two conflicting dimensions come back tied together as an «either/or».
+
+:::note[What the AI says back]
+1. Delete constraint 5 (length 40) → state normal, dimension 45 remains (medium confidence, either this or 2)
+2. Delete constraint 6 (length 45) → state normal, dimension 40 remains (medium confidence, either this or 1)
+If the design dimension is 40, it is number 2. Pick a number.
+:::
+
+```text title="Say this"
+Go with 2. The design dimension is 40.
+```
+
+**How to check** — the AI reports «state 0, DoF 0» after applying, and the red mark on `Sk_Conflict` disappears from the tree.
+
+:::tip[The numbered list is a recommendation, not automatic]
+The AI marks its suggestions as `recommended` but does not apply them before you pick. Say "do them all" and it applies only the recommended ones at once. Picking both halves of an either/or pair gets refused.
+:::
+
+### 4. Close the open vertices
+
+```text title="Say this"
+Look at why the Pad failed and show me numbered candidates for fixing Sk_Open.
+```
+
+**What the AI does** — reads the Pad's error string and the sketch's open vertices (one gap is reported as two endpoints) and offers a «make the two nearby endpoints coincident» candidate, along with the distance (0.5 mm).
+
+```text title="Say this"
+Apply 1, then recompute and check whether the Pad came back. If it did, show me an iso screenshot.
+```
+
+**How to check** — the AI reports the recompute tracking result as «resolved: Pad, newly broken: none». A 10 mm thick plate in the screenshot means success. (If images do not appear in Codex or Gemini CLI, look at the FreeCAD window directly.)
+
+<div class="file-pair">
+  <figure>
+    <Image src={img1} alt="Finished: the Pad of 10 mm restored after closing the open vertices" />
+    <figcaption><b>Finished</b> The isometric view after building the four sketches (Sk_Under · Sk_Conflict · Sk_Open · Sk_Fixes) from the step 1 prompt and applying the candidates from steps 2–6. Pad 50×30×10, zero problem objects. A different document from the practice file above (which has one sketch)</figcaption>
+  </figure>
+</div>
+
+### 5. Clear the small stuff in one pass
+
+```text title="Say this"
+Show me every fix candidate for Sk_Fixes. Count them by type too.
+```
+
+**What the AI does** — produces candidates for joining the gap, missing horizontal and vertical constraints, equal length and radius constraints, and dimensions for the remaining degrees of freedom. On this practice sketch, expect 1 endpoint join, 4 or more horizontal/vertical, and 2 equals (line and radius).
+
+:::caution[The «add a dimension» candidate freezes the current value]
+The `add a dimension` candidate that removes remaining degrees of freedom pins the length as currently drawn. Only you know whether that is the design dimension. These come back with «low» confidence and are left out of the recommended list. If you know the design value, say it: "add a length dimension of 30".
+:::
+
+```text title="Say this"
+Apply only the recommended ones. Leave out the added dimensions.
+```
+
+**How to check** — read the AI's report for 0 open vertices and reduced DoF. Open the sketch and confirm the tilted line is horizontal and the gap at the corner has closed.
+
+### 6. Finish off the remaining degrees of freedom
+
+```text title="Say this"
+Remove the 2 remaining degrees of freedom in Sk_Under. The rectangle is 60 wide and 40 tall.
+```
+
+**What the AI does** — adds the two missing dimensions with the values you gave and recomputes.
+
+**How to check** — open the sketch and it is green (fully constrained), with «Fully constrained» in the status bar.
+
+## Checking your result
+
+| Sketch | Success criterion |
+|---|---|
+| Sk_Under | DoF 0, fully constrained |
+| Sk_Conflict | Solver state 0, 0 conflicting constraints, dimension 40 remaining |
+| Sk_Open + Pad | 0 open vertices, Pad healthy (not Invalid), «resolved: Pad» in the recompute tracking |
+| Sk_Fixes | 0 open vertices, DoF reduced, the original constraint count unchanged before and after diagnosis (evaluating on a copy never touches the original) |
+
+Say "show me the whole document structure again" for a final confirmation of zero problem objects.
+
+## When it doesn't work
+
+- **«Cannot connect to FreeCAD (127.0.0.1:9877)»** — FreeCAD is closed or the server did not start. Check the Report view, and turn on Auto Start in the CAD X-ray menu if it is off. [Troubleshooting](/cadxray/en/setup/03-troubleshoot/)
+- **With several documents open** the AI asks which one. Give it the name or close the others.
+- **It refuses to apply, saying «the sketch changed in the meantime»** — you edited the sketch in the GUI after receiving the candidates. Just get the candidates again.
+- **DoF comes back «null» or something strange** — when the solver has failed (conflicting or malformed constraints) the DoF cannot be trusted. Clear the conflict first, then diagnose again.
+- **Applying broke something else** — the AI rolls back on its own when the state gets worse and reports the error. Apply candidates one at a time to narrow it down.
+
+## Going further
+
+- Delete one dimension from the plate sketch you built in Exercise 1, then ask the AI «what is missing» and restore it.
+- Open an FCStd you abandoned half-finished some time ago and ask for a diagnosis report only: "find every problem object and just explain the causes — don't fix anything".
+- Create a non-sketch shape error (a Pocket of zero thickness, say) and watch the AI respond with a Python fix rather than sketch candidates.
+
+## What runs behind the scenes
+
+| Step | Tool |
+|---|---|
+| Structure and problem objects | `get_document_graph` |
+| Sketch diagnosis | `get_sketch_diagnostics` |
+| Candidate list and application | `suggest_sketch_fixes` → `apply_sketch_fixes` (a fingerprint confirms it is the same sketch) |
+| Recompute tracking and confirmation | `tracked_recompute`, `get_screenshot` |
+| Non-sketch fixes | `execute_code` |
+
+The diagnostic order in full: [CLAUDE.md, the «진단 워크플로» section](https://github.com/WaveSimm/cadxray/blob/master/CLAUDE.md)

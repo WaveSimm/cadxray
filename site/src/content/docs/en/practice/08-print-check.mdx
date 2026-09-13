@@ -1,0 +1,193 @@
+---
+title: "Exercise 8. Print review"
+description: Before printing, have the AI find thin walls, overhangs, small holes and parts that exceed the bed, pick print orientations and design fixes by number, apply them, and estimate weight, time and cost.
+sidebar:
+  order: 8
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/08-print-check-practice.png';
+import img1 from '../../../../assets/practice/08-print-check-painted.png';
+import img2 from '../../../../assets/practice/08-print-check-painted-below.png';
+
+| Item | Detail |
+|---|---|
+| Input files | none (the AI builds a test box Body) |
+| Time | 5 min (each check takes under a second) |
+| What you end up with | A check report catching all five problem types, seven ranked orientation candidates, a Body with the fix features stacked on, and weight, time and cost estimates |
+| What you learn | The habit of stating the profile (material, nozzle, layer, bed) first, reading check results as a numbered list, the conversation of picking orientations and fixes, and that automatic fixes are «features» and therefore reversible |
+
+Finding out only after loading the slicer that your part needs a forest of supports, or that a wall will not print, sends you back to the design. This exercise checks and fixes the design inside FreeCAD before slicing. It does not slice.
+
+## Original and finished
+
+You can have the AI build it, or start from the practice file below.
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Practice: the test box for print checking" />
+    <figcaption><b>Practice model</b> A 40×30×20 box + a 0.6 mm rib + a cantilever + a 70° face + a Ø3 vertical and Ø6 horizontal hole. Check score 76, four problem types</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Practice | [box-practice.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/08-box-practice.FCStd) | The box before checking | 15 KB |
+| Practice | [box-practice.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/08-box-practice.step) | STEP | 22 KB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3 and confirm `[CAD X-ray] 서버 시작` in the Report view.
+2. Open your AI tool.
+3. Open a new document. Have your printer details ready: material (PLA, PETG, ABS, ASA, TPU, Nylon), nozzle diameter, layer height, bed size. If you do not know them, go with the defaults (PLA, 0.4, 0.2, 220×220×250).
+
+## Steps
+
+### 1. Build the test box
+
+```text title="Say this"
+Build a test part in a new document as a Body called PrintBody.
+- A 40×30×20 box (floor at z=0)
+- One rib on the top face, 0.6 mm thick and 5 tall
+- A cantilever reaching 10 mm outward from one side at z=10 (3 thick)
+- Another side face tilted to 70°
+- One Ø3 vertical through hole and one Ø6 horizontal through hole
+Check it's valid when it's done and show me an iso view.
+```
+
+**What the AI does** — stacks Pads and Pockets into a Body, recomputes, checks validity and shows a screenshot. This shape is the same standard model (T12_print) cadxray used when verifying the checking feature.
+
+**How to check** — `PrintBody` and its features are in the tree with no red marks.
+
+### 2. State the profile and run the check
+
+```text title="Say this"
+Check PrintBody for 3D printing. Material PETG, nozzle 0.6, layer 0.3, bed 220×220×250. I want to print it without supports.
+Show me the problems as a numbered list with type, severity, location and how to fix each.
+```
+
+**What the AI does** — fills in the values the profile does not give (minimum wall thickness, overhang limit angle, maximum bridge length, hole compensation) from the material table of empirical values, and says it did so. It then converts the shape to a mesh and casts rays to check thin walls, the slope of downward-facing faces (overhangs, bridges, support area), small holes, horizontal holes, bed fit and first-layer contact area.
+
+**How to check** — on this model, **all five** should be caught. The floor and the gently sloped faces should not be.
+
+:::note[What the AI says back]
+Profile: PETG, nozzle 0.6, layer 0.3, bed 220×220×250. Minimum wall 1.2 (nozzle×2), overhang limit 50°, hole compensation 0.3 — all empirical values from the material table.
+Score 41/100. Five problems:
+1. Thin wall — rib 0.6 mm < minimum 1.2 (severe). At (20, 15, 22.5). Fix: thicken
+2. Overhang — 10 mm under the cantilever, support area 300 mm² (severe). Fix: a 45° wedge underneath (overhang_chamfer) or reorient
+3. Overhang — the 70° tilted face (moderate). Fix: reorient
+4. Small hole — Ø3 is not below nozzle×2=1.2, but vertical holes come out undersized from shrinkage (minor). Fix: hole compensation (hole_comp)
+5. Horizontal hole — Ø6, will sag at the top (moderate). Fix: teardrop
+Bed fit: yes. Floor contact 1200 mm².
+:::
+
+<div class="file-pair">
+  <figure>
+    <Image src={img1} alt="Check results painted: red = the 0.6 mm thin wall" />
+    <figcaption><b>Check results (paint)</b> The isometric view right after checking. Red = the 0.6 mm thin-wall rib. Score 76, four problem types</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="The same state from below: orange = needs support, green = floor contact" />
+    <figcaption><b>The same state from below</b> Orange = needs support (under the cantilever and the 70° face), green = floor contact</figcaption>
+  </figure>
+</div>
+
+:::caution[The material table holds empirical values]
+Overhang limit angles, hole compensation and shrinkage are at the level of slicer defaults and manufacturer guidance, not precise figures. Read the warnings the AI attaches as given, and do one test print on your own printer to calibrate.
+:::
+
+### 3. Pick a print orientation
+
+```text title="Say this"
+Show me the print orientation candidates in ranked order.
+```
+
+**What the AI does** — scores seven candidates — the six directions (±X, ±Y, ±Z as the floor) plus the current orientation — by support area, contact area, height and bed fit, and ranks them. The top one is usually whichever eliminates the cantilever.
+
+:::note[What the AI says back]
+1. −X as the floor: support 0 mm², contact 600, height 40, bed OK (score 91)
+2. Current (−Z): support 300, contact 1200, height 25 (score 64)
+3. +Y as the floor: …
+Shall I apply number 1?
+:::
+
+```text title="Say this"
+Apply number 1.
+```
+
+**How to check** — the part rotates in the 3D view and the floor lands at z=0. Say "check it again" and see that the cantilever overhang has gone. Since this exercise also practises design fixes, put it back to the original orientation once you have confirmed.
+
+```text title="Say this"
+Put it back to the original orientation (number 2, the one that was current).
+```
+
+### 4. Pick and apply design fixes
+
+```text title="Say this"
+Apply fixes 1 (thicken the rib), 2 (wedge under the cantilever), 4 (hole compensation) and 5 (teardrop). Leave 3, the tilted face, alone.
+```
+
+**What the AI does** — stacks each fix as a PartDesign feature. Thickening pads the thin face outward (re-measuring the thickness right before applying and skipping it if it is already sufficient); the wedge builds a helper Body filling to a 45° slope and fuses it; hole compensation is a Pocket enlarging the vertical hole by the compensation value; the teardrop is a 45° Pocket above the horizontal hole. Before applying, it tells you that «thickening grows outward and changes the outside dimensions» and «the wedge adds material and changes the weight».
+
+**How to check** — new features (Chamfer, Pad, Pocket, Boolean) appear in the tree and the Body is valid. The volume before and after is in the answer. Any fix you dislike, delete its feature.
+
+```text title="Say this"
+Check it again and show me only the remaining problems.
+```
+
+**How to check** — thin walls should be 0, the cantilever's support area should be down by more than half, and the horizontal hole problem should be gone. The 70° face stays.
+
+### 5. Split it if it exceeds the bed (optional)
+
+```text title="Say this"
+Pretend the bed is 30×30×30 and split PrintBody into two pieces along x.
+```
+
+**What the AI does** — cuts along the axis and creates two pieces (each 30 or under) outside the Body, hiding the original. Joining pins and slots are manual.
+
+### 6. Estimate weight, time and cost
+
+```text title="Say this"
+If I print it in PETG, what's the weight, filament length, time and cost? Three wall loops, 20 % infill, 25,000 won per kg.
+```
+
+**What the AI does** — computes material volume (walls, infill, top and bottom surfaces) and reports weight (from the material density), 1.75 mm filament length, rough time and cost. It notes at the same time that this is coarser than a slicer, around ±30 %.
+
+## Checking your result
+
+| Item | Success criterion |
+|---|---|
+| First check | Thin wall 1 (0.6), overhangs at the cantilever and 70° face, the Ø3 small hole, the Ø6 horizontal hole — all five caught. The floor face is not caught |
+| Orientation candidates | Seven, with the one that eliminates the cantilever first |
+| After the fixes | Body valid, thin walls 0, cantilever support area down by more than half, vertical hole diameter grown by the compensation value, a teardrop above the horizontal hole |
+| Splitting | Two pieces, each 30 or under, volumes summing to the original |
+| Estimate | Weight = material volume × density |
+
+## When it doesn't work
+
+- **You didn't state a profile and it checked as PLA** — with nothing given, the AI uses PLA · 0.4 · 0.2 · 220×220×250 and says so. State the material and ask again.
+- **The fix candidates come back as «manual» only** — curved thin walls and curved overhangs are not auto-fixable. Reorient, or change the design yourself.
+- **A «not a Body» error** — automatic fixes only stack onto a PartDesign Body. Wrap a Part imported from STEP in a Body first, as in [Exercise 4](/cadxray/en/practice/04-step-clamp/).
+- **Thickening was «skipped»** — when both faces of the same wall came back as candidates, applying one leaves the other already sufficient. That is expected.
+- **You want to see the results in colour** — say "paint the faces with the results" and thin walls go red, supports orange, bridges yellow and floor contact green. "Restore the colours" puts it back.
+
+## Going further
+
+- Check the spool guide from Exercise 5 (a real part with a thread) in PLA · 0.4 and see whether the thread flanks are only counted as «minor».
+- Check the same part in TPU and compare how the overhang limit angle and minimum wall change.
+- Print the plate from Exercise 1 standing on its side (choose a side face as the floor from the orientation candidates) and see how the contact area and height change.
+
+## What runs behind the scenes
+
+| Step | Tool |
+|---|---|
+| Checking, scoring, candidates | `check_printability` (`paint` to colour it) |
+| Orientation candidates and applying | `suggest_orientation` |
+| The six design fixes | `apply_print_fixes` (elephant_foot · hole_comp · teardrop · thicken · overhang_chamfer · split) |
+| Weight, time, cost | `estimate_print` |
+
+The procedure in full: [CLAUDE.md, the «3D 프린트 출력용 검토 워크플로» section](https://github.com/WaveSimm/cadxray/blob/master/CLAUDE.md)

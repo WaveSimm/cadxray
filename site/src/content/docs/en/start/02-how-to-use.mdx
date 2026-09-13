@@ -1,0 +1,52 @@
+---
+title: How to read this site
+description: How pages are laid out, what the boxes mean, which exercise to pick, and where to ask questions
+sidebar:
+  order: 2
+---
+
+## What the boxes mean
+
+Three kinds of box appear on these pages.
+
+```text title="Say this"
+A sentence to paste into your AI tool as-is. Use the copy button at the top right.
+```
+
+:::note[What the AI says back]
+An example of the AI asking a question or reporting a result. The exact wording varies each time; what it asks about does not.
+:::
+
+:::caution[Careful]
+A place where a mistake costs you time or gives you a wrong result.
+:::
+
+## How an exercise page is built
+
+Every exercise follows the same order. Header (input files · time · what you end up with · what you learn) → Setup → Steps (say this → what the AI does → how to check) → Checking your result (success criteria as numbers) → When it doesn't work → Going further. At the very end there is a list of the tools running behind the scenes, and a link to the original session log. You do not need to know the tool names.
+
+## Which exercise to start with
+
+| Your situation | Exercise |
+|---|---|
+| Starting out | [1. Four holes in a plate](/cadxray/en/practice/01-plate-holes/) |
+| You have a PDF drawing | [2. Cover from a machining drawing](/cadxray/en/practice/02-cover-from-pdf/) |
+| You have a DXF | [3. PCB board](/cadxray/en/practice/03-pcb-from-dxf/), [10. Pull-up bar frame](/cadxray/en/practice/10-pole-frame/) |
+| A vendor sent you a STEP | [4. Clamp jaw](/cadxray/en/practice/04-step-clamp/) |
+| All you have is an STL | [5. Spool guide](/cadxray/en/practice/05-stl-spool/) |
+| An existing model keeps turning red | [6. Red sketch](/cadxray/en/practice/06-fix-sketch/) |
+| You have to produce a drawing | [7. Making a 2D drawing](/cadxray/en/practice/07-drawing-pdf/) |
+| You are printing it | [8. Print review](/cadxray/en/practice/08-print-check/) |
+| You are worried it will break | [9. Cantilever analysis](/cadxray/en/practice/09-fem-beam/) |
+
+## Input files
+
+Every exercise has an «Original and finished» section. It shows the original (drawing, STEP, STL) and the finished files (FCStd, STEP) as images, and links them from the [GitHub Release](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1). The finished files were produced by actually running that exercise's steps on FreeCAD 1.1.3, so when you get stuck you can open one and compare the tree and the `Params` against yours. Exercises 1, 6, 8 and 9 have no input file and start from words alone; 6, 8 and 9 offer a practice model to download.
+
+## Questions and feedback
+
+Questions and feedback go to [GitHub Issues](https://github.com/WaveSimm/cadxray/issues) on the cadxray repository. Leaving behind the prompts that worked — and the ones that didn't — saves the next person some flailing.
+
+## Search
+
+The search box at the top (Ctrl+K) finds pages by words like "hole", "interference" or "STEP".

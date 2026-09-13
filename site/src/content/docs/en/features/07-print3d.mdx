@@ -1,0 +1,71 @@
+---
+title: Preparing for 3D printing
+description: Name the material, nozzle and bed and it finds thin walls, overhangs, small holes and parts that exceed the bed, then offers print orientations and automatic fixes. It estimates weight, time and cost too.
+sidebar:
+  order: 7
+---
+
+This is the review you do before the slicer: is the model printable? The AI checks whether walls are thinner than the nozzle, whether it can be printed without supports, and whether it fits the bed — and fixes what can be fixed using PartDesign features (to undo, delete the feature). It does not slice.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Check it for PETG with a 0.6 nozzle, no supports" | A score and a list of problems (thin walls, overhangs, bridges, small holes, horizontal holes, bed fit, first-layer adhesion), each with severity, location and how to fix it |
+| "Which way should I orient it?" | Six directions plus the current one, ranked by support area, bed contact and height. Pick one and the rotation is applied |
+| "Apply the elephant foot and hole compensation fixes" | A chamfer on the bottom outer edges, and a Pocket enlarging vertical holes by the compensation value |
+| "Teardrop the horizontal holes" | A 45° teardrop above each horizontal hole |
+| "Thicken the thin walls" | Pads thin planar walls outward to the minimum thickness (this changes the outside dimensions) |
+| "Add wedges under the overhangs" | Fills below planar overhangs attached to material, at the limit angle |
+| "It's bigger than the bed, cut it up" | Splits into pieces along an axis and hides the original (joining pins are manual) |
+| "How many grams, how many hours, how much?" | Material volume, weight, filament length, time and cost |
+| "Paint the problem faces" | Thin walls red, supports orange, bridges yellow, bed contact green |
+
+## A representative prompt
+
+```text title="Say this"
+Review the Body 'SpoolGuide' for PLA, 0.4 nozzle, 0.2 layer, bed 220×220×250.
+Show me the problems as a numbered list, and for anything fixable just show me the candidates. Don't fix anything automatically.
+```
+
+:::note[What the AI says back]
+Profile: PLA · nozzle 0.4 · layer 0.2 · bed 220×220×250 (minimum wall 0.8, overhang limit 45°). Print direction +Z, floor at z=0.
+
+Score 62/100. Fits the bed. First-layer contact area 3,120 mm².
+
+1. Thin walls — four ribs at 0.6 mm (< 0.8), at (35, 0, 12) and three others · severe · fix: thicken
+2. Overhang — 10 mm cantilever, support area 240 mm² · moderate · fix: overhang_chamfer or reorient
+3. Small holes — Ø0.6 × 2 (< 0.8) · moderate · redesign
+4. Horizontal hole — Ø6 × 1, will sag at the top · minor · fix: teardrop
+
+Fix candidates: thicken (1), overhang_chamfer (2), teardrop (4), elephant_foot (bottom 0.3), hole_comp (vertical holes +0.2). Pick the numbers you want. Reorienting could eliminate 2 — shall I show you the ranking as well?
+:::
+
+From there it goes "show me the orientation ranking" → a candidate table → "use the second one" → the rotation is applied → "check it again".
+
+## The profile
+
+You state the material (PLA, PETG, ABS, ASA, TPU, Nylon), nozzle, layer height and bed size. Leave them out and it uses PLA · 0.4 · 0.2 · 220×220×250 and says so. Minimum wall thickness, overhang limit angle, maximum bridge and hole compensation come from a table of empirical values (roughly slicer defaults and manufacturer guidance), not precise figures. If you know your own printer's numbers, override them: "minimum wall 1.0, overhang 50°".
+
+## Things to know
+
+- **Automatic fixes change the geometry.** `thicken` grows walls outward, so outside dimensions change; wedges add material, so the weight changes. Re-check and confirm your dimensions after applying.
+- **Curved thin walls and curved overhangs are manual.** The automatic fixes only handle planar geometry.
+- **Split pieces are created outside the Body.** Joining pins and dowels you add yourself.
+- **Time and material estimates are around ±30 %.** Coarser than a slicer. Give it a price per kg and it works out the cost.
+- **FDM prints are weak along the layer direction.** If you are going as far as structural analysis, read the limits in [Structural analysis](/cadxray/en/features/08-fem-assembly/) alongside this.
+- Non-Body objects (a STEP lump) can be checked but not auto-fixed. Move them into a Body first, or use [Redrawing](/cadxray/en/features/03-rebuild/).
+
+## Related exercises
+
+- [08. Print review](/cadxray/en/practice/08-print-check/)
+- [05. Redrawing an STL spool guide](/cadxray/en/practice/05-stl-spool/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `check_printability` | Checks thin walls, overhangs, bridges, holes, bed fit and adhesion against the profile; `issues`, `fixes`, `paint` |
+| `suggest_orientation` | Scores six directions plus the current one; `apply` rotates |
+| `apply_print_fixes` | elephant_foot · hole_comp · teardrop · thicken · overhang_chamfer · split |
+| `estimate_print` | Volume, weight, filament, time, cost |

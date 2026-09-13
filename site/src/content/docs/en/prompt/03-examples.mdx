@@ -1,0 +1,51 @@
+---
+title: Good and bad examples
+description: Twelve pairs of sentences that mean the same thing and get very different results
+sidebar:
+  order: 3
+---
+
+On the left, sentences that get a question back or go sideways. On the right, sentences that work the first time. The difference is almost always one of three things: **numbers, a datum, or a check.**
+
+## Building from scratch
+
+| Bad | Good |
+|---|---|
+| Make me a bracket | An L bracket. Base 80×40, 4 thick; upright plate 50 tall, 4 thick; R3 on the inner corner. Two Ø6.6 holes in the base, on the centreline of the short edge, 20 apart |
+| Drill some holes | Ø5 through holes in the top face, X 15 Y 15 from the top-left corner |
+| Add a thread | M44.5×2 male thread on the outside of the cylinder, length 8, starting at the top end |
+| Tidy it up a bit | R2 fillets on the four outer vertical edges, C0.5 chamfers at the hole mouths |
+
+## Building from drawings and files
+
+| Bad | Good |
+|---|---|
+| Build it from this PDF | D:\dwg\cover.pdf is a 1:1 vector drawing. The outer rectangle is the plate outline and the circles are holes. Assume 3 for the thickness, and check the scale against the dimension text and tell me |
+| Open the DXF and do it | From D:\dwg\board.dxf, use the OUTLINE layer polyline as the outline and only circles of radius 0.5 or more as holes, and make a 1.6 thick board. Don't use FreeCAD's DXF import |
+| Redraw the STEP | Open D:\vendor\jaw.step and start with face classification. If the verdict is prismatic, stack Pads from the lower band up in order, and compare against the original with a boolean difference when you're done |
+| Does STL work? | Bring D:\print\guide.stl in as a reference mesh and analyse the axis, bands and thread. Redraw it from those values and tell me the maximum deviation |
+
+## Fixing and inspecting
+
+| Bad | Good |
+|---|---|
+| Something's off | Pad001 in the Body is failing. Find the cause and show me fix candidates. Don't apply anything before I pick |
+| Just fix it | Show me numbered candidates for the conflicting constraints in Sketch003 |
+| Check if they overlap | Tell me the minimum distance and overlapping volume between Bracket and Sensor |
+| How much does it weigh | How many grams in aluminium (density 2.7), and where is the centre of gravity |
+
+## Drawings, printing, analysis
+
+| Bad | Good |
+|---|---|
+| Give me a drawing | The Body as front, right, top and isometric on one A4. Dimensions: overall length, width, height and hole diameter. Title block: part name Cover, drawing number OT-2026-014. As PDF |
+| Can it be printed | Check whether it prints without supports in PETG, 0.6 nozzle, 0.3 layer, bed 220×220. Problems as a numbered list |
+| Is it strong enough? | Material PETG, left end face fixed, 20 N in −Z on the right end face. Tell me the safety factor and where the maximum stress is, and show me the colour map |
+
+## The five most common mistakes
+
+1. **Leaving out units.** You say cm and get mm. If your drawing is in cm, say "units are cm".
+2. **Describing instead of using the Label.** Say the tree name "PadFrame", not "that big plate".
+3. **Everything at once.** Plate, holes, fillets, drawing and print check in one sentence. Three or four at a time.
+4. **Not reading the AI's assumptions.** If the answer contains the word "assumed", check it.
+5. **Believing it saved.** If you did not say "save it", the file is unchanged.

@@ -134,7 +134,7 @@ args = ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge",
 
 ## 4. 이렇게 씁니다
 
-> **따라하기 가이드 사이트**: https://wavesimm.github.io/cadxray/ — 설치, 할 수 있는 것, 실습 10개(판에 구멍 뚫기부터 STEP·STL 다시 그리기, 2D 도면, 3D 프린트 검토, 구조 해석까지), 프롬프트 작성법. 실습 파일은 [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
+> **따라하기 가이드 사이트**: https://wavesimm.github.io/cadxray/ — 설치, 할 수 있는 것, 실습 10개(판에 구멍 뚫기부터 STEP·STL 다시 그리기, 2D 도면, 3D 프린트 검토, 구조 해석까지), 프롬프트 작성법. 영문판은 [/en/](https://wavesimm.github.io/cadxray/en/). 실습 파일은 [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
 
 FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 

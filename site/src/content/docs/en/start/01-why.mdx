@@ -1,0 +1,50 @@
+---
+title: Why model by talking
+description: One sentence instead of hundreds of clicks. What changes when the AI reads inside FreeCAD directly, builds, and fixes
+sidebar:
+  order: 1
+---
+
+## FreeCAD until now
+
+You draw a sketch, add constraints one at a time, hit Pad, work out the hole positions and add a Pocket, and when something turns red you scroll the constraint panel up and down hunting for the cause. To count the holes in a vendor's STEP file you click faces one by one. It is fast once you are used to it. Getting used to it takes a while.
+
+## Modeling by talking
+
+Leave FreeCAD open and tell your AI tool:
+
+```text title="Say this"
+Make a 100×60 plate 5 thick, and drill four Ø6.6 through holes 10 in from each corner.
+```
+
+The AI draws the sketch, adds every constraint (zero degrees of freedom), pads it, cuts the four holes as a Pocket, and puts the dimensions into a spreadsheet called `Params` under names. Then it recomputes, confirms there are no errors, and shows you an isometric screenshot. Want a different plate thickness? Change one number in the spreadsheet.
+
+The point is that the AI **reads inside FreeCAD instead of guessing**. Ask why a sketch is red and it points at the conflicting constraints by the same numbers the constraint panel uses. Ask the hole diameter in a STEP file and it measures the face and tells you.
+
+## What changes
+
+| Before | Now |
+|---|---|
+| Hunt the constraint panel for why a sketch is red | "Tell me why it's red" → conflicting constraint numbers and a list of fixes |
+| Eyeball a vendor STEP and redraw it by hand | "Redraw it parametrically" → a Body with real features, verified to within 0.0004 % of the original volume |
+| STL is an untouchable pile of triangles | Sections get measured, fitted to circles and lines, and redrawn — threads included |
+| Copy coordinates off a PDF drawing by hand | Circles and rectangles are pulled from the PDF vectors and the plate is built directly |
+| Lay out a three-view page by hand | "Give me a three-view" → a PDF with dimensions and a title block |
+| Structural analysis belongs to FEM specialists | Say the material, the fixed face and the load; get a safety factor and a colour map |
+
+## What is still yours
+
+- **Deciding what to build.** Dimensions the drawing does not give (plate thickness, foundation depth) get assumed by the AI, which tells you what it assumed and why. Judging whether that is right is your job.
+- **Choosing among candidates.** Sketch fixes, print orientation, reinforcement — the AI lists them by number and you pick. It does not apply them on its own.
+- **Saving.** Nothing is written to disk until you say "save it".
+- **Confirming the result.** You look at the screenshot and the numbers (volume, degrees of freedom, boolean difference) and decide it is done.
+
+## What you need
+
+| | How to check | If you don't have it |
+|---|---|---|
+| FreeCAD 1.1.3 | Help → About | [Install →](/cadxray/en/setup/01-freecad/) |
+| An AI coding tool | Claude Code, Codex CLI or Gemini CLI | [Connect an AI tool →](/cadxray/en/ai/01-claude-code/) |
+| cadxray | `[CAD X-ray] 서버 시작` in FreeCAD's Report view | [Install →](/cadxray/en/setup/02-cadxray/) |
+
+The next page explains how to read this site.

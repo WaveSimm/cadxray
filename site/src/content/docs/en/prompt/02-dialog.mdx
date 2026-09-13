@@ -1,0 +1,100 @@
+---
+title: Conversation patterns
+description: Answering questions back, picking numbers, getting assumptions as a table, breaking work into steps, undoing, and saving
+sidebar:
+  order: 2
+---
+
+Modeling does not finish in one sentence. There is a short back-and-forth: the AI asks, it offers candidates, you pick. Here are the six exchanges that come up most.
+
+## 1. Answering a question back
+
+When the AI asks for something you left out, answer just that. You do not need to rewrite your first sentence.
+
+:::note[What the AI says back]
+Two documents are open (Unnamed, bracket_v2). Which one should I work in?
+:::
+
+```text title="Say this"
+bracket_v2.
+```
+
+## 2. Picking numbers
+
+Sketch fixes, print orientation and reinforcement all come back as a **numbered list**, and the AI stops there. Even the recommended one is not applied automatically.
+
+:::note[What the AI says back]
+Sketch003 has two conflicting dimensions (constraint 12, length 40; constraint 15, length 42). Fix candidates:
+1. Delete constraint 12 → DoF 0 (recommended)
+2. Delete constraint 15 → DoF 0
+3. Join the endpoint of Line5 to the start of Arc2 → open vertices 2 → 0
+Pick only one of 1 and 2. Which would you like?
+:::
+
+```text title="Say this"
+1 and 3.
+```
+
+"Go with your recommendation" works too. But for a candidate that adds a new dimension — freezing the current value — check first that it is really the design dimension.
+
+## 3. Getting assumptions as a table
+
+When the AI has decided a value the drawing does not give, ask for it as a table and confirm. This matters most on the bigger exercises like the pull-up bar frame.
+
+```text title="Say this"
+Before you build it, show me a table of the values you assumed because they weren't on the drawing. I'll confirm and then we go.
+```
+
+:::note[What the AI says back]
+| Item | Drawing | Assumed | Basis |
+|---|---|---|---|
+| Plate thickness | absent | 3 mm | Usual for a cover plate |
+| Antenna hole height | no dimension | 114.98 | Measured from the vectors |
+Shall I proceed?
+:::
+
+```text title="Say this"
+Make the thickness 2. Leave the rest.
+```
+
+## 4. Breaking work into steps
+
+A long job can freeze FreeCAD, and when something goes wrong midway it is hard to find. Cut it at three or four features, or at "up to the plate" and "up to the holes".
+
+```text title="Say this"
+Build just the plate first and show me. Once I confirm, we'll do the holes.
+```
+
+The same applies when redrawing a STEP or an STL: "face classification only first", "section heights only first", "the lower band only first".
+
+## 5. Undoing and confirming
+
+After a fix, the AI recomputes to confirm what got resolved and what newly broke. If things got worse, have it undo.
+
+```text title="Say this"
+Did that last change break anything new? Undo it if so.
+```
+
+Sketch fix candidates roll themselves back if applying them makes things worse. For other changes, FreeCAD's Edit → Undo (Ctrl+Z) works too.
+
+## 6. Saving
+
+The AI does not save until told. Overwriting an existing file takes one more confirmation.
+
+```text title="Say this"
+Save it to D:\models\cover_v2.FCStd. Overwrite if it already exists.
+```
+
+## Asking to be shown
+
+| What you want | What to say |
+|---|---|
+| What it looks like now | "Show me in iso" (front, top, right and 9 more) |
+| The structure | "Summarise the tree" |
+| Where a value comes from | "Where does this Pad's Length come from?" |
+| How far it is from the original | "Compare against the original and tell me where they differ" |
+| The numbers | "Give me the volume, centre of gravity and degrees of freedom" |
+
+## When the conversation gets long
+
+Build two or three models in one session and the AI starts confusing them with the earlier documents. Start a new model in a new conversation (`/clear` or restart the tool) and state the document name again.

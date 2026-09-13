@@ -1,0 +1,70 @@
+---
+title: Fixing and diagnosing
+description: The AI reads the cause of a red sketch, a failed Pad or a strange shape and states it in one sentence, then offers fixes as a numbered list. Only what you pick gets applied.
+sidebar:
+  order: 4
+---
+
+The biggest time sink in FreeCAD is finding out "why is this red". You scroll the constraint panel up and down, click Pads one at a time, and recompute over and over. The AI reads the sketch solver state, the shape validity and the recompute result directly, so it tells you the cause immediately. As for fixing, it shows candidates and applies only the ones you choose.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Work out the structure of the model I have open" | A summary of Bodies, features and sketches, plus a list of problem objects. Diagnosis always starts here |
+| "Tell me why Sketch003 is red" | Conflicting and redundant constraint numbers (the same numbers the GUI constraint panel shows), remaining degrees of freedom, open vertices |
+| "Fix it" | A numbered list of candidates: join endpoints, missing horizontal/vertical, equal constraints, delete redundant or conflicting ones, dimensions for the remaining DoF. Each with its expected effect and a confidence level |
+| "Apply 3 and 5" | Only those get applied, and it rolls back if things get worse. It refuses if the sketch changed in the meantime |
+| "Find the cause of the Pad001 error and fix it" | Explains the cause → says what it will change → fixes → tracks the recompute |
+| "Something's off about this shape" | Validity, volume, face makeup, why it broke |
+| "After the fix, what got resolved and what newly broke?" | Before-and-after recompute: resolved / new_errors / persistent |
+
+## A representative prompt
+
+```text title="Say this"
+Sketch003 is red. Diagnose it and show me numbered fix candidates.
+Don't fix anything automatically — I'll choose.
+```
+
+:::note[What the AI says back]
+Sketch003 is over-constrained (solve -4). Constraint 12 (Distance 40) and constraint 15 (Distance 42) set the same line length to different values and conflict. Separately, the endpoint of Line5 and the start of Arc2 are 0.02 mm apart, leaving the profile open.
+
+Candidates:
+1. Delete constraint 12 (keeps length 42) — resolves the conflict, DoF 0, confidence medium
+2. Delete constraint 15 (keeps length 40) — one of this or 1, not both
+3. Add Coincident between Line5.end and Arc2.start — open vertices 2 → 0, confidence high
+4. Add Horizontal to Line7 (it is off by 0.3°) — DoF 1 → 0, confidence high
+
+Recommended: 3 and 4, plus either 1 or 2. Which is the design length, 40 or 42?
+:::
+
+Say "40 is right, apply 2, 3 and 4" and it applies them, recomputes, and reports "solve 0, DoF 0, open vertices 0, no newly broken objects".
+
+## What the diagnosis reads
+
+- **Sketches**: solver state, remaining degrees of freedom, the lists of conflicting, redundant and malformed constraints, and open vertices. The constraint numbers match the GUI constraint panel, so you can find them there directly.
+- **Shapes**: validity check messages, volume, face counts by type. For a PartDesign feature it looks at the Body's accumulated shape and the feature's own shape separately.
+- **Properties and expressions**: ask "where does this Pad's Length come from?" and it shows you the spreadsheet reference expression.
+- **Recompute tracking**: after a fix, what got `resolved`, what is in `new_errors`, and what is `persistent`.
+
+## Things to know
+
+- **It does not fix automatically.** `recommended` is only a recommendation. In particular, "add a dimension for the remaining DoF" freezes the current value as a dimension, and only you know whether that is the design dimension. That is why its confidence comes back low.
+- **Two conflicting constraints are an either/or.** Pick both and the AI refuses.
+- **Problems outside the sketch** (a Pad outside its sketch, a referenced face that disappeared) get fixed by the AI running Python inside FreeCAD. It is set up to tell you what it will change first, so read that and then say "go ahead".
+- **Long fix scripts freeze FreeCAD.** They run on the main thread and cannot be interrupted. You either wait or force-quit, so break big jobs up.
+- **Touched flags left after a recompute** are not errors. Judge by Invalid.
+
+## Related exercises
+
+- [06. Fixing a red sketch](/cadxray/en/practice/06-fix-sketch/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `get_document_graph` | Object tree, dependencies, problem objects — the starting point of any diagnosis |
+| `get_sketch_diagnostics` | Solve state, DoF, conflicting/redundant/malformed constraints, open vertices |
+| `suggest_sketch_fixes` · `apply_sketch_fixes` | Candidates (effect measured on a copy) → only the chosen ids applied |
+| `analyze_shape` · `inspect_object` | Shape validity / properties and expressions |
+| `execute_code` · `tracked_recompute` | Fixes for problems outside sketches / what got fixed and what newly broke |

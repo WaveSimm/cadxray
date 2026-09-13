@@ -1,0 +1,77 @@
+---
+title: Claude Code
+description: One line to register, checking the connection, CLAUDE.md in your working folder, and the only tool that shows screenshots in the chat
+sidebar:
+  order: 1
+---
+
+This is the tool cadxray was built and verified against. Screenshots appear directly in the chat, and the rules file that describes the working order (CLAUDE.md) sits in the repository under that exact name. If you are starting out, start here.
+
+## Install
+
+Install and sign in following [claude.com/claude-code](https://claude.com/claude-code). Check:
+
+```powershell
+claude --version
+```
+
+## Register
+
+```powershell title="Terminal"
+claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+`--scope user` means it follows you into any folder. If you changed the port, append `--port 9878`.
+
+## Check the connection
+
+With FreeCAD running, type `claude` in any folder, then `/mcp` in the chat.
+
+```text
+cadxray · connected · 36 tools
+```
+
+If you see fewer tools: `/mcp` → `cadxray` → **Reconnect**.
+
+## Your working folder and CLAUDE.md
+
+Claude Code reads `CLAUDE.md` from the current folder and follows what it says. The cadxray repository's CLAUDE.md spells out the working order: «diagnose a red sketch in this order», «show candidates as a numbered list and apply only the chosen ones», «never save until asked». With that file present, the AI behaves far more consistently.
+
+Make a folder for your modeling work and put the file in it.
+
+```powershell title="Terminal"
+mkdir C:\cad-work
+cd C:\cad-work
+curl -o CLAUDE.md https://raw.githubusercontent.com/WaveSimm/cadxray/master/CLAUDE.md
+claude
+```
+
+The first part of the file is rules for people developing cadxray (milestones, commits, tests) and has nothing to do with modeling. If it bothers you, keep only the diagnostic-workflow section to the end. Note that the file is written in Korean; the tool names and the order are what matter.
+
+:::tip[Add your own rules]
+Append the rules you repeat often to the end of the same file and you stop having to say them. For example: "dimensions are in mm; if I don't give a plate thickness, assume 3 mm and say so", "save to D:\models\", "screenshots in iso".
+:::
+
+## Your first conversation
+
+```text title="Say this"
+Check whether you can reach FreeCAD, and tell me the structure of the open document.
+```
+
+:::note[What the AI says back]
+Connected to FreeCAD 1.1.3. Document Unnamed has 0 objects. What would you like to build?
+:::
+
+## What is different about this tool
+
+- **Screenshots appear in the chat.** Say "show me what it looks like now" and an isometric image comes straight back. Same for structural analysis colour maps.
+- The desktop app and the CLI share settings. Register once and both work.
+- Claude Desktop (the chat app) works too, but you have to put JSON into `claude_desktop_config.json`. This site assumes Claude Code.
+
+## Commands you will use
+
+| In the chat | What it does |
+|---|---|
+| `/mcp` | Connection status and tool count |
+| `/clear` | Clear the conversation (start fresh after a long job) |
+| `Esc` twice | Stop the answer in progress (code already running inside FreeCAD cannot be stopped) |

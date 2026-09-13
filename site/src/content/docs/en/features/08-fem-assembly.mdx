@@ -1,0 +1,84 @@
+---
+title: Structural analysis and assemblies
+description: Name the material, the fixed face and the load and you get a safety factor, a stress colour map and reinforcement candidates. Multi-part bonding, natural frequencies, and tracing broken Links.
+sidebar:
+  order: 8
+---
+
+To answer "will this bracket hold 20 N?" in the FEM workbench you have to build the material, constraints, load, mesh and solver by hand. The AI confirms three things — material, what is held, and where and how much — then runs the analysis in one go and states the safety factor in a sentence. FreeCAD 1.1.3 ships with CalculiX and Gmsh, so there is nothing to install. For assemblies it follows Links into other files and finds what is broken.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Printed in PETG, fixed at the base, 20 N down at the tip. Does it hold?" | Maximum von Mises stress and where, maximum displacement, safety factor (yield / maximum), a verdict of ok · marginal · fail, and a 3D colour map |
+| "Self-weight only" | Gravity analysis with no applied load |
+| "Give me reinforcement options to get safety factor 2" | Thickness, fillet, rib, material and load candidates as a numbered list, with expected safety factor and confidence. Nothing applied automatically |
+| "Show me displacement" | Switches the colour map field to displacement, with top nodes and per-face maxima |
+| "Analyse the bracket (steel) and the cover (PETG) together" | Multiple parts, per-part materials, touching faces fully bonded |
+| "The motor runs at 1,800 rpm — I'm worried about resonance" | Natural frequencies in Hz per mode. Compare the first mode against the excitation frequency (rpm/60 = 30 Hz) |
+| "Assembly weight and centre of gravity" | Summed using per-part densities |
+| "The Link is red — what broke?" | The document chain, broken links (missing files) and a list of Invalid objects in the linked documents |
+
+## A representative prompt
+
+```text title="Say this"
+Analyse the Body 'Bracket'.
+- Material: PETG
+- Fixed: the bottom face
+- Load: 20 N in −Z on the face near (60, 40, 60), by the Ø20 hole at the top of the vertical plate
+Target safety factor 2. Give me the result in one sentence and show me an isometric colour map.
+If it falls short, list reinforcement candidates by number.
+```
+
+:::note[What the AI says back]
+Setup: PETG (table values), 1 fixed face (the base, confirmed by area), 1 load face (the face nearest (60, 40, 60)), Gmsh second-order mesh + CalculiX.
+
+Result: maximum von Mises stress sits on the inner corner at the foot of the vertical plate, and maximum displacement is at the tip. The safety factor (yield / maximum stress) falls short of the target of 2, so the verdict is marginal. Colour map attached.
+
+Reinforcement candidates (the tool computes the expected safety factor and confidence):
+1. Increase the vertical plate thickness (bending stiffness)
+2. Fillet the inner corner at the foot (relieves the stress concentration)
+3. Add a rib at the back
+4. Change material
+
+Limits: linear static and isotropic; FDM prints are weaker along the layer direction; the material table holds empirical values.
+:::
+
+Say "number 1" and the AI changes the parameter, re-runs the analysis and reports the new safety factor.
+
+## How to specify faces
+
+- Extreme names: "the base", "the top face", "xmin", "ymax" — every plane lying flat at that end
+- Coordinates: "the face near (60, 40, 60)" — the single nearest face. Hole and boss coordinates come from the hole analysis or the bbox in [Inspecting](/cadxray/en/features/05-inspect/)
+- Normals: "every upward-facing face"
+
+After the setup the AI shows the area of each face it grabbed, so you can confirm by area that it picked the ones you meant.
+
+## Tracing assembly Links
+
+In an assembly that pulls Bodies from other files in as Links, moving a file turns the Link red with "Link not restored". Ask "what broke?" and you get the document chain (depth 0 is this document) plus the broken links and the Invalid objects in the linked documents, numbered. The fix is to put the file back or open it from its new path and reopen the parent, then confirm with recompute tracking in the parent document. For a Link array, `element_count` is the instance count.
+
+## Things to know
+
+- **Linear static and isotropic only.** No plasticity, large deformation, contact or friction. Multiple parts are solved with touching faces fully bonded — this does not model a bolted joint.
+- **Buckling is not supported.** CalculiX was observed to stall and die with memory climbing to 8 GB, so it is refused.
+- **The material table holds empirical values** (PLA, PETG, ABS, ASA, TPU, NYLON, PMMA, POM, ALUMINUM, STEEL, STAINLESS, BRASS). If you know the real E and yield strength, give the numbers.
+- **When you get a singularity warning**, look at the p99 safety factor instead of the maximum. Stress diverging at a sharp corner is a property of the analysis, not of the real part.
+- **A "nonpositive jacobian" failure** means the mesh is distorted — the AI shrinks the mesh size and retries. Above 300,000 nodes it goes the other way and coarsens.
+- **Analysis objects stay in the document.** Setting up again under the same name deletes and recreates them.
+- Result node coordinates are undeformed coordinates.
+
+## Related exercises
+
+- [09. Cantilever analysis and reinforcement](/cadxray/en/practice/09-fem-beam/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `setup_analysis` | Material, constraints, loads, Gmsh second-order mesh and CalculiX in one call. `names`, per-part materials, `analysis_type="frequency"` |
+| `run_analysis` | Static solve → stress, displacement, safety factor, verdict, colour map / per-mode Hz for frequency |
+| `inspect_results` · `suggest_reinforcement` | Top nodes per field / thickness, fillet, rib, material and load candidates |
+| `get_mass_properties` | Assembly totals via `names` + `densities` |
+| `trace_links` | Document chain, broken links, Invalid objects in linked documents |

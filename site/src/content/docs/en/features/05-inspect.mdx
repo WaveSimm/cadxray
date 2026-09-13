@@ -1,0 +1,74 @@
+---
+title: Inspecting
+description: Ask about hole diameters and pitches, part interference, mass, centre of gravity, tipping angle and where a property came from — without a single click. Ready to use on vendor parts.
+sidebar:
+  order: 5
+---
+
+How many mounting holes are in that vendor STEP and what is the pitch? Does the bracket clash with the sensor? How many grams if it is machined from aluminium? Work you used to do by clicking faces one at a time now takes a single question. These are read-only operations that do not change the model, so ask freely.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "How many mounting holes are in this STEP and what's the pitch?" | Per hole: diameter, centre, depth, whether it goes through; patterns and pitch among same-diameter holes; counterbores, countersinks, chamfers, drill points |
+| "What thread is this hole?" | An estimate from matching the diameter against the ISO metric thread table (M3 tap drill / M6 clearance …) |
+| "Check whether the bracket and the sensor overlap" | Minimum distance and interference volume (mm³) per part pair. 3,160 pairs across 80 parts in 6.5 seconds |
+| "Find the pairs that break the 1 mm clearance" | A list of clearance violations |
+| "How many grams is this in aluminium?" | Mass at density 2.7, plus volume, surface area, centre of gravity and inertia |
+| "Will it tip over standing up?" | Margin (mm), tipping angle and a verdict, from the ground contact convex hull and the centre of gravity |
+| "Total assembly weight and centre of gravity" | Give it per-part densities and you get summed mass and a mass-weighted centre of gravity |
+| "Where does this Pad's Length come from?" | The property and its expression (a spreadsheet reference, say) |
+| "Show me what it looks like now" | A screenshot in the chat, from any of 12 directions including iso, front and top |
+
+## A representative prompt
+
+```text title="Say this"
+Open D:\vendor\sensor_mount.step and tell me
+1. the holes organised by diameter, as a table with count, pitch and whether they go through
+2. whether the Ø3.4 holes are M3 clearance or tapped
+3. the weight in aluminium (2.7)
+Don't change the model.
+```
+
+:::note[What the AI says back]
+Opened the STEP (1 part, 46 faces, valid).
+
+| Diameter | Count | Pitch | Through | Notes |
+|---|---|---|---|---|
+| Ø3.4 | 4 | 25.0 × 40.0 | yes | Counterbore Ø5.6, depth 4 |
+| Ø2.2 | 2 | 14.25 | no (depth 5) | Pin seats |
+
+Ø3.4 is most likely M3 clearance. An M3 tap drill would be Ø2.5. The through/blind call is a heuristic, so check holes that break through a counterbore floor once in the GUI.
+
+Mass 41.3 g (volume 15,296 mm³ × 2.7). Centre of gravity (24.0, 45.1, 61.2).
+:::
+
+## What the inspection distinguishes
+
+- **Holes / fillets / slot ends** — told apart by the arc angle of the concave cylindrical face. Separated counterbores on the same axis are counted separately.
+- **Through or not** — a heuristic based on whether the space beyond each end of the hole axis is outside the material. A hole breaking through a pocket floor can read as through.
+- **Interference / clearance violation / OK** — overlapping volume means interference; no overlap but a distance below the specified clearance means a violation. Pairs whose bounding boxes are apart get skipped without computation, which is what makes it fast.
+- **Centre-of-gravity basis** — mass-weighted if every part has a density, volume-weighted with a warning if any is missing.
+
+## Things to know
+
+- **STL cannot be inspected for holes or interference.** There are no faces and no solid. Build a Body with [Redrawing](/cadxray/en/features/03-rebuild/) first, or ask the vendor for a STEP.
+- **Threads are estimates.** A STEP has no thread geometry, so the match is by diameter alone. Confirm against the drawing or the vendor's data.
+- **For big assemblies, narrow the scope and ask several times** — "only the parts around the bracket" — it is faster.
+- **Densities are in g/cm³** (aluminium 2.7, steel 7.85, PLA 1.24).
+- **Object names and labels differ.** Open a STEP and the object Name is `Part__Feature…` while the original part name is the Label. The AI shows both; when in doubt, refer to the label.
+
+## Related exercises
+
+- [04. Analysing and rebuilding a vendor STEP clamp jaw](/cadxray/en/practice/04-step-clamp/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `find_holes` | Hole diameter, centre, depth, through-ness, pattern and pitch, counterbores and the rest, `thread_hint` |
+| `check_interference` | Minimum distance and interference volume per part pair, clearance |
+| `get_mass_properties` | Volume, area, centre of gravity, inertia; mass via `density`; `stability`; summed totals via `names` + `densities` |
+| `inspect_object` · `analyze_shape` | Properties and expressions / validity and face makeup |
+| `get_screenshot` | PNGs from 12 directions |

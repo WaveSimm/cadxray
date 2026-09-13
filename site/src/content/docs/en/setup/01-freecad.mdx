@@ -1,0 +1,68 @@
+---
+title: 1. FreeCAD 1.1.3 and the basic tools
+description: Installing and checking FreeCAD 1.1.3, uv and git (Windows; on macOS and Linux only the paths differ)
+sidebar:
+  order: 1
+---
+
+The baseline is **FreeCAD 1.1.3**. That is the version cadxray was verified on, and CalculiX and Gmsh — needed for structural analysis — ship with 1.1. Version 1.0.x works too, but the exercises on this site are written against 1.1.3.
+
+## FreeCAD 1.1.3
+
+1. Download the 1.1.3 Windows installer from [freecad.org](https://www.freecad.org/downloads.php) and install it.
+2. **Launch it once, then close it.** That creates the Mod folder the addon goes into.
+3. Check Help → About shows 1.1.3.
+
+| OS | Mod folder the addon goes into |
+|---|---|
+| Windows | `%APPDATA%\FreeCAD\v1-1\Mod\` |
+| macOS | `~/Library/Application Support/FreeCAD/v1-1/Mod/` |
+| Linux | `~/.local/share/FreeCAD/v1-1/Mod/` |
+
+:::caution[1.0 and 1.1 use different folders]
+1.0 uses `v1-0`, 1.1 uses `v1-1`. If both versions are installed, the addon can land in the wrong one. The diagnostic command on the next page tells you which folder it went into.
+:::
+
+## The terminal
+
+Every command below goes in a **terminal**, not in your AI tool's chat window.
+
+- Windows: find **PowerShell** in the Start menu. Command Prompt (cmd) works too.
+- macOS: the Terminal app.
+- Linux: your terminal.
+
+## uv
+
+This downloads and runs cadxray's bridge — the half that lives on the AI tool's side. You do not need to install Python separately.
+
+```powershell title="Windows PowerShell"
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```bash title="macOS / Linux"
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+After installing, **close the terminal and open a new one.** Then check:
+
+```powershell
+uv --version
+```
+
+## git
+
+Used to fetch the bridge from GitHub. On Windows use the [git-scm.com](https://git-scm.com/) installer; on macOS run `xcode-select --install` in the terminal.
+
+```powershell
+git --version
+```
+
+## Checklist
+
+| | Command | What you should see |
+|---|---|---|
+| FreeCAD | Help → About | 1.1.3 |
+| uv | `uv --version` | `uv 0.x.x` |
+| git | `git --version` | `git version 2.x` |
+
+All three showing up? Go to the next page.

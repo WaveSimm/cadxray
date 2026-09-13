@@ -1,0 +1,70 @@
+---
+title: Gemini CLI
+description: Registering Google Gemini CLI, settings.json, the GEMINI.md rules file, checking with /mcp
+sidebar:
+  order: 3
+---
+
+Google's terminal coding tool. Only the registration command and the rules file name (GEMINI.md) differ; everything else is the same.
+
+## Install
+
+Install and sign in to Gemini CLI following Google's instructions. Check:
+
+```powershell
+gemini --version
+```
+
+## Register
+
+```powershell title="Terminal"
+gemini mcp add cadxray uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+Unlike Codex, there is no `--` separator. Or write it into `~/.gemini/settings.json` directly.
+
+```json title="~/.gemini/settings.json"
+{
+  "mcpServers": {
+    "cadxray": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+    }
+  }
+}
+```
+
+If you already have other MCP servers, add just the `"cadxray"` entry inside `mcpServers`. If you changed the port, append `"--port", "9878"` to `args`.
+
+## Check the connection
+
+With FreeCAD running, open `gemini` and type `/mcp`. Seeing `cadxray` and its tool list is enough.
+
+```text title="Say this"
+Check whether cadxray can reach FreeCAD and tell me the version.
+```
+
+## The rules file — GEMINI.md
+
+Gemini reads `GEMINI.md` from the working folder. Save cadxray's CLAUDE.md under that name.
+
+```powershell title="Terminal"
+mkdir C:\cad-work
+cd C:\cad-work
+curl -o GEMINI.md https://raw.githubusercontent.com/WaveSimm/cadxray/master/CLAUDE.md
+gemini
+```
+
+## What is different about this tool
+
+- **Screenshots**: image display depends on the version. If they do not show, look at the FreeCAD window.
+- **A slow first connection** is the 10–30 seconds spent downloading the bridge. If the tools do not appear, call `/mcp` once more.
+- The prompts are the same everywhere. See [Writing prompts](/cadxray/en/prompt/01-structure/).
+
+## Checklist
+
+| | Command | What you should see |
+|---|---|---|
+| Registered | `/mcp` | `cadxray` + 36 tools |
+| Connected | first conversation | FreeCAD 1.1.3 |
+| Rules | working folder | `GEMINI.md` present |

@@ -1,0 +1,39 @@
+---
+title: Comparing the three tools
+description: What is the same and what differs across Claude Code, Codex CLI and Gemini CLI, and what to watch for when using several at once
+sidebar:
+  order: 4
+---
+
+## What is the same
+
+- **The prompts.** "A 100×60 plate 5 thick with four Ø6.6 holes" produces the same result in any of them. The «Say this» boxes on this site work as-is in all three.
+- **The FreeCAD side.** You install the addon (the first command) once. All three tools connect to the same server on 127.0.0.1:9877.
+- **The working principles.** Candidates as a numbered list, only the chosen ones applied, saving only when asked. That assumes you installed the rules file.
+
+## What differs
+
+| | Claude Code | Codex CLI | Gemini CLI |
+|---|---|---|---|
+| Register | `claude mcp add --scope user cadxray -- uvx …` | `codex mcp add cadxray -- uvx …` | `gemini mcp add cadxray uvx …` |
+| Config file | (the command is enough) | `~/.codex/config.toml` | `~/.gemini/settings.json` |
+| Rules file | `CLAUDE.md` (in the repository under that name) | `AGENTS.md` (save CLAUDE.md under this name) | `GEMINI.md` (same) |
+| Check connection | `/mcp` | `codex mcp list` | `/mcp` |
+| Screenshots | shown as images in the chat (verified) | depends on version | depends on version |
+| Verification | the tool cadxray was developed and verified on | registration instructions in the README only | registration instructions in the README only |
+
+:::caution[Screenshots are only for confirmation]
+Work proceeds fine without images. The AI judges by numbers — volume, degrees of freedom, boolean difference, safety factor — and you can look at the FreeCAD window yourself. Real verification was done with Claude Code. If you find Codex or Gemini behaving differently, please leave a note on [GitHub Issues](https://github.com/WaveSimm/cadxray/issues).
+:::
+
+## Things to watch for, whichever you use
+
+- **When Windows cannot find uvx**: either you did not reopen the terminal, or a GUI app has a different PATH. Put the output of `(Get-Command uvx).Source` into `command`.
+- **The first run takes 10–30 seconds**: that is the bridge downloading. If the tools do not appear, connect once more.
+- **If you changed the port**, append `--port 9878` to the registration command or to `args`.
+- **Run only one FreeCAD.** Several AI tools can attach to the same FreeCAD at once, but do not let two of them edit the same document simultaneously.
+- **It works without the rules file**, driven by the tool descriptions alone — but without the diagnostic order it may start looking in the wrong place. You are better off installing the file.
+
+## Which one to pick
+
+If you already use one of them, use that. If not, Claude Code: screenshots appear in the chat, the rules file works under its own name, and the exercises on this site were verified against it.

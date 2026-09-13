@@ -1,0 +1,158 @@
+---
+title: "Exercise 7. Making a 2D drawing"
+description: Take a Body you have already built and produce a TechDraw page with front, right, top and isometric views, dimensions, notes and a title block, then export it as PDF.
+sidebar:
+  order: 7
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/07-drawing-page.png';
+
+| Item | Detail |
+|---|---|
+| Input files | The plate from Exercise 1 (with four holes) as FCStd, or any Body |
+| Time | 3 min (the page takes seconds) |
+| What you end up with | One ISO A3 landscape TechDraw page (front, right, top and isometric + 4 dimensions + notes + title block) and a PDF |
+| What you learn | Specifying views, dimensions, notes and the title block in words; confirming the dimension values match the model; fixing overlapping layout |
+
+Once the 3D model is done you need a 2D drawing to send out for machining. Doing it by hand in the TechDraw workbench means creating the page, adding views, setting the scale and adding dimensions one at a time. In this exercise you state only «which views, which dimensions, which notes» and the AI builds the page and exports the PDF. Dimension values are measured straight off the model vertices, so nothing gets mistyped in transcription.
+
+## Original and finished
+
+The original is the plate from [Exercise 1](/cadxray/en/practice/01-plate-holes/) (100×60×5, Ø6.6 × 4). If you do not have it, build it with step 0 below.
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Finished: the MOUNT PLATE drawing page" />
+    <figcaption><b>Finished</b> A TechDraw page from the Exercise 1 plate — ISO A3 landscape, scale 1:2 chosen automatically. Front, right, top and isometric; dimensions 100 / 5 / 60 / Ø6.6; two lines of notes; title block (MOUNT PLATE, OT-2026-001)</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Original | [plate.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/01-plate-done.FCStd) | The finished plate from Exercise 1 | 15 KB |
+| Finished | [MOUNT_PLATE.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/07-MOUNT_PLATE-done.pdf) | That page exported as PDF | 157 KB |
+
+:::tip[The finished files are real]
+The page and the PDF were produced by running this page's steps in the FreeCAD 1.1.3 GUI. The image is the TechDraw page drawn as-is.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3 and confirm `[CAD X-ray] 서버 시작` in the Report view.
+2. Open your AI tool.
+3. Open the plate file you saved in Exercise 1 (File → Open). If you do not have it, ask the AI to build it in the first step below.
+
+## Steps
+
+### 0. (If you don't have the plate) Build it
+
+```text title="Say this"
+Make a plate as a single Body in a new document. 100 wide, 60 deep, 5 thick. Four Ø6.6 through holes, 10 in from each corner. Call it Plate.
+```
+
+### 1. Check the model and read the positions to dimension
+
+```text title="Say this"
+Tell me Plate's size (bbox) and the hole positions and diameters. I'm going to use them for the drawing dimensions.
+```
+
+**What the AI does** — analyses the shape and reads the bounding box (0–100, 0–60, 0–8) and the centres and diameters of the four holes. Drawing dimensions are specified by «model vertex coordinates», so you need these values.
+
+**How to check** — confirm the size the AI reports matches what you specified in Exercise 1.
+
+### 2. Build the three-view + isometric page
+
+```text title="Say this"
+Make a 2D drawing from Plate.
+- Views: front, right, top, isometric
+- Dimensions: overall length 100 and thickness 5 on the front view; overall width 60 and one Ø6.6 hole diameter on the top view
+- Notes: "Material: AL6061-T6", "Unmarked chamfers C0.5"
+- Title block: drawing name "MOUNT PLATE", drawing number "OT-2026-001", my name as the author
+- Automatic scale, and export it as PDF
+```
+
+**What the AI does** — creates the page on the ISO A3 landscape template, adds the four views, and picks a standard scale (1:1, 1:2, 1:5 and so on) so the views fill about 60 % of the page. For «overall length» it dimensions between the minimum and maximum x vertices; for «hole diameter» it uses the hole centre and radius; the values are measured off the model. It fills in the notes and title block text and exports the PDF.
+
+**How to check** — a `Page` appears in the FreeCAD tree and double-clicking it opens the drawing. Look at three things in the AI's answer.
+
+- That the «edge count» for each view is not 0 (0 means the view is empty)
+- That each dimension's «value» matches the model (100, 8, 60, 6.6)
+- Whether the warnings mention anything «skipped» (dimensions whose vertices could not be found get skipped and noted)
+
+:::note[What the AI says back]
+Created Page. Template ISO/A3_Landscape_TD, scale 1:2 (automatic).
+- Views: front (12 edges), right (8), top (20), iso (28)
+- Dimensions: length 100.00 / thickness 5.00 / width 60.00 / Ø6.60 — all matching the model
+- PDF: C:\Users\…\Plate\Page.pdf
+No warnings. If the layout looks crowded, nudge things with offset or drag them in the GUI.
+:::
+
+The image in «Original and finished» above is the page this step produces.
+
+### 3. Tidy up overlaps and positions
+
+The default layout is approximate. Dimensions that overlap a view label or another dimension get nudged out automatically, but if you dislike the result there are two ways to fix it.
+
+```text title="Say this"
+Move the thickness dimension on the front view down by 15. And move the isometric view to the top right.
+```
+
+Or drag the views and dimensions with the mouse in the drawing window. After moving things you have to export the PDF again.
+
+```text title="Say this"
+Export the PDF again from the page as it is now.
+```
+
+### 4. Add a detail view (optional)
+
+```text title="Say this"
+Add a detail view A at 2:1, cut at radius 12 around the top-left hole of the front view, and put the hole diameter dimension in it.
+```
+
+**What the AI does** — creates a circular detail view based on the front view and changes its scale. Dimensions in the detail view are measured the same way, from model vertices.
+
+### 5. Inspect the page
+
+```text title="Say this"
+Inspect the page and check for empty views or broken dimensions.
+```
+
+**What the AI does** — reads the page's views, dimensions, notes and title block and finds views with 0 edges, dimensions whose state is Invalid (broken references), and anything needing a recompute (Touched).
+
+**How to check** — if it says "no problems", open the PDF and look at it. The PDF path is in `files.pdf` in the AI's answer.
+
+## Checking your result
+
+| Item | Success criterion |
+|---|---|
+| Page | One ISO A3 landscape, all 4 views (5 with a detail) with edge count > 0 |
+| Dimensions | All 4 in a normal state, values = model values (100 / 5 / 60 / 6.6) |
+| Warnings | Nothing «skipped» |
+| PDF | The file exists and opens |
+
+The cadxray repository records a 27-Link pull-up bar frame assembly producing a 5-view, 13-dimension page in 87 seconds. A single plate takes a few seconds.
+
+## When it doesn't work
+
+- **A dimension got «skipped»** — there is no vertex at that coordinate. Distances between cylinder silhouettes (a pipe's outside diameter, say) have no vertices, so phrase it as "a dimension between the silhouette edges at x coordinates a and b" and it will use silhouette references.
+- **A view is empty (0 edges)** — the source object has an empty shape, or the name is wrong. Ask "what Bodies are in this document?" to check the name.
+- **You want to draw an assembly (several Links)** — give the name of the group containing the Links rather than a Body name. The AI compounds them and projects. With dozens of parts the projection takes over a minute, so wait.
+- **No PDF comes out** — the page window has to be open for the export. The AI opens it automatically, but if that fails, double-click Page in the tree and ask again.
+- **Dimensions follow the view axes** — they are measured in the direction projected into the view (DistanceX, DistanceY). If you need the true length of a sloped edge, ask for it as a «Distance».
+
+## Going further
+
+- Make a page for each of the two cover plates from Exercise 2 and dimension the hole pitch.
+- Build an assembly drawing (2 details, 13 dimensions) from the pull-up bar frame group in Exercise 10. Time how long it takes.
+- Put a company name, the date (YYYY-MM-DD) and the scale in the title block, and export as SVG as well.
+
+## What runs behind the scenes
+
+| Step | Tool |
+|---|---|
+| Reading vertex and hole coordinates | `analyze_shape`, `inspect_object`, `find_holes` |
+| Page, views, dimensions, notes, title block, PDF | `make_drawing` |
+| Inspecting the page | `inspect_drawing` |
+
+The procedure in full: [CLAUDE.md, the «2D 도면 워크플로» section](https://github.com/WaveSimm/cadxray/blob/master/CLAUDE.md) · a hand-built record: [examples/techdraw_page_from_assembly.py](https://github.com/WaveSimm/cadxray/blob/master/examples/techdraw_page_from_assembly.py)

@@ -1,0 +1,72 @@
+---
+title: Redrawing STEP and STL
+description: Rebuild a vendor STEP or an STL as a parametric Body with real features, and verify numerically how far it deviates from the original.
+sidebar:
+  order: 3
+---
+
+A vendor STEP is a pile of faces — there is no feature to grab when you want to change a single hole diameter. An STL is worse: nothing but triangles. Tell the AI "redraw it" and it measures the original, stacks the same shape into a new Body out of sketches, Pads, Grooves, Pockets and chamfers, then takes a boolean difference against the original to show you where it is wrong. The procedure is the same for STEP and STL; only the verification differs.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Rebuild this STEP part parametrically" | Face classification → band heights → section tracing → feature stacking → boolean comparison against the original. A clamp jaw (44 faces) came out as 12 features, 0.0004 % volume difference |
+| "Redraw this STL" | The reference mesh is shown transparent and section circles are fitted per band, same procedure. A spool guide (5,758 faces) landed every vertex within 0.03 mm, 0.014 % volume difference, M44.5×2 male thread included |
+| "Show me how far it is from the original" | STEP: volume, area and bbox differences plus the location of missing and extra fragments, with a verdict (identical · match · different). STL: deviation max and p95 and the worst point |
+| "Rebuild all 80 parts of this STEP assembly" | One Body per part type, Link instances everywhere else. 20 types and 80 instances placed and grounded in 3.5 minutes, zero interference |
+| "I just want to add holes on top of the original" | No redraw — the original goes in as a BaseFeature and only Pockets are stacked on top (for parts with a lot of free-form surface) |
+
+## A representative prompt
+
+```text title="Say this"
+Rebuild Part__Feature004 (the vendor clamp jaw) that's open in the Unnamed document as a parametric Body.
+Build it in a new document called jaw_rebuild, and
+- first show me the face classification (main axis, band heights, radii)
+- then list which feature you'll treat each band as
+- and stack it only after I confirm.
+When it's done, compare against the original and tell me the verdict and where the wrong fragments are.
+```
+
+:::note[What the AI says back]
+Classified 44 faces. Main axis Z, verdict prismatic. The 8 BSpline faces are actually cones (half-angle 59.63°). Cylinder radii are 35 / 33.620391 / 17.75 / 16.12127, and the band boundary z values are 53.68 · 57.39 · 57.97 · 65.39 · 65.97 · 69.68.
+
+A 12-feature plan: PadBand1 (lower band) → PadMid → PadBand2 (upper band, overlapping) → GrooveDovetail (revolved groove) → PadLip (restores the ear the 360° cut removed) → PocketHoles (Ø3.4 through, counterbore Ø5.6×4) → PocketPins (Ø2.2×5, two) → ChamferHoles (0.5) …
+
+Confirm and I will stack it.
+:::
+
+Once you confirm and it stacks and compares, you get a report like "verdict identical, volume difference +0.035 mm³ (0.0004 %), all 12 sketches at DoF 0". If you get `different`, you also get the bboxes of the missing and extra fragments, so you only fix the feature at that location.
+
+## How the procedure runs
+
+1. **Face classification** — each face is judged plane, cylinder, cone, sphere or free-form. Faces that arrived as BSplines in the STEP get sampled and fitted, so "fake free-form" faces are filtered out. If there really is a lot of free-form surface, the AI proposes the hybrid approach (features on top of the original).
+2. **Band heights** — it reads the heights along the axis where the section changes. Only the datum points are read from vertices; the rest are tidied up to design values.
+3. **Section tracing** — for each band, the section outline is extracted as sketch lines, arcs and circles and padded. The coordinates never travel through the conversation, which saves tokens.
+4. **Revolved grooves, holes, chamfers** — ears that the revolved cut removed get padded back. Holes come from the hole analysis; chamfers from an edge radius filter.
+5. **Comparison** — fuzzy boolean difference for STEP, normal-ray deviation for STL. Either way you get coordinates for *where* it is wrong.
+
+## Things to know
+
+- **Radii are used exactly as measured.** Round 33.620391 to 33.6204 and the mating faces are off by 9e-6, and the fuse loses 0.6 mm³. Leave the strange decimals in the parameters. Only the datum points get tidied to design values.
+- **Check whether an STL is a closed mesh before trusting its volume.** When the AI says `is_solid` is false, trust only the deviation comparison and treat the volume difference as informational.
+- **Assemblies get one Body per part type.** A STEP's Placement is not the instance position, so the AI finds the rigid transform from the geometry and places Links. If mirrored instances are mixed in, it tells you separately.
+- **Threads are not in a STEP.** It only *estimates* M3 tapped or M6 clearance from the hole diameter. If an STL has actual thread geometry, it reads the pitch, major diameter and root and rebuilds it as a helix.
+- **Separated Pads cannot go in one Body.** That is why it stacks lower band → middle → upper band, overlapping.
+- You have to say "save it".
+
+## Related exercises
+
+- [04. Analysing and rebuilding a vendor STEP clamp jaw](/cadxray/en/practice/04-step-clamp/)
+- [05. Redrawing an STL spool guide](/cadxray/en/practice/05-stl-spool/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `import_step` · `import_mesh` | Reads STEP/IGES and STL/OBJ/PLY/3MF (meshes become transparent reference objects) |
+| `classify_faces` · `analyze_mesh` | Face identity, main axis, band heights, radii / per-band section circles and threads for meshes |
+| `section_profile` | The section outline at a height, as sketch elements (STEP and mesh alike) |
+| `build_features` | Pad/Pocket/Groove/Chamfer/helix in order, tracing the original directly via `profile.section` |
+| `compare_shapes` | Boolean fragment bboxes (STEP) / ray deviation max and p95 (STL) |
+| `align_shapes` | Rigid transform between instances of the same part → Link placement |

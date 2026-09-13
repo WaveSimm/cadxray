@@ -8,10 +8,15 @@ export default defineConfig({
   base: '/cadxray',
   integrations: [
     starlight({
-      title: 'FreeCAD AI 모델링 가이드',
+      title: { ko: 'FreeCAD AI 모델링 가이드', en: 'FreeCAD AI Modeling Guide' },
       description: 'AI 코딩 툴(Claude Code · Codex CLI · Gemini CLI)과 cadxray 로 FreeCAD 1.1.3 에서 3D 모델을 말로 만드는 법 — 설치, 할 수 있는 것, 따라하기 실습 10개, 프롬프트 작성법',
+      // 한국어가 기본(/cadxray/...), 영문은 /cadxray/en/... 에 얹는다.
+      // 기존 한국어 URL 을 그대로 두려고 root 로케일을 ko 로 잡았다.
       defaultLocale: 'root',
-      locales: { root: { label: '한국어', lang: 'ko' } },
+      locales: {
+        root: { label: '한국어', lang: 'ko' },
+        en: { label: 'English', lang: 'en' },
+      },
       // 순서: 글꼴 → 토큰 → Starlight 테마 → 사이트 전용
       customCss: [
         'pretendard/dist/web/variable/pretendardvariable.css',
@@ -37,14 +42,14 @@ export default defineConfig({
       lastUpdated: false,
       pagination: true,
       sidebar: [
-        { label: '첫 화면', link: '/' },
-        { label: '시작하기', items: [{ autogenerate: { directory: 'start' } }] },
-        { label: '설치', items: [{ autogenerate: { directory: 'setup' } }] },
-        { label: 'AI 툴 연결', items: [{ autogenerate: { directory: 'ai' } }] },
-        { label: '할 수 있는 것', items: [{ autogenerate: { directory: 'features' } }] },
-        { label: '따라하기 실습', items: [{ autogenerate: { directory: 'practice' } }] },
-        { label: '프롬프트 작성법', items: [{ autogenerate: { directory: 'prompt' } }] },
-        { label: '참고', collapsed: true, items: [{ autogenerate: { directory: 'ref' } }] },
+        { label: '첫 화면', translations: { en: 'Home' }, link: '/' },
+        { label: '시작하기', translations: { en: 'Start here' }, items: [{ autogenerate: { directory: 'start' } }] },
+        { label: '설치', translations: { en: 'Install' }, items: [{ autogenerate: { directory: 'setup' } }] },
+        { label: 'AI 툴 연결', translations: { en: 'Connect an AI tool' }, items: [{ autogenerate: { directory: 'ai' } }] },
+        { label: '할 수 있는 것', translations: { en: 'What it can do' }, items: [{ autogenerate: { directory: 'features' } }] },
+        { label: '따라하기 실습', translations: { en: 'Hands-on exercises' }, items: [{ autogenerate: { directory: 'practice' } }] },
+        { label: '프롬프트 작성법', translations: { en: 'Writing prompts' }, items: [{ autogenerate: { directory: 'prompt' } }] },
+        { label: '참고', translations: { en: 'Reference' }, collapsed: true, items: [{ autogenerate: { directory: 'ref' } }] },
       ],
     }),
   ],

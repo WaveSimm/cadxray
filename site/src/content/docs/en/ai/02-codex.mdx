@@ -1,0 +1,71 @@
+---
+title: Codex CLI
+description: Registering OpenAI Codex CLI, config.toml, the AGENTS.md rules file, and how to check it
+sidebar:
+  order: 2
+---
+
+OpenAI's terminal coding tool. The cadxray bridge is standard MCP, so it connects with the same command. What differs is the registration command, the rules file name (AGENTS.md), and whether screenshots are displayed.
+
+## Install
+
+Install and sign in to Codex CLI following OpenAI's instructions. Check:
+
+```powershell
+codex --version
+```
+
+## Register
+
+```powershell title="Terminal"
+codex mcp add cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+Or write it into `~/.codex/config.toml` directly (on Windows, `C:\Users\<name>\.codex\config.toml`).
+
+```toml title="~/.codex/config.toml"
+[mcp_servers.cadxray]
+command = "uvx"
+args = ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge", "cadxray"]
+```
+
+If you changed the port, append `"--port", "9878"` to `args`. If Windows cannot find `uvx`, put the full path (the output of `(Get-Command uvx).Source`) in `command`.
+
+## Check the connection
+
+```powershell
+codex mcp list
+```
+
+Seeing `cadxray` is enough. With FreeCAD running, open `codex` and start.
+
+```text title="Say this"
+Check whether cadxray can reach FreeCAD and tell me the version.
+```
+
+## The rules file — AGENTS.md
+
+Codex reads `AGENTS.md` from the working folder. Save cadxray's CLAUDE.md under that name and it follows the same instructions.
+
+```powershell title="Terminal"
+mkdir C:\cad-work
+cd C:\cad-work
+curl -o AGENTS.md https://raw.githubusercontent.com/WaveSimm/cadxray/master/CLAUDE.md
+codex
+```
+
+Leave the mentions of "Claude" inside the file alone. The tool names and the order matter; what the assistant is called does not. You can delete the developer rules at the top (milestones, commits, tests).
+
+## What is different about this tool
+
+- **Screenshots**: whether Codex renders images returned by MCP in the chat depends on the version. If they do not show, look at the FreeCAD window. The numbers (volume, degrees of freedom, safety factor) come back as text, so nothing is lost for verification.
+- **Approvals**: Codex may ask for approval on every tool call. During a modeling session it is easier to leave it on auto-approve — the AI will not save files until you tell it to anyway.
+- The prompts are identical to Claude Code's. [Writing prompts](/cadxray/en/prompt/01-structure/) applies to all three tools.
+
+## Checklist
+
+| | Command | What you should see |
+|---|---|---|
+| Registered | `codex mcp list` | `cadxray` |
+| Connected | first conversation | FreeCAD 1.1.3, 36 tools |
+| Rules | working folder | `AGENTS.md` present |

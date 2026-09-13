@@ -1,0 +1,183 @@
+---
+title: "Exercise 9. Cantilever analysis and reinforcement"
+description: Give a cantilever you built by talking a material, a fixed face and a load to get stress, displacement and a safety factor, then pick reinforcement candidates by number and re-run when it falls short.
+sidebar:
+  order: 9
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/09-fem-beam-practice.png';
+import img1 from '../../../../assets/practice/09-fem-beam-result.png';
+
+| Item | Detail |
+|---|---|
+| Input files | none (you build a 100×10×5 cantilever by talking) |
+| Time | 5 min (about a second per solve at around 2,000 nodes) |
+| What you end up with | A stress colour map, a report of maximum von Mises, displacement and safety factor, a re-analysis after reinforcement, and natural frequencies |
+| What you learn | The three things to settle before analysing (material, what is held, where and how much), how to check results against theory, the conversation of picking reinforcements, and the limits of linear static analysis |
+
+FreeCAD 1.1 ships with the mesh generator Gmsh and the solver CalculiX. But using the FEM workbench by hand means building the analysis container, material, constraints, load, mesh and solver separately. In this exercise you state only three things: what the material is, what is held, and where and how much. You start with a cantilever, which has a theoretical answer and is therefore easy to verify.
+
+## Original and finished
+
+You can have the AI build it, or start from the practice file below (which includes the analysis results).
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Practice: the cantilever" />
+    <figcaption><b>Practice model</b> A 100×10×5 cantilever. Headless run: PETG, 20 N at the free end → maximum von Mises 47.83 MPa (theory 48), displacement 31.60 mm (theory 32), safety factor 0.94 → fail</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Practice | [beam-practice.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/09-beam-practice.FCStd) | The cantilever + analysis result objects | 763 KB |
+| Practice | [beam-practice.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/09-beam-practice.step) | STEP | 7 KB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3 and confirm `[CAD X-ray] 서버 시작` in the Report view.
+2. Open your AI tool.
+3. Open a new document.
+
+## Steps
+
+### 1. Build the cantilever
+
+```text title="Say this"
+Build a cantilever in a new document as a Body called Beam. 100 long in x, 10 wide in y, 5 thick in z. From x=0 to x=100, floor at z=0.
+```
+
+**How to check** — `Beam` appears in the tree with a bbox of 100×10×5.
+
+### 2. Settle the three things and set up the analysis
+
+```text title="Say this"
+Run a structural analysis on Beam. Material PETG, fix the end face at x=0, 20 N downward (−Z) on the end face at x=100.
+```
+
+**What the AI does** — looks the material up in the table (PLA, PETG, ABS, ASA, TPU, NYLON, PMMA, POM, ALUMINUM, STEEL, STAINLESS, BRASS), fixes the «xmin» face, applies the force to the «xmax» face, builds a second-order mesh with Gmsh, and reports the node and element counts. It gives you the **areas** of the fixed and load faces so you can confirm they are the ones you meant (an end face is 10×5 = 50 mm²).
+
+:::note[What the AI says back]
+Created the analysis Analysis.
+- Material PETG (E 2,100 MPa, yield 50 MPa — empirical table values)
+- Fixed: 1 xmin face, area 50 mm²
+- Load: 1 xmax face, area 50 mm², 20 N in direction (0, 0, −1)
+- Mesh: second order, 18,400 nodes, 11,200 elements, 3.2 s
+Next: run the analysis.
+:::
+
+:::tip[What happens if you don't know]
+Leave out the material, the constraint or the load and the AI asks. Say "I don't know" and it says it is starting with PLA and self-weight only, and proceeds. Faces can be given by name — "bottom", "top", "xmin" — or by coordinate, as in "the face near (50, 5, 5)".
+:::
+
+### 3. Run it and read the result
+
+```text title="Say this"
+Run the analysis. Give me the safety factor and where the maximum stress is in one sentence, and show me an iso colour map.
+```
+
+**What the AI does** — runs CalculiX, reads the results, and summarises maximum von Mises stress and its location, maximum displacement, the safety factor (yield strength ÷ maximum stress) and a verdict (ok ≥ 2 / marginal ≥ 1 / fail). It switches the 3D view to the stress colour map and shows a screenshot.
+
+**How to check** — the theoretical values for this cantilever are 48 MPa maximum stress and 32 mm free-end displacement. Within ±10 % and ±5 % respectively is normal. The hotspot should be near the fixed end (x=0) and the maximum displacement at the free end (x=100). Against PETG's 50 MPa yield the safety factor lands around 1, so you get «fail» or «marginal».
+
+:::note[What the AI says back]
+Maximum von Mises 47.8 MPa (top face at the fixed end, near (2.9, 7.1, 0)), maximum displacement 31.6 mm (free end), safety factor 0.94 → fail. Colour map on.
+Limits: linear static and isotropic. FDM prints are weaker along the layer direction, and the material values are empirical.
+:::
+
+<div class="file-pair">
+  <figure>
+    <Image src={img1} alt="Analysis result: von Mises stress colour map (maximum 47.8 MPa at the fixed end)" />
+    <figcaption><b>Analysis result</b> The von Mises colour map actually produced in FreeCAD. Red is the fixed end (x=0), blue the free end. The legend on the right is in Pa — 4.783e+07 = 47.83 MPa</figcaption>
+  </figure>
+</div>
+
+The legend is in Pa. Since 1 MPa = 1,000,000 Pa, read e+07 as «×10 MPa».
+
+:::caution[If you get a «singularity» warning]
+When the maximum exceeds three times the top-1 % value (p99), the AI warns that it may be a numerical singularity at a corner or a constraint boundary. It then gives you the p99-based safety factor as well; look at both.
+:::
+
+### 4. Look at displacement (optional)
+
+```text title="Say this"
+Switch to displacement and show me the top 5 nodes by displacement.
+```
+
+### 5. Get reinforcement candidates and pick
+
+```text title="Say this"
+Show me reinforcement candidates as a numbered list, targeting a safety factor of 2.
+```
+
+**What the AI does** — measures the thickness at the hotspot by ray casting to offer «thicken», offers «fillet» if there is a concave corner nearby, «rib» if it is a deflection direction, «change material» from the table for options that meet the target, «reduce load» against the allowable stress, and «re-mesh and re-analyse» where it suspects a singularity — each with an expected safety factor and a confidence level. Nothing is applied automatically.
+
+:::note[What the AI says back]
+Safety factor 1.07 against a target of 2.0 → stress has to come down 46 %.
+1. Thickness 5 → 7 mm (bending, so √k): expected safety factor 2.1, high confidence
+2. Material to ALUMINUM: expected safety factor 5.9, high confidence
+3. Load 20 → 10 N: expected safety factor 2.1, high confidence
+Pick a number.
+:::
+
+```text title="Say this"
+Number 1. Change the thickness to 7 and re-run with the same conditions.
+```
+
+**What the AI does** — changes Beam's thickness parameter (or the Pad length) to 7, rebuilds the analysis under the same name (deleting the old one) and runs it.
+
+**How to check** — the safety factor rises to around 2 and the verdict changes to ok. The maximum displacement drops sharply too (inversely with the cube of the thickness).
+
+### 6. When resonance is the worry: natural frequencies
+
+```text title="Say this"
+Take the same cantilever in STEEL and run a natural frequency analysis. Tell me the first mode in Hz and whether it's safe next to a 3,000 rpm motor.
+```
+
+**What the AI does** — runs a frequency analysis with no load and reports Hz per mode. It compares the motor's excitation frequency (3,000 rpm ÷ 60 = 50 Hz) against the first natural frequency.
+
+**How to check** — a steel 100×10×5 cantilever (at the original thickness of 5) has a theoretical first natural frequency of 417.7 Hz, and the AI's result should land within ±3 %. If you changed the thickness to 7 the value differs, so say "at thickness 5" explicitly.
+
+## Checking your result
+
+| Item | Success criterion |
+|---|---|
+| Setup | 1 fixed face and 1 load face, each 50 mm², second-order mesh |
+| Static analysis (PETG, thickness 5) | Maximum vM 48 MPa ±10 %, displacement 32 mm ±5 %, hotspot at the fixed end, verdict fail or marginal |
+| Reinforcement candidates | Thickness, material and load candidates appear. Lower the target to 0.5 and there are none |
+| After reinforcement (thickness 7) | Safety factor ≥ 2, verdict ok |
+| Natural frequency (STEEL, thickness 5) | First mode 417.7 Hz ±3 % |
+
+## When it doesn't work
+
+- **It fails with «nonpositive jacobian»** — the mesh is distorted. Say "set up again with a smaller mesh size".
+- **Over 300,000 nodes** — the solve takes a long time. Ask for a larger mesh size.
+- **The wrong face got fixed** — you can tell from the fixed face area in the answer. Specify it again by coordinate: "fix the face near (0, 5, 2.5)".
+- **You asked about buckling and it refused** — buckling analysis is not supported (CalculiX was observed to stall, so it is excluded).
+- **You want to solve several parts together** — give per-part materials: "A in STEEL and B in PETG, bonded, analyse them together". Touching faces are solved fully bonded, with no bolts, contact or friction.
+- **Analysis objects pile up in the tree** — that is expected. Setting up again under the same name deletes and recreates them.
+
+## Going further
+
+- Apply self-weight only to the box cantilever from Exercise 8 and see where it is at risk.
+- Take the clamp jaw from Exercise 4 (the rebuilt Body) in STEEL and apply pressure to the centre hole.
+- Apply "500 N sideways on one Ø50 hole" to the square tube from Exercise 10 and look at the stress concentration around the hole.
+- Assembly weight: ask for "total mass and centre of gravity with Pole in STEEL and Foundation at a concrete density of 2.4".
+
+## What runs behind the scenes
+
+| Step | Tool |
+|---|---|
+| Material, constraints, load, mesh | `setup_analysis` (`names`, per-part `material`, `analysis_type="frequency"`) |
+| Running, summarising, colour map | `run_analysis` → `get_screenshot` |
+| Top nodes and field switching | `inspect_results` |
+| Reinforcement candidates | `suggest_reinforcement` |
+| Applying the thickness change | `build_features` or `execute_code` |
+| Assembly mass and tipping angle | `get_mass_properties` (`names`, `densities`, `stability`) |
+
+The procedure in full: [CLAUDE.md, the «구조 해석(FEM) 워크플로» section](https://github.com/WaveSimm/cadxray/blob/master/CLAUDE.md)

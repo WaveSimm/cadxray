@@ -1,0 +1,80 @@
+---
+title: Building from scratch
+description: Say the dimensions and you get a parametric Body with sketches, Pads, Pockets and fillets stacked in order. A model you can still edit by hand afterwards.
+sidebar:
+  order: 1
+---
+
+Leave FreeCAD open, tell the AI the dimensions, and it draws the sketch and stacks Pads, Pockets and fillets in order to build a Body. It replaces picking a sketch plane with the mouse and adding constraints one at a time. The result is an ordinary FreeCAD PartDesign model — turn the AI off and you can still open the features in the tree and edit them by hand.
+
+## Things you can ask for
+
+| Say this | What you get |
+|---|---|
+| "Make a 100×60×10 plate" | A Body with an XY-plane rectangle sketch + a 10 mm Pad |
+| "Ø6.6 through holes 10 mm in from each corner" | A four-circle sketch + a through Pocket. The diameter becomes the parameter `hole_d` |
+| "A Ø40 cylinder 30 mm tall with a Ø20 boss 5 mm on top" | Two Pads stacked, overlapping, in one Body |
+| "Cut a groove by revolving around the centre axis" | A revolved cut (Groove) — the AI picks the section polygon and the axis |
+| "Revolve this section 360°" | A Revolution |
+| "R3 fillet on the outer edges, 0.5 chamfer at the hole mouths" | Fillet and Chamfer, with edges selected by radius and position |
+| "Ø44.5 male thread, pitch 2, length 8" | A helical cut — one pitch of the root section swept as a helix |
+| "Pull the thickness out as a parameter" | An alias appears in the `Params` spreadsheet and the feature references that expression |
+
+## A representative prompt
+
+```text title="Say this"
+Make me a bracket in a new document.
+- Base plate 120×80, 8 thick
+- Four Ø6.6 through holes, 12 mm in from each corner of the base plate
+- A vertical plate on the rear long edge, 60 tall and 8 thick (an L shape)
+- A Ø20 through hole in the middle of the vertical plate
+- R5 fillets on the outer edges
+Pull every dimension out as a parameter, and show me an isometric screenshot when you're done.
+```
+
+:::note[What the AI says back]
+Confirmed the FreeCAD 1.1.3 connection. Created document `Bracket` and stacked five features in the Body.
+
+1. PadBase — 120×80 rectangle, 8 mm (sketch DoF 0)
+2. PocketHoles — Ø6.6 × 4, through (`Params.hole_d`)
+3. PadWall — 60 mm vertical plate on the rear edge
+4. PocketCenter — Ø20 through
+5. FilletOuter — R5, 6 edges
+
+Volume 79,432 mm³, no Invalid objects. Parameters are in the `Params` spreadsheet as `width`, `depth`, `thickness`, `wall_h`, `hole_d`, `center_d`, `fillet_r`. Isometric screenshot attached. I have not saved.
+:::
+
+Check the screenshot and the tree to confirm you got what you asked for. Dimensions you dislike can be changed as numbers in the `Params` spreadsheet, or you can just tell the AI "make wall_h 80".
+
+## What parametric means here
+
+Every sketch the AI builds has zero remaining degrees of freedom, and the dimensions reference spreadsheet aliases. Which means:
+
+- Double-click `PadBase` in the tree and change the length by hand, and the features below follow.
+- Change `hole_d` from 6.6 to 9 in the `Params` sheet and all four holes grow at once.
+- The sketches the AI creates are hidden in the tree (`Visibility=False`) but are otherwise ordinary sketches. You can open them and edit the constraints.
+
+:::tip[Stack them overlapping]
+Pads inside one Body have to touch or overlap. FreeCAD refuses two separated lumps in a single Body. For "separate parts", ask for the Body to be split in two.
+:::
+
+## Things to know
+
+- **You have to ask it to save.** The AI does not write the file until you say "save it". Give it the name and the path.
+- **Give it the datum plane and direction and it won't ask back.** Something like "base on XY, up is +Z". If you leave it out, the AI decides and tells you what it decided.
+- **Break long jobs up.** Put dozens of features in one sentence and, when one of them fails midway, it is hard to find where it stopped. Saying it in three passes — mass, then holes, then finishing (fillets and chamfers) — is safer.
+- **A failed feature stays in the document.** When the AI says "stopped at PocketCenter", tell it the cause (the sketch is outside the shape, say) and have it delete and rebuild.
+- **The AI reports whether volume went up or down** for each feature. If you cut a hole and the volume did not drop, the Pocket never met any material.
+
+## Related exercises
+
+- [01. Four holes in a plate — your first model](/cadxray/en/practice/01-plate-holes/)
+- [02. Building a plate from a PDF machining drawing](/cadxray/en/practice/02-cover-from-pdf/)
+
+## What runs behind the scenes
+
+| Tool | What it does |
+|---|---|
+| `build_features` | Stacks a list of sketches + Pad/Pocket/Groove/Revolution/Fillet/Chamfer/helix into a Body in order, verifying each feature; `params` go into a Spreadsheet |
+| `tracked_recompute` · `get_screenshot` | Confirms the recompute result; PNGs from 12 directions including iso and front |
+| `save_document` | Saves only when asked |

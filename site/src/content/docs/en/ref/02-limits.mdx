@@ -1,0 +1,43 @@
+---
+title: Limits and safety rules
+description: What it cannot do, what is only an estimate, what takes a long time, and what you have to observe
+sidebar:
+  order: 2
+---
+
+## What it cannot do
+
+- **Buckling analysis.** Structural analysis covers linear static and natural frequency only. Large deformation, plasticity, contact, friction and bolted joints are not computed.
+- **Slicing.** The 3D printing review is design-stage checking and fixing. G-code comes from your slicer.
+- **Analysing holes or interference directly on an STL.** A mesh has no faces and no solid, so hole counting and interference calculation are impossible. Redraw it into a Body first, then inspect.
+- **Automatic feature recognition.** There is no "turn this STEP into features on your own". Which features to see it as is decided by the AI from measurements, and confirmed by you.
+- **Remote FreeCAD.** Only FreeCAD on the same PC. It is 127.0.0.1 only.
+
+## What is only an estimate
+
+- **Whether a hole goes through.** A heuristic based on whether the space beyond each end of the hole is outside the material. A hole breaking through a pocket floor can read as through.
+- **Thread specifications.** A STEP carries no thread geometry, so the diameter is matched against the ISO metric thread table and reported as an estimate: «M6 clearance / M3 tap drill».
+- **Print material tables, time and cost.** Empirical values. Read the warnings in the AI's answer as given.
+- **The FEM material table.** Empirical values. FDM prints are weaker along the layer direction; the safety factor assumes isotropy.
+
+## What takes a long time
+
+| Job | Time | What to do |
+|---|---|---|
+| Converting an STL to a solid for a boolean comparison | Over 10 minutes, cannot be interrupted | Compare against the mesh directly (the default) |
+| Projecting a drawing of an assembly with dozens of Links | Over a minute | Wait |
+| Full interference check across 80 parts | 6.5 seconds | Normal |
+| Running a long stretch of Python | FreeCAD freezes until it finishes | Ask for it in steps |
+
+## What you have to observe
+
+1. **Run only one FreeCAD.** Two copies means a port conflict.
+2. **Saving is yours.** The AI does not save until you tell it to. Say the path when you do.
+3. **You pick the candidates.** The recommendation marker is only a hint. Be especially careful with the «freeze the current value as a dimension» candidate — check that it really is the design dimension.
+4. **No rounding.** When redrawing, radii and centres stay exactly as measured. Round them and the faces come apart and you lose volume.
+5. **Back up what you are working on.** Do the exercises on copies. Keep the original STEP and FCStd files in a separate folder.
+6. **The conversation leaves your machine.** Your model files stay on your PC, but the AI tool sends the conversation — your prompts, the numbers it read, the screenshots — to its vendor's servers. Check your company policy before using it on confidential drawings.
+
+## What was verified
+
+cadxray was verified on FreeCAD 1.1.3 · Windows, and so were the exercises on this site. On macOS and Linux only the install paths differ and the steps are the same, but they have not been verified in practice. Version 1.0.x differs in a few APIs (the command for moving sketch points, among others) and the AI adapts based on the version it sees.

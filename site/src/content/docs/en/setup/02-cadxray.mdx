@@ -1,0 +1,75 @@
+---
+title: 2. Installing cadxray — two commands
+description: Installing the FreeCAD addon, registering with your AI tool, confirming the server started, and the diagnostic command
+sidebar:
+  order: 2
+---
+
+cadxray has two pieces: an **addon** that runs inside FreeCAD, and a **bridge** that your AI tool launches. The first command puts the addon into FreeCAD; the second registers the bridge with your AI tool. The two talk only over `127.0.0.1:9877`, inside your PC.
+
+## First command — install the addon (same for every AI tool)
+
+```powershell title="Terminal"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray install
+```
+
+The first run takes 10–30 seconds to download. When it finishes, `cadxray` appears in FreeCAD's Mod folder.
+
+## Second command — register with your AI tool
+
+Pick the one line that matches your tool. Details are in [Connect an AI tool](/cadxray/en/ai/01-claude-code/).
+
+```powershell title="Claude Code"
+claude mcp add --scope user cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+```powershell title="Codex CLI"
+codex mcp add cadxray -- uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+```powershell title="Gemini CLI"
+gemini mcp add cadxray uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray
+```
+
+## Restart FreeCAD
+
+The server starts automatically when FreeCAD launches. You should see this line in the Report view (View → Panels → Report view):
+
+```text
+[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)
+```
+
+The addon's messages are in Korean for now; that line means "server started, 36 tools". A **CAD X-ray** workbench appears in the workbench list. You will rarely need to touch it.
+
+| Menu | What it does |
+|---|---|
+| Start / Stop Server | Start or stop manually |
+| Auto Start | Toggle automatic start (on by default) |
+| Set Port… | Change the port (9877 by default). If you change it, add `--port 9878` to the end of the registration command |
+
+## Stuck? The diagnostic command
+
+```powershell title="Terminal"
+uvx --from git+https://github.com/WaveSimm/cadxray#subdirectory=bridge cadxray doctor
+```
+
+It reports which folder the addon was installed into, whether it can reach the FreeCAD server, and whether the versions match. Its output is in Korean; if something is wrong, find the matching entry on the [Troubleshooting](/cadxray/en/setup/03-troubleshoot/) page.
+
+## Your first conversation
+
+Create a new document in FreeCAD (File → New) and open your AI tool in a terminal. For Claude Code, `claude` from any folder. Then say:
+
+```text title="Say this"
+Check whether you can reach FreeCAD and tell me the version.
+```
+
+:::note[What the AI says back]
+Connected. FreeCAD 1.1.3, cadxray 0.12.0, 1 document open (Unnamed).
+:::
+
+Once that works, go to [Exercise 1](/cadxray/en/practice/01-plate-holes/).
+
+## Other ways to install
+
+- **FreeCAD Addon Manager**: Preferences → add `https://github.com/WaveSimm/cadxray` as a custom repository → install "CAD X-ray". You still run the second command to register with your AI tool.
+- **Flatpak / snap Linux**: the Mod folder differs, so point at it with `cadxray install --dest "<Mod folder>"`.

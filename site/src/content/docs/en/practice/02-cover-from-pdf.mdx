@@ -1,0 +1,170 @@
+---
+title: "Exercise 2. Building a plate from a PDF machining drawing"
+description: Have the AI read two 1:1 vector PDF drawings (a data logger cover and a sensor-extension logger cover) and build both cover plates, holes and all, as parametric Bodies.
+sidebar:
+  order: 2
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/02-cover-original.png';
+import img2 from '../../../../assets/practice/02-cover-sensor-final.png';
+
+import img1 from '../../../../assets/practice/02-cover-final.png';
+
+| Item | Detail |
+|---|---|
+| Input files | `02-cover/cover_machining.pdf` (two 1:1 vector drawings — data logger cover + sensor-extension logger cover) |
+| Time | 3 min (building the two plates takes under a second) |
+| What you end up with | Two documents (`cover_logger`, `cover_sensor`), each with one Body + a `Params` spreadsheet |
+| What you learn | How to have the AI read a PDF drawing, how to confirm the scale, and how to fill in a dimension the drawing lacks (thickness) as an assumption with its reasoning recorded |
+
+In Exercise 1 you read out every dimension yourself. This time you hand over a drawing file and **let the AI read the dimensions**. A vector PDF stores its circles, rectangles and dimension text as coordinates, so the AI can extract them and convert to mm.
+
+## Original and finished
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Original: the cover machining drawing PDF" />
+    <figcaption><b>Original</b> cover_machining.pdf — two 1:1 vector drawings (data logger, sensor-extension logger). This image is page 1 of the PDF drawn as-is (the client's markings removed)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="Finished: the data logger cover plate" />
+    <figcaption><b>Finished</b> Cover_DataLogger — Pad 1 + Pocket 3 (Ø18 · Ø25 · Ø7), DoF 0, 104,445 mm³</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="Finished: the sensor-extension logger cover plate" />
+    <figcaption><b>Finished</b> Cover_SensorExt — Pad 1 + Pocket 1 (Ø18 × 10), DoF 0</figcaption>
+  </figure>
+</div>
+
+| | File | Description | Size |
+|---|---|---|---|
+| Original | [cover_machining.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover-drawing.pdf) | The PDF drawing | 776 KB |
+| Finished | [cover_logger.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_logger-done.FCStd) | Data logger cover | 32 KB |
+| Finished | [cover_sensor.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-cover_sensor-done.FCStd) | Sensor-extension cover | 19 KB |
+| Finished | [Cover_DataLogger.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_DataLogger-done.step) | STEP | 28 KB |
+| Finished | [Cover_SensorExt.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v1/02-Cover_SensorExt-done.step) | STEP | 22 KB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps on FreeCAD 1.1.3, and the images are actual screen captures of those files opened in the FreeCAD 1.1.3 GUI (isometric, white background). Download them and you can look at the tree, the sketches and the `Params` directly.
+:::
+
+## Setup
+
+1. Launch FreeCAD 1.1.3. You want `[CAD X-ray] 서버 시작 http://127.0.0.1:9877 (툴 36개)` in the Report view.
+2. Download the PDF into a folder with a short path (for example `C:\cad\cover_machining.pdf`). Avoid spaces in the path.
+3. In PowerShell, move to that folder and type `claude` to open your AI tool (Codex and Gemini CLI open in the same folder).
+4. Close any other FreeCAD documents. That cuts down on the AI asking which document to build in.
+
+## Steps
+
+### 1. Have it read the drawing and confirm the scale first
+
+```text title="Say this"
+C:\cad\cover_machining.pdf is a machining drawing for cover plates. Don't build the model yet —
+1) how many pages there are and which part each one is
+2) whether the scale really is 1:1, by comparing the circle and rectangle coordinates against the dimension text
+3) anywhere the written dimensions disagree with the drawn positions
+Give me that as a table first.
+```
+
+**What the AI does** — reads the PDF's vector elements (a circle is a path of four curves, a rectangle is `re`) and its dimension text, converting at 1 pt = 25.4/72 mm. In the original session the dimension text 36.38 matched the 103.1 pt between circle centres, confirming 1:1. This step is also where the disagreement on drawing 2 (sensor-extension logger) turns up: the written 27.40 / 23.80 against drawn positions of 27.80 / 26.0, off by 0.4 mm and 2.2 mm.
+
+:::note[What the AI says back]
+Two pages. Page 1 DATA LOGGER: outer rectangle 224.28×169.37, inner rectangle 206.70×151.82 (8.79 in from each edge, the dimension reference line). Eight Ø18 holes (x from 27.40 in 4 columns at 36.38 spacing × y 23.80 / 74.20, 2 rows), two Ø25, four Ø7. Page 2 sensor-extension logger: ten Ø18. Scale confirmed as 1:1. On page 2 the first hole's written dimension and drawn position differ by 0.4 / 2.2 mm. Which should I follow?
+:::
+
+**How to check** — if the table shows a plate size of 224.28×169.37 and hole types Ø18 · Ø25 · Ø7, it read the drawing correctly. If it says the scale is not 1:1, your PDF may be a reduced print; get the original file again.
+
+### 2. Tell it what to do about disagreements and missing dimensions
+
+The drawing gives no plate thickness, and the antenna holes (Ø7 × 4) have no height dimension. Do not leave those to the AI — give it rules.
+
+```text title="Say this"
+Use these rules.
+- Where the written dimension and the drawn position differ, follow the written dimension.
+- Where there's no dimension (the Ø7 hole height), use the value measured from the vectors and mark it as such.
+- The drawing has no plate thickness, so assume 3 mm. Keep it as a parameter so I can change it later.
+- The connector flange rectangle and the four small holes inside it have no dimensions, so don't machine them.
+Show me the final dimension table under those rules.
+```
+
+**What the AI does** — measures the Ø7 hole height as 114.98 from the vectors and takes the rest from the written dimensions. The four antenna hole x coordinates (120.40 / 138.10 / 165.30 / 183.00) work back from the inner rectangle width 206.70 minus 23.70, at spacings of 17.70 / 27.20 / 17.70.
+
+**How to check** — you want exactly two items in the table marked "assumed" or "measured from vectors": the thickness and the Ø7 height.
+
+### 3. Build the first plate (the data logger cover)
+
+```text title="Say this"
+Build the data logger cover from the table you produced.
+- New document cover_logger, Body name Cover_DataLogger
+- Pad the plate on the XY plane at 224.28×169.37, thickness Params.thickness
+- Eight Ø18 holes, two Ø25 and four Ø7, each as its own through Pocket. Diameters go in Params as hole_d18, hole_d25 and hole_d7
+- Hole centre coordinates are the inner-rectangle dimensions plus 8.79
+Tell me the sketch degrees of freedom, the volume and the bbox when you're done.
+```
+
+**What the AI does** — stacks four sketches (the plate rectangle plus three hole groups) with one Pad and three Pockets in order, recomputing after each feature to confirm validity. The dimensions go into the `Params` spreadsheet as aliases, so changing the thickness later brings everything with it.
+
+:::note[What the AI says back]
+Cover_DataLogger done. PadPlate → Pocket_D18 (8) → Pocket_D25 (2) → Pocket_D7 (4). All four sketches at DoF 0, shape valid. bbox 0–224.28 × 0–169.37 × 0–3.0. Params: plate_w, plate_h, inset, thickness, hole_d18, hole_d25, hole_d7.
+:::
+
+**How to check** — in the FreeCAD model tree, `Cover_DataLogger` should contain `PadPlate`, `Pocket_D18`, `Pocket_D25` and `Pocket_D7` with nothing marked red. Open the `Params` sheet, change `thickness` to 5 and recompute (F5 or Ctrl+R) to see the plate thicken. Then put it back to 3.
+
+### 4. Build the second plate (the sensor-extension logger cover)
+
+```text title="Say this"
+Build the sensor-extension logger cover the same way. New document cover_sensor, Body name Cover_SensorExt.
+Same plate size and thickness, but only ten Ø18 holes. x starts at 27.40 then 37.72, and 37.80 spacing from there; y is 23.80 and 74.30.
+```
+
+**What the AI does** — builds one Pad and one Pocket with the same parameter structure as the first plate. The x coordinates come out as five columns: 27.40 / 65.12 / 102.92 / 140.72 / 178.52.
+
+**How to check** — the tree shows `PadPlate` and `Pocket_D18` under `Cover_SensorExt`. Count the holes from above (number key 2) and confirm there are ten.
+
+### 5. Look at it and save
+
+```text title="Say this"
+Show me a top view screenshot of each document. If they look right, save them to C:\cad\cover_logger.FCStd and C:\cad\cover_sensor.FCStd.
+```
+
+**What the AI does** — puts the screenshots in the chat and saves only after you say they are right. The rule is that the AI does not save a document until told.
+
+**How to check** — overlay the hole layout in the screenshot against the drawing. In particular, check that the first hole on page 2 sits at the "written dimension" position.
+
+## Checking your result
+
+| Criterion | Value |
+|---|---|
+| Plate bbox | 224.28 × 169.37 × 3.0 |
+| Sketch DoF | all 0 |
+| Shape validity | valid |
+| Feature count | data logger 4 (Pad 1 + Pocket 3), sensor-extension 2 (Pad 1 + Pocket 1) |
+| Parameters | `Params` holds plate_w, plate_h, inset, thickness, hole_d18 (+ hole_d25, hole_d7) |
+
+There is no original STEP in this exercise, so there is no volume comparison. If the bbox, the hole count and the screenshot match the drawing, you succeeded.
+
+## When it doesn't work
+
+- **"I can't read the PDF"** — a scan (an image PDF) has no vectors and this approach will not work. Read the dimensions out as in Exercise 1, or get the original CAD drawing.
+- **It says the scale is not 1:1** — the PDF was reduced for printing. The AI tells you the ratio between the dimension text and the drawn length, so say "convert at that ratio and carry on".
+- **The holes land outside the plate** — the inner-rectangle datum (the 8.79 offset) got dropped. Say "check you added the 8.79 inset to the hole coordinates".
+- **The AI keeps asking because several documents are open** — just give it the name. Naming it from the start ("in a new document cover_logger") avoids the question.
+- **The plate built but a feature is red** — say "find the cause of the red feature and fix it" (see Exercise 6).
+
+## Going further
+
+1. Change `Params.thickness` to 2 and recompute. Check the hole Pockets still go through.
+2. Ask for 0.5 mm chamfers on the four Ø7 antenna holes. Stating the edge condition is enough: "0.5 chamfer on the top edge of the Ø7 holes".
+3. Put both plates in one document and produce a 2D drawing (Exercise 7).
+
+---
+
+| What runs behind the scenes | |
+|---|---|
+| Reading the drawing | The AI tool itself (extracting vectors and text with pymupdf) |
+| Building the model | `build_features` (rect and circles profiles, Params aliases) |
+| Checking | `inspect_object`, `get_screenshot`, `save_document` |
+
+Original session log: https://github.com/WaveSimm/cadxray/blob/master/examples/cover_from_pdf_drawing.py

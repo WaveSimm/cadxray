@@ -2,6 +2,8 @@
 
 *한국어: [README.md](README.md)*
 
+> **Hands-on guide site**: https://wavesimm.github.io/cadxray/en/ — install, what it can do, ten exercises (from drilling four holes in a plate to redrawing STEP and STL, 2D drawings, print review and structural analysis), and how to write prompts. The exercise files are in [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
+
 An MCP server that lets an AI coding tool (Claude Code, Cursor, VS Code Copilot, Codex, Gemini CLI — any MCP client) **diagnose and edit** FreeCAD models. Ask "why is Sketch003 red?" or "why does Pad001 fail?" and the assistant inspects the live document with dedicated tools, explains the cause, fixes it with `execute_code`, and verifies with `tracked_recompute` and a screenshot.
 
 - FreeCAD **1.0.x / 1.1.x** (verified on 1.1.3), Windows · macOS · Linux

@@ -1,0 +1,38 @@
+---
+title: Vocabulary
+description: FreeCAD terms that show up in the AI's answers — Body, Sketch, Pad, degrees of freedom, constraints, Link, Params
+sidebar:
+  order: 3
+---
+
+Words that come up often in the AI's answers. The minimum you need if FreeCAD is new to you.
+
+| Term | What it means |
+|---|---|
+| **Body** | One part in PartDesign. Sketches and features stack inside it in order. "Make a Body" means start a new part |
+| **Sketch** | A 2D drawing on a plane, made of lines, arcs and circles plus constraints. The raw material for Pad and Pocket |
+| **Pad** | Extrudes a sketch by a thickness, adding material |
+| **Pocket** | Removes material in the shape of a sketch. Holes and slots |
+| **Groove / Revolution** | Revolves around an axis to remove / add material. Cylinders, grooves, lips |
+| **Fillet / Chamfer** | Rounds / bevels an edge. R2, C0.5 |
+| **Helix** | Threads and helical grooves. Pitch, height, handedness |
+| **Feature** | One step such as a Pad or Pocket. They appear in the Body tree in order |
+| **Tip** | The feature in a Body that represents «the result so far». Usually the last one |
+| **Constraint** | A condition fixing the position or size of sketch elements — horizontal, vertical, coincident, length, diameter, equal and so on. The numbers match the constraint panel |
+| **DoF (degrees of freedom)** | How much movement the constraints have not pinned down yet. **Zero means fully constrained** (green). Anything left and it moves when you drag it |
+| **Conflicting** | Constraints that contradict each other (length 40 and 42 on the same line). The sketch turns red |
+| **Redundant** | Two constraints saying the same thing. There is a solution, but you get a warning |
+| **Open vertex** | A gap where an outline should close. Two vertices per gap. A common reason a Pad fails |
+| **Recompute** | Recalculating geometry to reflect a change. Objects that fail become Invalid (red) |
+| **Placement** | An object's position and orientation (translation plus rotation) |
+| **Link** | An object referencing another Body or a part in another file. For placing the same part in several positions. If the file is missing you get a «broken link» |
+| **BaseFeature** | A lump imported from a STEP, inserted as the base of a Body. You cannot edit the original, but you can stack Pockets on top |
+| **Params (Spreadsheet)** | The sheet where the AI puts dimensions under names. Change `thickness` and the Pad follows |
+| **STEP** | The precise solid format a vendor sends you. It has faces and edges, so holes and interference can be analysed |
+| **STL / OBJ / 3MF** | Triangle meshes. No faces, no solid — they have to be «redrawn» before they can be analysed |
+| **bbox** | The minimum and maximum coordinates of the box enclosing an object. For checking size |
+| **Cut (difference)** | The fragments present in the original but absent from the rebuild (missing), or the reverse (extra). Tells you where you went wrong |
+| **Verdict** | The comparison result. identical (under 0.001 %) / match (under 0.1 %) / different |
+| **von Mises stress** | The equivalent stress in the material. Compared against yield strength: safety factor = yield / maximum stress |
+| **TechDraw** | FreeCAD's 2D drawing workbench. Pages, views, dimensions, title blocks |
+| **Workbench** | A mode grouping FreeCAD's tools. Part Design, Sketcher, TechDraw, FEM, CAD X-ray |
