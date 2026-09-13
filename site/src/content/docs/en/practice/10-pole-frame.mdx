@@ -15,7 +15,7 @@ import img1 from '../../../../assets/practice/10-pole-frame-final.png';
 | Input file | `10-pole-frame-drawing.dxf` (a 1/40 drawing; model coordinates are real mm) |
 | Time | 10 min (24 s to build the frame; the rest is confirming assumptions) |
 | What you end up with | Seven part Bodies (column, cross pipe, square tube, gusset, base plate, cap, foundation) + a frame group of 27 Links, and a parameter table |
-| What you learn | How to decide what to follow when the drawing, the bill of materials and the notes disagree; the conversation of receiving the AI's «assumptions» as a table and approving them one at a time; the one-Body-per-type plus Link-instance structure; the habit of breaking a long job up part by part |
+| What you learn | How to decide what to follow when the drawing, the bill of materials and the notes disagree; the conversation of receiving the AI's «assumptions» as a table and approving them one at a time; the one-Body-per-type plus Link-instance structure |
 
 Every exercise so far was a single part. This time you build a structure of seven part types and 27 instances from a real site drawing (an observation frame with a square tube attached). The specifications are scattered across three places in the drawing — the BOM text, the dimensions and the geometry — and they disagree in places. So half of this exercise is not modeling but **receiving what the AI read and what it assumed as a table, and confirming it**.
 
@@ -54,8 +54,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Read the drawing and get the «read / assumed» table
 
 ```text title="Say this"
-Read C:\work\pole\10-pole-frame-drawing.dxf. Don't use FreeCAD's DXF import — pull the polylines, circles, dimensions, text and blocks with ezdxf. The bill of materials is in the text, so read the pipe specifications from there.
-Don't build the model yet. Per part, show me a table of «the value read from the drawing / the value you assumed / the basis». List anywhere the drawing and the BOM disagree separately.
+Read C:\work\pole\10-pole-frame-drawing.dxf (with ezdxf, not FreeCAD's import, including the bill-of-materials text) and show me a table per part of «value read / value assumed / basis». List anywhere the drawing and the BOM disagree separately.
 ```
 
 **What the AI does** — extracts LWPOLYLINE, CIRCLE, DIMENSION (measured values), TEXT, MULTILEADER and blocks (BRACKET1) from the DXF modelspace, and draws the regions to compare visually. It reads the pipe specifications from the BOM text (PIPE-250A SCH160 = OD 267.4×28.4t, PIPE-150A = OD 165.2×18.2t). The column is drawn as 216 (200A) in the geometry, disagreeing with the BOM; that kind of disagreement goes in the table.
@@ -84,90 +83,44 @@ The AI does not decide values it does not know on its own — it separates them 
 ### 2. Approve and correct the assumptions
 
 ```text title="Say this"
-Confirming the assumptions.
-- Yes, follow the BOM (267.4) for the columns.
-- Square tube thickness 4.5 is fine.
-- Make the foundation depth 1500, not 1800.
-- The straight-line approximation for the gusset snipe is fine.
-- Leave out the two unclear dimensions as you did.
-Build me a parameter table with those values. Don't build the model yet.
+Follow the BOM (267.4) for the columns, square tube thickness 4.5 is fine, foundation depth 1500, straight-line gusset snipe is fine, leave out the two unclear dimensions. Show me the parameter table with those values.
 ```
 
 **What the AI does** — organises the approved values into a list of parameter names and values (pole_od, pole_t, pole_h, span, bar_od, tube_w, hole_d, hole_pitch, found_h and the rest). That list becomes the `Params` spreadsheet later.
 
 **How to check** — confirm found_h changed to 1500, and that the AI has worked out the column centre distance (span + pole_od = 2767.4).
 
-### 3. Build the parts one at a time — starting with the column
-
-Break long jobs up part by part. Ask for everything at once and FreeCAD freezes for a long stretch and it is hard to find where it went wrong.
+### 3. Have it build the seven parts and assemble them with Links
 
 ```text title="Say this"
-Put the parameter table into a Spreadsheet called Params, and start with the column Body (Pole).
-- Centred on the origin, a pipe from z = plate thickness (10) up to 6000 (OD and ID as Params expressions)
-- Inspection port and cable entry Pockets on the front (−Y) wall only (do not cut the back wall)
-Tell me the sketch DoF and the volume when it's built.
+Put the parameters into a Spreadsheet Params, build the seven Bodies (Pole, Bar, Tube, Gusset, BasePlate, CapPlate, Foundation) and assemble them with Links in a Frame group. Hide the original Bodies, recompute, tell me whether anything is Invalid and the overall bbox, and show me iso.
 ```
 
-**What the AI does** — creates the Params sheet and stacks a Pad (two circles = a pipe) and the opening Pockets into the column Body. The pockets cut from an XZ-plane sketch only as far as radius + 10 in −Y, so only the front wall is pierced. Dimensions link through expressions like `Params.pole_od`.
+**What the AI does** — builds one Body per part type from the values in the step 1–2 tables. The column is a Pad of two circles (OD and ID as `Params.pole_od` expressions) with the inspection port and cable entry Pockets cutting only the front (−Y) wall. The cross pipe is padded at stock length 2557.1, coped at both ends to the column curves (Ø267.4 circles at ±1383.7 from centre) and given five Ø50 holes. The square tube is 150×100×4.5 padded to 4500, coped on the back to the column curve, with twenty Ø50 plus eighty Ø8 holes on the front (100 in one sketch). The gusset is a BRACKET1-shaped polygon; base, cap and foundation are one Pad each. Then 27 App::Links (2 columns, 2 caps, 2 base plates, 2 foundations, 2 tubes, 16 gussets, 1 cross pipe) are placed by Placement. Computed values such as the column centre distance 2767.4 and coping depth 28.6 are used at the precision the AI produced.
 
-**How to check** — `Params` and `Pole` are in the tree and the sketch DoF is 0. In the 3D view you can see a small rectangular hole low on the front (the cable entry) and the inspection port higher up.
-
-### 4. The cross pipe and the square tube
-
-```text title="Say this"
-Cross pipe Body (Bar): along X, centred on the origin, stock length 2557.1 (including the coping allowance), both ends coped to the column curves (Ø267.4 circles at ±1383.7 from the column centre), five Ø50 holes through front to back at spacings 500/500/250/250/500/500.
-```
-
-```text title="Say this"
-Square tube Body (Tube): 150×100×4.5, bottom centred on the origin, 4500 up in Z. Cope the back face to the column curve (the column centre is at tube local y = −50 + 77.67 + 133.7). Ø50 × 20 @200 on the front face (the first hole at 1100 − 550 = 550 from the tube bottom), with four Ø8 in a cross per hole (33 from the centre each way). All through.
-```
-
-**What the AI does** — stacks a Pad + coping Pocket (cut by a circle of the column diameter) + hole Pockets into each Body. The square tube holes come to 20 Ø50 plus 80 Ø8 = 100 circles in one sketch.
-
-**How to check** — Bar has concave cuts at both ends and five holes through it. Tube shows twenty hole groups in a row on its front face. Ask for each Body's volume now and you can compare later.
-
-:::caution[Do not let it round the numbers]
-Values the AI computed, like the coping depth (28.6) or the column centre distance (2767.4), should be used as they are. Rounding — "make it a clean 2770" — makes the coping miss and leaves the part floating.
+:::caution[Don't let it round the numbers]
+"Make it a tidy 2770" leaves the coping mismatched and the parts floating. Leave computed values as they are.
 :::
 
-### 5. The support parts and the foundation
+:::note[What the AI says back]
+36 Params. All seven Bodies valid, sketches at DoF 0 (including the 100-element tube hole sketch). 27 Links in the Frame group, 0 Invalid. Overall bbox x −400 to 3167.4, y ±900, z −1500 to 6006. Took 10 seconds.
+:::
+
+**How to check** — the tree shows `Params`, the seven hidden Bodies, and 27 Links under `Frame`. In the screenshot the cross pipe should span the two columns and the square tubes should sit on the front faces. A foundation underside at z −1500 means the step 2 assumption went in.
+
+### 4. Check for interference and save
 
 ```text title="Say this"
-Build the remaining four.
-- Gusset: 10t, the BRACKET1 shape (150×400, snipe 20 as a straight line), standing on the −X side relative to the column centre
-- BasePlate: 10t, 600×1800
-- CapPlate: 6t, Ø240
-- Foundation: 800×1800, 1500 downward
-Build them one at a time and confirm each is valid.
+Check the parts in Frame for interference. The coped joints (cross pipe–column, square tube–column) must be touching, not overlapping. If it's clean, save to C:\work\pole\pole_frame.FCStd.
 ```
 
-### 6. Assemble with Links
+**What the AI does** — checks minimum distance and interference volume for the 351 part pairs. Pairs whose bounding boxes are apart (309 of them) are skipped without computation. It saves if there is no interference.
 
-```text title="Say this"
-Create a Frame group and place everything with Links.
-- 2 columns at x = 0 and 2767.4
-- Per column: a cap (z 6000), a base plate, a foundation, a square tube (on the front face) and 8 gussets at 45° increments
-- The cross pipe between the two columns, its top face level with the column tops
-Hide the 7 original Bodies, then recompute and tell me whether there are any Invalid objects and what the overall bbox is. Then show me an iso view.
-```
+:::note[What the AI says back]
+351 pairs checked, 0 interference, 0 clearance violations. The coped joints are at distance 0 with 0 interference (touching). Saved.
+:::
 
-**What the AI does** — keeps one Body per type and places 27 App::Links by Placement (2 columns, 2 caps, 2 base plates, 2 foundations, 2 square tubes, 16 gussets, 1 cross pipe). After recomputing it reports the Invalid list and the bbox.
-
-**How to check** — 27 Links, 0 Invalid. In the screenshot the cross pipe spans the two columns and the square tube is attached to the front face. That is success.
-
-### 7. Inspect
-
-```text title="Say this"
-Check for interference between the parts in Frame. The coped joints (cross pipe–column, square tube–column) should touch but not overlap.
-```
-
-**What the AI does** — checks minimum distance and interference volume per part pair, skipping pairs whose bounding boxes are apart without computing.
-
-**How to check** — the coped joints should be «touching (distance 0, interference 0)» with zero interference volume.
-
-```text title="Say this"
-Save what we've built to C:\work\pole\pole_frame.FCStd.
-```
+**How to check** — the coped joints should be «touching (distance 0, interference 0)» and the interference volume should be 0.
 
 ## Checking your result
 

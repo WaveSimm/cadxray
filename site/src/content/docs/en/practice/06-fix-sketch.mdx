@@ -48,12 +48,12 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Build the practice sketches
 
 ```text title="Say this"
-In the new document I have open, create a practice PartDesign Body and put four deliberately broken sketches on the XY plane inside it.
-1. Sk_Under: a rectangle missing two dimensional constraints
-2. Sk_Conflict: a rectangle with two different length dimensions (40 and 45) on the same edge
-3. Sk_Open: a rectangle with one corner 0.5 mm apart so it doesn't close, and a Pad of 10 attempted from it
-4. Sk_Fixes: a rectangle with a 0.02 mm gap (only 3 endpoints coincident) + a line tilted 0.3° + two lines of equal length + two circles of equal radius
-When they're done, recompute and tell me which objects are red.
+In the open new document, make one practice Body and four deliberately broken sketches on XY:
+1. Sk_Under: a rectangle missing two dimensions
+2. Sk_Conflict: a rectangle with two lengths, 40 and 45, on the same edge
+3. Sk_Open: a rectangle with one corner 0.5 mm open (no horizontal/vertical constraint on the open edge) + a Pad of 10 from it
+4. Sk_Fixes: a rectangle with a 0.02 mm gap + a line tilted 0.3° + two equal-length lines + two equal-radius circles
+Recompute and tell me which objects are red.
 ```
 
 **What the AI does** — runs Python inside FreeCAD to create the Body and the four sketches, then recomputes. It then reads the document structure and reports the problem objects.
@@ -71,7 +71,7 @@ Sk_Under has no errors but has DoF 2 remaining, so it is not fully constrained.
 ### 2. Ask what the problem is
 
 ```text title="Say this"
-Diagnose why Sk_Conflict is red. Tell me which constraint numbers are the problem, using the GUI constraint panel numbering.
+Why is Sk_Conflict red? Give me the offending constraint numbers as in the GUI constraint panel.
 ```
 
 **What the AI does** — reads the sketch's solver state. Two dimensions with different values come back as «over-constrained (-4)» with both constraints in the `conflicting` list. The AI gives you the constraint numbers as the GUI constraint panel shows them.
@@ -85,7 +85,7 @@ Sk_Conflict is over-constrained because the same edge (Line1) has two length dim
 ### 3. Get the fix candidates and pick by number
 
 ```text title="Say this"
-Fix it. Show me the candidates as a numbered list, and don't apply anything before I pick.
+Show me fix candidates as a numbered list. Don't apply anything until I pick.
 ```
 
 **What the AI does** — applies each candidate to a **copy** of the sketch, measures the effect (change in DoF and state) and attaches a confidence level. The original is untouched. The two conflicting dimensions come back tied together as an «either/or».
@@ -97,7 +97,7 @@ If the design dimension is 40, it is number 2. Pick a number.
 :::
 
 ```text title="Say this"
-Go with 2. The design dimension is 40.
+Delete the 45. The design dimension is 40.
 ```
 
 **How to check** — the AI reports «state 0, DoF 0» after applying, and the red mark on `Sk_Conflict` disappears from the tree.
@@ -109,13 +109,13 @@ The AI marks its suggestions as `recommended` but does not apply them before you
 ### 4. Close the open vertices
 
 ```text title="Say this"
-Look at why the Pad failed and show me numbered candidates for fixing Sk_Open.
+Why did the Pad fail? Numbered candidates for fixing Sk_Open.
 ```
 
 **What the AI does** — reads the Pad's error string and the sketch's open vertices (one gap is reported as two endpoints) and offers a «make the two nearby endpoints coincident» candidate, along with the distance (0.5 mm).
 
 ```text title="Say this"
-Apply 1, then recompute and check whether the Pad came back. If it did, show me an iso screenshot.
+Apply the endpoint join, recompute, and check the Pad is back. Iso screenshot if so.
 ```
 
 **How to check** — the AI reports the recompute tracking result as «resolved: Pad, newly broken: none». A 10 mm thick plate in the screenshot means success. (If images do not appear in Codex or Gemini CLI, look at the FreeCAD window directly.)
@@ -130,17 +130,17 @@ Apply 1, then recompute and check whether the Pad came back. If it did, show me 
 ### 5. Clear the small stuff in one pass
 
 ```text title="Say this"
-Show me every fix candidate for Sk_Fixes. Count them by type too.
+Show me every fix candidate for Sk_Fixes and count them by type.
 ```
 
-**What the AI does** — produces candidates for joining the gap, missing horizontal and vertical constraints, equal length and radius constraints, and dimensions for the remaining degrees of freedom. On this practice sketch, expect 1 endpoint join, 4 or more horizontal/vertical, and 2 equals (line and radius).
+**What the AI does** — produces candidates for joining the gap, missing horizontal and vertical constraints, equal length and radius constraints, and dimensions for the remaining degrees of freedom. On this practice sketch, expect 1 endpoint join, 3 horizontal/vertical, 4 equals (3 lines, 1 circle pair — the «equal» between rectangle sides overlaps the horizontal/vertical constraints and becomes redundant if applied together, so leave those out), plus several low-confidence added dimensions.
 
 :::caution[The «add a dimension» candidate freezes the current value]
 The `add a dimension` candidate that removes remaining degrees of freedom pins the length as currently drawn. Only you know whether that is the design dimension. These come back with «low» confidence and are left out of the recommended list. If you know the design value, say it: "add a length dimension of 30".
 :::
 
 ```text title="Say this"
-Apply only the recommended ones. Leave out the added dimensions.
+Apply only the recommended ones, without the added dimensions.
 ```
 
 **How to check** — read the AI's report for 0 open vertices and reduced DoF. Open the sketch and confirm the tilted line is horizontal and the gap at the corner has closed.
@@ -148,7 +148,7 @@ Apply only the recommended ones. Leave out the added dimensions.
 ### 6. Finish off the remaining degrees of freedom
 
 ```text title="Say this"
-Remove the 2 remaining degrees of freedom in Sk_Under. The rectangle is 60 wide and 40 tall.
+Remove the 2 remaining DOF in Sk_Under. It's 60 wide, 40 tall.
 ```
 
 **What the AI does** — adds the two missing dimensions with the values you gave and recomputes.

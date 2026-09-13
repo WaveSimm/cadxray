@@ -48,28 +48,23 @@ The page and the PDF were produced by running this page's steps in the FreeCAD 1
 ### 0. (If you don't have the plate) Build it
 
 ```text title="Say this"
-Make a plate as a single Body in a new document. 100 wide, 60 deep, 5 thick. Four Ø6.6 through holes, 10 in from each corner. Call it Plate.
+New document, Body Plate: 100×60×5, four Ø6.6 through holes 10 in from each corner.
 ```
 
 ### 1. Check the model and read the positions to dimension
 
 ```text title="Say this"
-Tell me Plate's size (bbox) and the hole positions and diameters. I'm going to use them for the drawing dimensions.
+Plate's bbox and the hole positions and diameters, for the drawing dimensions.
 ```
 
-**What the AI does** — analyses the shape and reads the bounding box (0–100, 0–60, 0–8) and the centres and diameters of the four holes. Drawing dimensions are specified by «model vertex coordinates», so you need these values.
+**What the AI does** — analyses the shape and reads the bounding box (0–100, 0–60, 0–5) and the centres and diameters of the four holes. Drawing dimensions are specified by «model vertex coordinates», so you need these values.
 
 **How to check** — confirm the size the AI reports matches what you specified in Exercise 1.
 
 ### 2. Build the three-view + isometric page
 
 ```text title="Say this"
-Make a 2D drawing from Plate.
-- Views: front, right, top, isometric
-- Dimensions: overall length 100 and thickness 5 on the front view; overall width 60 and one Ø6.6 hole diameter on the top view
-- Notes: "Material: AL6061-T6", "Unmarked chamfers C0.5"
-- Title block: drawing name "MOUNT PLATE", drawing number "OT-2026-001", my name as the author
-- Automatic scale, and export it as PDF
+2D drawing of Plate. Views front, right, top, iso. Dimensions: overall length 100 and thickness 5 on front; overall width 60 and one Ø6.6 hole on top. Notes "Material: AL6061-T6", "Unmarked chamfers C0.5". Title block: name "MOUNT PLATE", number "OT-2026-001", author my name. Auto scale, export PDF.
 ```
 
 **What the AI does** — creates the page on the ISO A3 landscape template, adds the four views, and picks a standard scale (1:1, 1:2, 1:5 and so on) so the views fill about 60 % of the page. For «overall length» it dimensions between the minimum and maximum x vertices; for «hole diameter» it uses the hole centre and radius; the values are measured off the model. It fills in the notes and title block text and exports the PDF.
@@ -77,7 +72,7 @@ Make a 2D drawing from Plate.
 **How to check** — a `Page` appears in the FreeCAD tree and double-clicking it opens the drawing. Look at three things in the AI's answer.
 
 - That the «edge count» for each view is not 0 (0 means the view is empty)
-- That each dimension's «value» matches the model (100, 8, 60, 6.6)
+- That each dimension's «value» matches the model (100, 5, 60, 6.6)
 - Whether the warnings mention anything «skipped» (dimensions whose vertices could not be found get skipped and noted)
 
 :::note[What the AI says back]
@@ -95,27 +90,31 @@ The image in «Original and finished» above is the page this step produces.
 The default layout is approximate. Dimensions that overlap a view label or another dimension get nudged out automatically, but if you dislike the result there are two ways to fix it.
 
 ```text title="Say this"
-Move the thickness dimension on the front view down by 15. And move the isometric view to the top right.
+Move the front-view thickness dimension down 15 and the iso view to the top right.
 ```
 
 Or drag the views and dimensions with the mouse in the drawing window. After moving things you have to export the PDF again.
 
 ```text title="Say this"
-Export the PDF again from the page as it is now.
+Export the PDF again as it is.
 ```
 
 ### 4. Add a detail view (optional)
 
 ```text title="Say this"
-Add a detail view A at 2:1, cut at radius 12 around the top-left hole of the front view, and put the hole diameter dimension in it.
+Add detail view A at 2:1, radius 12 around the top-left hole of the top view, with the hole diameter dimension.
 ```
 
-**What the AI does** — creates a circular detail view based on the front view and changes its scale. Dimensions in the detail view are measured the same way, from model vertices.
+**What the AI does** — creates a circular detail view based on the top view and changes its scale. Dimensions in the detail view are measured the same way, from model vertices.
+
+:::caution[Adding a view rebuilds the page]
+A detail view is not appended to the existing page; the whole page is rebuilt with it included. Any layout you moved by hand in step 3 is reset, so add the detail view first and tidy the layout last.
+:::
 
 ### 5. Inspect the page
 
 ```text title="Say this"
-Inspect the page and check for empty views or broken dimensions.
+Inspect the page for empty views or broken dimensions.
 ```
 
 **What the AI does** — reads the page's views, dimensions, notes and title block and finds views with 0 edges, dimensions whose state is Invalid (broken references), and anything needing a recompute (Touched).

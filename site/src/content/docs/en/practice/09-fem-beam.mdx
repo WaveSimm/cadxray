@@ -49,7 +49,7 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 ### 1. Build the cantilever
 
 ```text title="Say this"
-Build a cantilever in a new document as a Body called Beam. 100 long in x, 10 wide in y, 5 thick in z. From x=0 to x=100, floor at z=0.
+New document, Body Beam as a cantilever: x 100, y 10, z 5. From x=0, floor at z=0.
 ```
 
 **How to check** — `Beam` appears in the tree with a bbox of 100×10×5.
@@ -57,14 +57,14 @@ Build a cantilever in a new document as a Body called Beam. 100 long in x, 10 wi
 ### 2. Settle the three things and set up the analysis
 
 ```text title="Say this"
-Run a structural analysis on Beam. Material PETG, fix the end face at x=0, 20 N downward (−Z) on the end face at x=100.
+Structural analysis of Beam. PETG, fix the x=0 face, 20 N downward (−Z) on the x=100 face.
 ```
 
 **What the AI does** — looks the material up in the table (PLA, PETG, ABS, ASA, TPU, NYLON, PMMA, POM, ALUMINUM, STEEL, STAINLESS, BRASS), fixes the «xmin» face, applies the force to the «xmax» face, builds a second-order mesh with Gmsh, and reports the node and element counts. It gives you the **areas** of the fixed and load faces so you can confirm they are the ones you meant (an end face is 10×5 = 50 mm²).
 
 :::note[What the AI says back]
 Created the analysis Analysis.
-- Material PETG (E 2,100 MPa, yield 50 MPa — empirical table values)
+- Material PETG (E 2,000 MPa, yield 45 MPa — empirical table values)
 - Fixed: 1 xmin face, area 50 mm²
 - Load: 1 xmax face, area 50 mm², 20 N in direction (0, 0, −1)
 - Mesh: second order, 18,400 nodes, 11,200 elements, 3.2 s
@@ -78,12 +78,12 @@ Leave out the material, the constraint or the load and the AI asks. Say "I don't
 ### 3. Run it and read the result
 
 ```text title="Say this"
-Run the analysis. Give me the safety factor and where the maximum stress is in one sentence, and show me an iso colour map.
+Run it. Safety factor and max-stress location in one sentence, plus an iso colour map.
 ```
 
 **What the AI does** — runs CalculiX, reads the results, and summarises maximum von Mises stress and its location, maximum displacement, the safety factor (yield strength ÷ maximum stress) and a verdict (ok ≥ 2 / marginal ≥ 1 / fail). It switches the 3D view to the stress colour map and shows a screenshot.
 
-**How to check** — the theoretical values for this cantilever are 48 MPa maximum stress and 32 mm free-end displacement. Within ±10 % and ±5 % respectively is normal. The hotspot should be near the fixed end (x=0) and the maximum displacement at the free end (x=100). Against PETG's 50 MPa yield the safety factor lands around 1, so you get «fail» or «marginal».
+**How to check** — the theoretical values for this cantilever are 48 MPa maximum stress and 32 mm free-end displacement. Within ±10 % and ±5 % respectively is normal. The hotspot should be near the fixed end (x=0) and the maximum displacement at the free end (x=100). Against PETG's 45 MPa yield the safety factor lands around 1, so you get «fail» or «marginal».
 
 :::note[What the AI says back]
 Maximum von Mises 47.8 MPa (top face at the fixed end, near (2.9, 7.1, 0)), maximum displacement 31.6 mm (free end), safety factor 0.94 → fail. Colour map on.
@@ -106,42 +106,42 @@ When the maximum exceeds three times the top-1 % value (p99), the AI warns that 
 ### 4. Look at displacement (optional)
 
 ```text title="Say this"
-Switch to displacement and show me the top 5 nodes by displacement.
+Switch to displacement and give me the top 5 nodes.
 ```
 
 ### 5. Get reinforcement candidates and pick
 
 ```text title="Say this"
-Show me reinforcement candidates as a numbered list, targeting a safety factor of 2.
+Reinforcement candidates, numbered, targeting safety factor 2.
 ```
 
 **What the AI does** — measures the thickness at the hotspot by ray casting to offer «thicken», offers «fillet» if there is a concave corner nearby, «rib» if it is a deflection direction, «change material» from the table for options that meet the target, «reduce load» against the allowable stress, and «re-mesh and re-analyse» where it suspects a singularity — each with an expected safety factor and a confidence level. Nothing is applied automatically.
 
 :::note[What the AI says back]
-Safety factor 1.07 against a target of 2.0 → stress has to come down 46 %.
-1. Thickness 5 → 7 mm (bending, so √k): expected safety factor 2.1, high confidence
-2. Material to ALUMINUM: expected safety factor 5.9, high confidence
-3. Load 20 → 10 N: expected safety factor 2.1, high confidence
+Safety factor 0.95 against a target of 2.0 → stress has to come down 52 %.
+1. Thickness 5 → 7.25 mm (bending, so √k; 8 if rounded to a nozzle multiple): expected safety factor 2.0, medium confidence
+2. Material to ALUMINUM, STEEL etc.: expected safety factor 5 or more, high confidence
+3. Load 20 → 10 N: expected safety factor 2.0, high confidence
 Pick a number.
 :::
 
 ```text title="Say this"
-Number 1. Change the thickness to 7 and re-run with the same conditions.
+Number 1. Thickness 8, re-run with the same conditions.
 ```
 
-**What the AI does** — changes Beam's thickness parameter (or the Pad length) to 7, rebuilds the analysis under the same name (deleting the old one) and runs it.
+**What the AI does** — changes Beam's thickness parameter (or the Pad length) to 8, rebuilds the analysis under the same name (deleting the old one) and runs it.
 
 **How to check** — the safety factor rises to around 2 and the verdict changes to ok. The maximum displacement drops sharply too (inversely with the cube of the thickness).
 
 ### 6. When resonance is the worry: natural frequencies
 
 ```text title="Say this"
-Take the same cantilever in STEEL and run a natural frequency analysis. Tell me the first mode in Hz and whether it's safe next to a 3,000 rpm motor.
+Same cantilever at thickness 5 in STEEL, natural frequency analysis. First mode in Hz and whether it's OK next to a 3,000 rpm motor.
 ```
 
 **What the AI does** — runs a frequency analysis with no load and reports Hz per mode. It compares the motor's excitation frequency (3,000 rpm ÷ 60 = 50 Hz) against the first natural frequency.
 
-**How to check** — a steel 100×10×5 cantilever (at the original thickness of 5) has a theoretical first natural frequency of 417.7 Hz, and the AI's result should land within ±3 %. If you changed the thickness to 7 the value differs, so say "at thickness 5" explicitly.
+**How to check** — a steel 100×10×5 cantilever (at the original thickness of 5) has a theoretical first natural frequency of 417.7 Hz, and the AI's result should land within ±3 %. If you changed the thickness to 8 the value differs, so say "at thickness 5" explicitly.
 
 ## Checking your result
 
@@ -150,7 +150,7 @@ Take the same cantilever in STEEL and run a natural frequency analysis. Tell me 
 | Setup | 1 fixed face and 1 load face, each 50 mm², second-order mesh |
 | Static analysis (PETG, thickness 5) | Maximum vM 48 MPa ±10 %, displacement 32 mm ±5 %, hotspot at the fixed end, verdict fail or marginal |
 | Reinforcement candidates | Thickness, material and load candidates appear. Lower the target to 0.5 and there are none |
-| After reinforcement (thickness 7) | Safety factor ≥ 2, verdict ok |
+| After reinforcement (thickness 8) | Safety factor ≥ 2, verdict ok |
 | Natural frequency (STEEL, thickness 5) | First mode 417.7 Hz ±3 % |
 
 ## When it doesn't work

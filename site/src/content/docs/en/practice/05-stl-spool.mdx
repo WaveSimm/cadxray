@@ -17,7 +17,7 @@ import img1 from '../../../../assets/practice/05-spool-final.png';
 | What you end up with | A document `stl_test` with the reference mesh plus a Body `SpoolGuide` (8 features, 1 thread, a parameter sheet) |
 | What you learn | That a mesh (STL) has no faces and no solid, how to read bands, section circles and threads by measurement, and how to verify by deviation without booleans |
 
-An STL is a pile of triangles, so shape tools like hole finding and interference checking cannot read it. That makes the procedure different from STEP. You bring the mesh in as a **transparent reference**, fit circles to sections at various heights to get dimensions, draw a Body over it, and verify by surface deviation. In the original session all 1,432 mesh vertices landed within 0.03 mm of the model surface (0.003 mean), with a 0.014 % volume difference.
+An STL is a pile of triangles, so shape tools like hole finding and interference checking cannot read it. That makes the procedure different from STEP. You bring the mesh in as a **transparent reference**, fit circles to sections at various heights to get dimensions, draw a Body over it, and verify by surface deviation. In the original session all 2,863 mesh vertices landed within 0.03 mm of the model surface (0.003 mean), with a 0.014 % volume difference.
 
 ## Original and finished
 
@@ -51,89 +51,41 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 
 ## Steps
 
-### 1. Bring the mesh in as a reference
+### 1. Bring the mesh in and get the analysis table first
 
 ```text title="Say this"
-Load C:\cad\05-spool-guide.stl into a new document stl_test as a reference mesh (transparent). Tell me whether it's a closed mesh, whether there are self-intersections, and how big it is.
+Load C:\cad\05-spool-guide.stl into a new document stl_test as a reference mesh and analyse it: closed or not, self-intersections, size, main axis, band boundaries, section circles per band, the common centre, the thread (pitch, major, root, handedness), and any section segments that don't fit lines or circles. Values read and assumed, as a table.
 ```
 
-**What the AI does** — inserts the STL as a Mesh object at 70 % transparency. It does not convert it. It checks closure (is_solid), non-manifold geometry and self-intersections, plus the bbox and volume.
+**What the AI does** — inserts the STL as a Mesh object at 70 % transparency without converting it. It checks closure (is_solid), non-manifold geometry and self-intersections plus bbox and volume, then finds the main axis (Z) and the band boundaries from planar patches and fits a least-squares circle to the section polyline at the mid-height of each band (within 0.01 mm of radius). When the angle of the maximum section radius rotates in proportion to z it judges it a thread (180° per 1 mm → pitch 2; in the original session this corrected an initial misreading of the feature as a cam lobe). The four arc slots and four windows are arcs plus lines rather than circles, so it detects corners in the z=1 section, fits arcs and lines per segment, and counts anything that does not fit as `unsupported`.
 
 :::note[What the AI says back]
-Mesh object added (transparency 70). 5,758 faces, 1,432 vertices, closed mesh (is_solid true), no self-intersections. Size about Ø201 × 36.
+Mesh added (transparency 70). 5,758 faces, 2,863 vertices, closed, no self-intersections, size Ø201 × 36, volume 56,195 mm³.
+Main axis Z. Band boundary z: 0 / 1.97 / 4.97 / 27.97 / 35.97. Common centre (0.54, 77.38). Section circles: plate R100.49, centre hole R18, rim wall R99.48–100.48 (1 wide, 3 tall), hub ring R18–25 (3 tall), hub R18.49–22.39 (z 5–28). Thread: major r 22.256, root r 21.038, pitch 2.006, z 28–36, right-hand → design values Ø44.5 / Ø42.1 / pitch 2 / length 8.
+z=1 section: four arc slots (r 67.5–87.5, 20-wide spokes, R10 outer corners), four windows (r 32.5–55). unsupported 0.
+Assumed: radii tidied to design values (integers and halves) within 0.01, thread root width 0.62 with a 60° V.
 :::
 
-**How to check** — you should see a semi-transparent mesh in the 3D view. If `is_solid` is false, the AI warns you that the volume and deviation figures that follow cannot be trusted.
+**How to check** — a semi-transparent mesh in the 3D view, and a table with five band boundaries, a thread pitch of 2 and unsupported 0. If `is_solid` is false, the AI warns you that the volume and deviation figures that follow cannot be trusted. If it says the axis is not Z, the STL was saved lying down: say "treat the axis as Z and redo it", or ask for the Placement to be rotated.
 
-### 2. Read the axis, bands, section circles and thread
+### 2. Have it build the Body, thread included
 
 ```text title="Say this"
-Analyse this mesh: main axis, band boundary heights, section circles per band (centre and radius), the common centre, and if there's a thread its pitch, major diameter, root and handedness.
+Build a Body SpoolGuide from those values, thread included. Every dimension in Params, verify each feature and stop if one fails.
 ```
 
-**What the AI does** — finds the main axis (Z) and the band boundaries from planar patches, then fits a least-squares circle to the section polyline at the mid-height of each band (within 0.01 mm of radius). When the angle of the maximum section radius rotates in proportion to z, it judges it a thread. In the original session it found 180° per 1 mm, giving pitch 2 — which corrected an initial misreading of the feature as a cam lobe.
+**What the AI does** — stacks four Pads and two Pockets band by band (plate → slot and window through-cuts → rim wall and hub ring → hub → thread cylinder), transferring the slot and window fit elements straight into sketches. Every circle is centred on the mesh's common centre. For the thread it places the root section (a full pitch) on a plane through the axis and applies a helical cut. Because the helix starts at profile angle 0° and its first turn cuts nothing, it starts one pitch below (height = length + 2 pitches) and pads the z 25–28 ring wrongly cut into the hub back as `PadRefill`.
 
 :::note[What the AI says back]
-Main axis Z. Band boundary z: 0 / 1.97 / 4.97 / 27.97 / 35.97. Common centre (CX, CY). Section circles: plate Ø201, hub ring R18–25, hub R18.5–22.4, rim wall 1 wide and 3 tall. Thread: male, major Ø44.5, root Ø42.1, pitch 2, length 8, right-hand, z 28–36. Verdict revolved + slot and window cutouts.
+PadPlate → PocketSlots → PocketWindows → PadRings → PadHub → PadThreadCyl → ThreadHelix → PadRefill. All 8 Valid, every sketch at DoF 0. Volume 56,202 mm³, +0.013 % against the mesh.
 :::
 
-**How to check** — five band boundaries and a thread pitch of 2. If it says the axis is not Z, the STL was saved lying down. Say "treat the axis as Z and redo it", or ask for the Placement to be rotated.
+**How to check** — look in the 3D view at whether the mesh and the Body overlap. If the Body pokes outside the transparent mesh, or the mesh shows outside the Body, that band's radius is wrong. Zoom into the thread cylinder and count four turns across the 8 mm length, and check there is no cut mark below the hub top face.
 
-### 3. Confirm the sections that do not resolve into circles and lines
-
-The four arc slots and four windows in the plate are not circles but combinations of arcs and lines.
+### 3. Verify by deviation and save
 
 ```text title="Say this"
-Fit the z=1 section to lines, arcs and circles and show me. Tell me where any segment fails to fit.
-```
-
-**What the AI does** — detects corners in the section polyline and fits arcs and lines per segment. Segments that do not fit are counted and reported as `unsupported`, and only those get handled as polygons.
-
-:::note[What the AI says back]
-Outer circle Ø201, inner circle Ø36, four arc slots (r 67.5–87.5, cut by 20-wide spokes with R10 outer corners), four windows (r 32.5–55, between the spokes). unsupported 0.
-:::
-
-**How to check** — you get radius ranges for the slots and windows, and unsupported is 0. Then move on.
-
-### 4. Stack the Body band by band
-
-```text title="Say this"
-Build a new Body SpoolGuide from the values you read. Every dimension in Params.
-1) Plate: Ø201 disc 2 thick, Ø36 hole in the centre
-2) Four slots and four windows as through Pockets (section fit values as-is, rotationally symmetric at 90°)
-3) Rim wall 1 wide and 3 tall, hub ring R18–25 and 3 tall
-4) Hub R18.5–22.4, z 5–28
-5) Thread cylinder R22.25, z 28–36
-Stack the bands so they connect, verify each feature, and stop if one fails. Don't add the thread geometry yet.
-```
-
-**What the AI does** — creates six sketches with four Pads and two Pockets in order. The slots and windows are built by rotating the first-quadrant one by 90° four times. The mesh centre (CX, CY) is used as the centre of every circle.
-
-:::note[What the AI says back]
-PadPlate → PocketSlots → PocketWindows → PadRings → PadHub → PadThreadCyl. Six Valid, every sketch at DoF 0.
-:::
-
-**How to check** — look in the 3D view at whether the mesh and the Body overlap. If the Body pokes outside the transparent mesh, or the mesh shows outside the Body, that band's radius is wrong.
-
-### 5. Add the thread
-
-```text title="Say this"
-Cut a male thread into the thread cylinder. Major Ø44.5, root Ø42.1, pitch 2, root width 0.62, 60° V, length 8, right-hand.
-Start it one pitch below so the thread finishes cleanly at the hub top face (z 28), and pad back the hub ring it cuts away below that.
-```
-
-**What the AI does** — creates a sketch of the root section (a full pitch) on a plane through the axis and applies a helical cut (SubtractiveHelix). Because the helix starts at profile angle 0° and its first turn cuts nothing, it starts one pitch below (height = length + 2 pitches), and the z 25–28 ring wrongly cut into the hub is padded back as `PadRefill`.
-
-:::note[What the AI says back]
-ThreadHelix valid (sketch DoF 0), PadRefill valid. Body volume vs mesh volume difference 0.014 %.
-:::
-
-**How to check** — zoom into the thread cylinder and count four turns across the 8 mm length, and check there is no cut mark below the hub top face.
-
-### 6. Verify by deviation
-
-```text title="Say this"
-Compare the reference mesh with SpoolGuide. Volume difference, surface deviation (max, mean, p95), and where the worst deviation is.
+Compare the reference mesh with SpoolGuide: volume difference, surface deviation (max, mean, p95) and where the worst deviation is. If it's a match, show me iso and save to C:\cad\spool_guide.FCStd.
 ```
 
 **What the AI does** — no booleans. It measures the distance from sample points on the Body's faces along their normals to the mesh (deviation), and from the mesh vertices back to the Body (reverse deviation). The location of the worst deviation is exactly where you went wrong.
@@ -143,16 +95,10 @@ Run a boolean difference against a solid built by `makeShapeFromMesh` and the bo
 :::
 
 :::note[What the AI says back]
-Volume difference 0.014 %. Deviation max 0.03 mm, mean 0.003, p95 0.01. Reverse: all 1,432 vertices within 0.03. Only three sample points at the thread start are 0.4–0.9. Verdict match.
+Volume difference +0.013 %. Deviation (740 samples): p95 0.044 mm, mean 0.021, max 0.89 — the large values are only four points at the thread start (around z 28). Reverse (2,863 vertices): max 0.028, mean 0.003, p95 0.008. Verdict match. Saved.
 :::
 
 **How to check** — `match` is a success. A few large values at the thread start come from the helix start phase and are expected.
-
-### 7. Save
-
-```text title="Say this"
-Show me an iso screenshot, and if it looks right save it to C:\cad\spool_guide.FCStd.
-```
 
 ## Checking your result
 
@@ -161,7 +107,7 @@ Show me an iso screenshot, and if it looks right save it to C:\cad\spool_guide.F
 | Features | 4 Pads + 2 Pockets + 1 thread + 1 refill Pad, all Valid |
 | Sketch DoF | all 0 |
 | Volume difference | 0.014 % |
-| Surface deviation | all 1,432 vertices within 0.03 mm (0.003 mean), only 3 points at the thread start at 0.4–0.9 |
+| Surface deviation | all 2,863 vertices within 0.03 mm (0.003 mean), only 3 points at the thread start at 0.4–0.9 |
 | Thread | male Ø44.5 × pitch 2 × length 8 |
 
 ## When it doesn't work

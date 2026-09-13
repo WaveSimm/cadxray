@@ -58,80 +58,48 @@ They were produced by running this page's steps on FreeCAD 1.1.3, and the images
 
 ## Steps
 
-### 1. Have it read the drawing and confirm the scale first
+### 1. Have it read the drawing and give you a table first
 
 ```text title="Say this"
-C:\cad\02-cover-drawing.pdf is a machining drawing for cover plates. Don't build the model yet —
-1) how many pages there are and which part each one is
-2) whether the scale really is 1:1, by comparing the circle and rectangle coordinates against the dimension text
-3) anywhere the written dimensions disagree with the drawn positions
-Give me that as a table first.
+Read C:\cad\02-cover-drawing.pdf and show me a table per plate of «values read / values assumed / basis» before anything else.
 ```
 
-**What the AI does** — reads the PDF's vector elements (a circle is a path of four curves, a rectangle is `re`) and its dimension text, converting at 1 pt = 25.4/72 mm. In the original session the dimension text 36.38 matched the 103.1 pt between circle centres, confirming 1:1. This step is also where the disagreement on drawing 2 (sensor-extension logger) turns up: the written 27.40 / 23.80 against drawn positions of 27.80 / 26.0, off by 0.4 mm and 2.2 mm.
+**What the AI does** — reads the PDF's vector elements (a circle is a path of four curves, a rectangle is `re`) and its dimension text, converting at 1 pt = 25.4/72 mm. Three things should appear in the table without being asked for: the scale (the dimension text 36.38 matching the 36.38 between circle centres means 1:1), anywhere the written dimension and the drawn position disagree (the first hole of drawing 2, off by 0.4 / 2.2 mm), and values it had to assume because the drawing lacks them (plate thickness, Ø7 hole height).
 
 :::note[What the AI says back]
-Two pages. Page 1 DATA LOGGER: outer rectangle 224.28×169.37, inner rectangle 206.70×151.82 (8.79 in from each edge, the dimension reference line). Eight Ø18 holes (x from 27.40 in 4 columns at 36.38 spacing × y 23.80 / 74.20, 2 rows), two Ø25, four Ø7. Page 2 sensor-extension logger: ten Ø18. Scale confirmed as 1:1. On page 2 the first hole's written dimension and drawn position differ by 0.4 / 2.2 mm. Which should I follow?
+Two drawings on one page. DATA LOGGER: outer rectangle 224.28×169.37, inner rectangle 206.70×151.82 (8.79 in from each edge, the dimension reference line). Eight Ø18 holes (x from 27.40 in 4 columns at 36.38 spacing × y 23.80 / 74.20, 2 rows), two Ø25, four Ø7. Sensor-extension logger: ten Ø18. Scale 1:1. Assumed: no plate thickness on the drawing, so 3; no Ø7 height, so measured 114.98 from the vectors. On the sensor plate the first hole's written dimension and drawn position differ by 0.4 / 2.2 mm. The connector flange rectangle and the four small holes inside it have no dimensions. How should I handle these?
 :::
 
-**How to check** — if the table shows a plate size of 224.28×169.37 and hole types Ø18 · Ø25 · Ø7, it read the drawing correctly. If it says the scale is not 1:1, your PDF may be a reduced print; get the original file again.
+**How to check** — the table should show a plate size of 224.28×169.37, hole types Ø18 · Ø25 · Ø7, and exactly two items marked "assumed": the thickness and the Ø7 height. If it says the scale is not 1:1, your PDF may be a reduced print; get the original file again.
 
-### 2. Tell it what to do about disagreements and missing dimensions
+:::tip[Why not have it build straight away]
+The drawing gives no plate thickness and no height for the antenna holes. An AI can settle such values on its own and move on, and spotting a wrong assumption in a 3D model is much harder than spotting it in a table. Every practice that builds from a file follows the same order: «table → answer → build».
+:::
 
-The drawing gives no plate thickness, and the antenna holes (Ø7 × 4) have no height dimension. Do not leave those to the AI — give it rules.
-
-```text title="Say this"
-Use these rules.
-- Where the written dimension and the drawn position differ, follow the written dimension.
-- Where there's no dimension (the Ø7 hole height), use the value measured from the vectors and mark it as such.
-- The drawing has no plate thickness, so assume 3 mm. Keep it as a parameter so I can change it later.
-- The connector flange rectangle and the four small holes inside it have no dimensions, so don't machine them.
-Show me the final dimension table under those rules.
-```
-
-**What the AI does** — measures the Ø7 hole height as 114.98 from the vectors and takes the rest from the written dimensions. The four antenna hole x coordinates (120.40 / 138.10 / 165.30 / 183.00) work back from the inner rectangle width 206.70 minus 23.70, at spacings of 17.70 / 27.20 / 17.70.
-
-**How to check** — you want exactly two items in the table marked "assumed" or "measured from vectors": the thickness and the Ø7 height.
-
-### 3. Build the first plate (the data logger cover)
+### 2. Answer the assumptions and have it build
 
 ```text title="Say this"
-Build the data logger cover from the table you produced.
-- New document cover_logger, Body name Cover_DataLogger
-- Pad the plate on the XY plane at 224.28×169.37, thickness Params.thickness
-- Eight Ø18 holes, two Ø25 and four Ø7, each as its own through Pocket. Diameters go in Params as hole_d18, hole_d25 and hole_d7
-- Hole centre coordinates are the inner-rectangle dimensions plus 8.79
-Tell me the sketch degrees of freedom, the volume and the bbox when you're done.
+Written dimensions win, thickness 3 as a parameter, don't machine the flange rectangle or the small holes inside it. Build both plates like that: Body Cover_DataLogger in document cover_logger, Body Cover_SensorExt in document cover_sensor.
 ```
 
-**What the AI does** — stacks four sketches (the plate rectangle plus three hole groups) with one Pad and three Pockets in order, recomputing after each feature to confirm validity. The dimensions go into the `Params` spreadsheet as aliases, so changing the thickness later brings everything with it.
+**What the AI does** — for the data logger plate it stacks four sketches (the plate rectangle plus three hole groups) with one Pad and three Pockets, for the sensor-extension plate one Pad and one Pocket, recomputing after each feature to confirm validity. Hole centres are the inner-rectangle dimensions plus 8.79; the four antenna hole x coordinates (120.40 / 138.10 / 165.30 / 183.00) work back from the inner rectangle width 206.70 minus 23.70, at spacings of 17.70 / 27.20 / 17.70. The sensor plate's x coordinates come out as five columns: 27.40 / 65.12 / 102.92 / 140.72 / 178.52. The dimensions go into the `Params` spreadsheet as aliases, so changing the thickness later brings everything with it.
 
 :::note[What the AI says back]
-Cover_DataLogger done. PadPlate → Pocket_D18 (8) → Pocket_D25 (2) → Pocket_D7 (4). All four sketches at DoF 0, shape valid. bbox 0–224.28 × 0–169.37 × 0–3.0. Params: plate_w, plate_h, inset, thickness, hole_d18, hole_d25, hole_d7.
+Cover_DataLogger done. PadPlate → Pocket_D18 (8) → Pocket_D25 (2) → Pocket_D7 (4). All four sketches at DoF 0, shape valid, volume 104,445 mm³, bbox 0–224.28 × 0–169.37 × 0–3.0. Params: plate_w, plate_h, inset, thickness, hole_d18, hole_d25, hole_d7.
+Cover_SensorExt done. PadPlate → Pocket_D18 (10). DoF 0, valid, volume 106,325 mm³.
 :::
 
-**How to check** — in the FreeCAD model tree, `Cover_DataLogger` should contain `PadPlate`, `Pocket_D18`, `Pocket_D25` and `Pocket_D7` with nothing marked red. Open the `Params` sheet, change `thickness` to 5 and recompute (F5 or Ctrl+R) to see the plate thicken. Then put it back to 3.
+**How to check** — in the model tree, `Cover_DataLogger` should contain `PadPlate`, `Pocket_D18`, `Pocket_D25` and `Pocket_D7`, and `Cover_SensorExt` should contain `PadPlate` and `Pocket_D18`, with nothing marked red. Open the `Params` sheet, change `thickness` to 5 and recompute (F5 or Ctrl+R) to see the plate thicken. Then put it back to 3. Count the sensor plate's holes from above (number key 2) and confirm there are ten.
 
-### 4. Build the second plate (the sensor-extension logger cover)
-
-```text title="Say this"
-Build the sensor-extension logger cover the same way. New document cover_sensor, Body name Cover_SensorExt.
-Same plate size and thickness, but only ten Ø18 holes. x starts at 27.40 then 37.72, and 37.80 spacing from there; y is 23.80 and 74.30.
-```
-
-**What the AI does** — builds one Pad and one Pocket with the same parameter structure as the first plate. The x coordinates come out as five columns: 27.40 / 65.12 / 102.92 / 140.72 / 178.52.
-
-**How to check** — the tree shows `PadPlate` and `Pocket_D18` under `Cover_SensorExt`. Count the holes from above (number key 2) and confirm there are ten.
-
-### 5. Look at it and save
+### 3. Look, then save
 
 ```text title="Say this"
-Show me a top view screenshot of each document. If they look right, save them to C:\cad\cover_logger.FCStd and C:\cad\cover_sensor.FCStd.
+Show me a top view of both documents. If they look right, save them to C:\cad\cover_logger.FCStd and C:\cad\cover_sensor.FCStd.
 ```
 
-**What the AI does** — puts the screenshots in the chat and saves only after you say they are right. The rule is that the AI does not save a document until told.
+**What the AI does** — puts the screenshots in the conversation and saves only after you say they are right. The rule is that the AI never saves a document until told to.
 
-**How to check** — overlay the hole layout in the screenshot against the drawing. In particular, check that the first hole on page 2 sits at the "written dimension" position.
+**How to check** — overlay the hole layout in the screenshot on the drawing. In particular, check that the first hole of the sensor plate sits at the "written dimension" position.
 
 ## Checking your result
 
