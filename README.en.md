@@ -2,6 +2,12 @@
 
 *한국어: [README.md](README.md)*
 
+**Your AI actually looks inside FreeCAD.** Hand it a drawing, a vendor STEP, an STL — or a sketch that just turned red.
+
+![cadxray demo](https://github.com/WaveSimm/cadxray/releases/download/media-v1/cadxray-demo.gif)
+
+<sub>Every screen above is a real run on FreeCAD 1.1.3 — the numbers are the ones the tools reported. Walk through them yourself in the [ten hands-on exercises](https://wavesimm.github.io/cadxray/en/practice/01-plate-holes/).</sub>
+
 > **Hands-on guide site**: https://wavesimm.github.io/cadxray/en/ — install, what it can do, ten exercises (from drilling four holes in a plate to redrawing STEP and STL, 2D drawings, print review and structural analysis), and how to write prompts. The exercise files are in [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
 
 An MCP server that lets an AI coding tool (Claude Code, Cursor, VS Code Copilot, Codex, Gemini CLI — any MCP client) **diagnose and edit** FreeCAD models. Ask "why is Sketch003 red?" or "why does Pad001 fail?" and the assistant inspects the live document with dedicated tools, explains the cause, fixes it with `execute_code`, and verifies with `tracked_recompute` and a screenshot.

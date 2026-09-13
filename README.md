@@ -2,6 +2,12 @@
 
 *English: [README.en.md](README.en.md)*
 
+**AI 가 FreeCAD 안을 직접 들여다봅니다.** 도면이든 벤더 STEP 이든 STL 이든, 방금 빨개진 스케치든 그대로 던지세요.
+
+![cadxray 데모](https://github.com/WaveSimm/cadxray/releases/download/media-v1/cadxray-demo-ko.gif)
+
+<sub>위 화면은 전부 FreeCAD 1.1.3 에서 실제로 돌린 것이고, 숫자도 툴이 보고한 값 그대로입니다. 직접 해 보려면 [따라하기 실습 10개](https://wavesimm.github.io/cadxray/practice/01-plate-holes/).</sub>
+
 FreeCAD 모델을 AI 코딩 툴(Claude Code·Cursor·VS Code·Codex·Gemini CLI 등 MCP 클라이언트)이 **진단·수정**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
 - 지원: FreeCAD **1.0.x / 1.1.x** (1.1.3에서 검증), Windows · macOS · Linux
