@@ -19,6 +19,18 @@ export default defineConfig({
         './src/styles/starlight-theme.css',
         './src/styles/custom.css',
       ],
+      // 방문자 통계 (GoatCounter) — 쿠키·개인정보 없이 페이지별 조회수만 센다.
+      // 통계는 https://wavesim.goatcounter.com 에서 본다.
+      head: [
+        {
+          tag: 'script',
+          attrs: {
+            'data-goatcounter': 'https://wavesim.goatcounter.com/count',
+            async: true,
+            src: 'https://gc.zgo.at/count.js',
+          },
+        },
+      ],
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/WaveSimm/cadxray' }],
       editLink: { baseUrl: 'https://github.com/WaveSimm/cadxray/edit/master/site/' },
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
