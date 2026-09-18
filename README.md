@@ -6,7 +6,7 @@
 
 ![cadxray 데모](https://github.com/WaveSimm/cadxray/releases/download/media-v1/cadxray-demo-ko.gif)
 
-<sub>위 화면은 전부 FreeCAD 1.1.3 에서 실제로 돌린 것이고, 숫자도 툴이 보고한 값 그대로입니다. 직접 해 보려면 [따라하기 실습 10개](https://wavesimm.github.io/cadxray/practice/01-plate-holes/).</sub>
+<sub>위 화면은 전부 FreeCAD 1.1.3 에서 실제로 돌린 것이고, 숫자도 툴이 보고한 값 그대로입니다. 직접 해 보려면 [따라하기 실습 11개](https://wavesimm.github.io/cadxray/practice/01-plate-holes/).</sub>
 
 FreeCAD 모델을 AI 코딩 툴(Claude Code·Cursor·VS Code·Codex·Gemini CLI 등 MCP 클라이언트)이 **진단·수정**하게 해 주는 MCP 서버입니다. "Sketch003이 왜 빨간지", "Pad가 왜 실패하는지"를 물으면 Claude가 툴로 직접 들여다보고 원인을 말해 줍니다. 수정은 `execute_code`로 하고, 결과는 `tracked_recompute`와 스크린샷으로 확인합니다.
 
@@ -140,7 +140,7 @@ args = ["--from", "git+https://github.com/WaveSimm/cadxray#subdirectory=bridge",
 
 ## 4. 이렇게 씁니다
 
-> **따라하기 가이드 사이트**: https://wavesimm.github.io/cadxray/ — 설치, 할 수 있는 것, 실습 10개(판에 구멍 뚫기부터 STEP·STL 다시 그리기, 2D 도면, 3D 프린트 검토, 구조 해석까지), 프롬프트 작성법. 영문판은 [/en/](https://wavesimm.github.io/cadxray/en/). 실습 파일은 [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
+> **따라하기 가이드 사이트**: https://wavesimm.github.io/cadxray/ — 설치, 할 수 있는 것, 실습 11개(판에 구멍 뚫기부터 STEP·STL 다시 그리기, 2D 도면, 3D 프린트 검토, 구조 해석까지), 프롬프트 작성법. 영문판은 [/en/](https://wavesimm.github.io/cadxray/en/). 실습 파일은 [Release practice-files-v1](https://github.com/WaveSimm/cadxray/releases/tag/practice-files-v1).
 
 FreeCAD에서 모델을 열어 두고 Claude Code에 말로 시킵니다.
 

@@ -993,7 +993,7 @@ def _concave_edge_near(shape, face_idx, p, tol):
         except Exception:  # noqa: BLE001
             continue
         ang = math.degrees(math.acos(max(-1.0, min(1.0, n1.dot(n2)))))
-        if ang < 10.0:
+        if ang < 10.0 or ang > 170.0:      # 180°는 다른 솔리드의 맞닿은 면(접합면)이라 오목 모서리가 아니다
             continue
         q = mid + (n1 - n2) * 0.2
         if shape.isInside(q, 1e-4, True):     # 두 법선 차 방향이 재료 안 → 오목 모서리

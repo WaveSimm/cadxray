@@ -9,7 +9,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: { ko: 'FreeCAD AI 모델링 가이드', en: 'FreeCAD AI Modeling Guide' },
-      description: 'AI 코딩 툴(Claude Code · Codex CLI · Gemini CLI)과 cadxray 로 FreeCAD 1.1.3 에서 3D 모델을 말로 만드는 법 — 설치, 할 수 있는 것, 따라하기 실습 10개, 프롬프트 작성법',
+      description: 'AI 코딩 툴(Claude Code · Codex CLI · Gemini CLI)과 cadxray 로 FreeCAD 1.1.3 에서 3D 모델을 말로 만드는 법 — 설치, 할 수 있는 것, 따라하기 실습 11개, 프롬프트 작성법',
       // 한국어가 기본(/cadxray/...), 영문은 /cadxray/en/... 에 얹는다.
       // 기존 한국어 URL 을 그대로 두려고 root 로케일을 ko 로 잡았다.
       defaultLocale: 'root',

@@ -1,0 +1,192 @@
+---
+title: "Exercise 11. Pressure port from a drawing, then a 200 kg strength check"
+description: Feed a real product drawing (an integrated barometer pressure port) to the AI, build its four parts as parametric bodies, match the material cards, then hold the connector and press the far end with 200 kg to get stress and safety factor.
+sidebar:
+  order: 11
+---
+
+import { Image } from 'astro:assets';
+import img0 from '../../../../assets/practice/11-pressure-port-drawing.png';
+import img1 from '../../../../assets/practice/11-pressure-port-final.png';
+import img2 from '../../../../assets/practice/11-pressure-port-result.png';
+
+| Item | Detail |
+|---|---|
+| Input files | `11-pressure-port-drawing.pdf` (one assembly section drawing of an integrated pressure port, vector PDF) |
+| Time | 10 min (modelling 1 min, meshing 6 s, solving 1 min at about 139,000 nodes) |
+| What you end up with | Document `pressure_port` — four bodies (base, core, outer tube, connector) + Spreadsheet `Params`, analysis `OTBAP_200kg` (stress and displacement colour maps, safety factor report) |
+| What you learn | Measuring geometry from a vector drawing whose dimension text is not readable, keeping what the drawing does not say as stated «assumptions», fixing a dark viewport, matching material cards, reading «whose yield strength» a multi-part safety factor refers to, and interpreting a singularity warning |
+
+Exercise 2 built a single plate from a drawing. This time it is a **real product**: the air port of a meteorological barometer. From the top down it has a vent, a baffled outer tube, a hollow rod, a base holding the PCB, and an M16 connector, all on one axis. The drawing is a single assembly section, and only the overall height and outer diameters are dimensioned. The AI measures the rest from the picture and reports measured and assumed values separately. Once the model exists, you ask whether it survives 200 kg pressed on the top while the connector is held.
+
+## Original and finished
+
+<div class="file-pair">
+  <figure>
+    <Image src={img0} alt="Original: assembly section of the integrated pressure port" />
+    <figcaption><b>Original</b> 11-pressure-port-drawing.pdf — section view and isometric wireframe. The only written dimensions are 258, 246, 157, 30, 34, 25, 12, Ø56, Ø65, Ø16, R2.75 and the material (acetal)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img1} alt="Finished: the four pressure-port bodies, outer tube translucent" />
+    <figcaption><b>Finished</b> Four bodies — base Ø65, core (five baffles on a hollow rod), outer tube Ø56 (translucent), M16 connector. Four revolutions + two pockets, volume 412,909 mm³, mass 602 g (POM 1.41, brass 8.5)</figcaption>
+  </figure>
+  <figure>
+    <Image src={img2} alt="Result: displacement colour map, maximum 0.468 mm at the top of the tube" />
+    <figcaption><b>Analysis</b> Connector bottom fixed, 1,962 N (200 kg) on the tube top. Maximum displacement 0.468 mm (the tube sinks as a whole); maximum von Mises 55.5 MPa at the connector flange corner (brass)</figcaption>
+  </figure>
+</div>
+
+| Kind | File | Description | Size |
+|---|---|---|---|
+| Original | [11-pressure-port-drawing.pdf](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v2/11-pressure-port-drawing.pdf) | Assembly section PDF | 334 KB |
+| Finished | [11-pressure_port-model.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v2/11-pressure_port-model.FCStd) | Four bodies + Params (no analysis) | 108 KB |
+| Finished | [11-PressurePort-done.step](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v2/11-PressurePort-done.step) | STEP (four parts) | 87 KB |
+| Practice | [11-pressure_port-done.FCStd](https://github.com/WaveSimm/cadxray/releases/download/practice-files-v2/11-pressure_port-done.FCStd) | Model + analysis result objects (139,000 nodes) | 57 MB |
+
+:::tip[The finished files are real]
+They were produced by running this page's steps in FreeCAD 1.1.3, and the pictures are real screenshots of those files in the FreeCAD 1.1.3 GUI (isometric, white background). The numbers are the ones the tools reported.
+:::
+
+## Preparation
+
+1. Start FreeCAD 1.1.3 and confirm `[CAD X-ray] server started` in the report view.
+2. Download the PDF into a folder with a short path (for example `C:\cad-pressure-port.pdf`).
+3. In PowerShell, go to that folder and type `claude` to open the AI tool.
+4. Close any other documents open in FreeCAD.
+
+## Steps
+
+### 1. Have it read the drawing and build
+
+```text title="Say this"
+Build C:\cad-pressure-port.pdf in FreeCAD from the drawing.
+```
+
+**What the AI does** — This PDF is vector, but even the dimension text is drawn as lines, so it cannot read the numbers as text. It looks at the picture instead. First it reads the written dimensions (258, 157, Ø56, Ø65 …) from the page image, then extracts the line segments to fix the scale: the 56 mm tube is drawn 106.6 pt wide, so 1 mm = 1.9036 pt, and the scale is confirmed when 157, 30, 34, 25 and 12 all agree. With that scale it measures the undimensioned interior (tube bore, baffle thickness and pitch, rod diameter, PCB cavity). Before building it shows a table of **read / measured / assumed** values and asks you to confirm.
+
+:::note[What the AI says back]
+Scale 1.9036 pt/mm (from Ø56; 258, 157, 30, 34, 25, 12 all agree).
+
+Read: overall 258 (connector end to tube top), base Ø65 × 59 (34 + 25), outer tube Ø56 × 157, neck zone 30, connector M16 × 12, U-clip groove R2.75, material acetal (black).
+Measured: tube bore Ø45 (wall 5.5), top plug 22.5 thick with a Ø31 vent thread hole, five baffles 6.7 thick at 16.7 pitch (Ø45 and Ø41 alternating), rod Ø22 with a Ø10 air passage, head Ø25 (z 198.5–227.5) with a Ø10 cross hole (z 211), neck Ø42 × 14.4, PCB cavity Ø44 (z 30.6–54), bottom bore Ø16 (z 0–30.6), clip groove at z 42, O-ring split line at z 25, connector flange Ø27 × 2.
+Assumed: ① base cap and body as one solid (thread and O-ring omitted) ② wide baffles at Ø44, leaving 0.5 clearance to the tube ③ four Ø3.2 screw holes on PCD 32, 20 deep ④ connector in brass, M16 thread as a Ø16 cylinder ⑤ vent thread as a Ø31 hole ⑥ C1 chamfers on the base.
+Building four bodies: Base, Core, OuterTube, Connector. No interference between parts; three touching pairs (connector–base, base–core, core–tube plug).
+:::
+
+**Check** — Four bodies appear in the tree and the bbox is 65 × 65 × 258 (z −12 to 246). Each body is one revolution as its backbone, with groove and screw-hole pockets on the base and a cross-hole pocket on the core. If you dislike any of the six assumptions, say so now — for example "baffles at Ø45 as drawn".
+
+:::tip[Why the table comes first]
+This drawing has no interior dimensions at all. If the AI mixed measured values with invented ones, you could not tell in 3D which is drawing and which is guess. In the table you only need to look at the «assumed» rows.
+:::
+
+### 2. Fix a dark viewport
+
+```text title="Say this"
+The background is too dark, I can't make anything out.
+```
+
+**What the AI does** — It turns off the gradient background in FreeCAD preferences and sets it to white (`Display > 3D View > Background colour`; it stays after a restart). Then it makes the outer tube 65 % translucent and the base 40 % so the interior shows, and takes a fresh isometric screenshot. The «Finished» picture above is that view.
+
+### 3. Match the material cards
+
+```text title="Say this"
+Match the material cards.
+```
+
+**What the AI does** — It takes «material: acetal (black)» from the title block, finds `POM-Homopolymer-Generic` among the 200 cards in the FreeCAD 1.1 material library and assigns it to the base, core and tube, and `Brass` to the connector (the body's ShapeMaterial). It shows the card properties next to the analysis tool's material table.
+
+:::note[What the AI says back]
+Material cards assigned.
+- Base, core, tube: POM-Homopolymer-Generic — E 3,050 MPa, yield 67.3 MPa, density 1.42 g/cm³
+- Connector: Brass (an appearance card, no mechanical values)
+The analysis table has POM E 2,800 / yield 65 and BRASS E 100,000 / yield 200. Within 8 % of the card, so I keep the table. Total mass 602 g (POM 1.41, brass 8.5).
+:::
+
+**Check** — Select a body and the property view shows the card name under `Shape Material`. If the card's yield strength differs much from the table, say "use the card values for the analysis" and it passes them as a dict.
+
+### 4. Hold the connector and press with 200 kg
+
+```text title="Say this"
+Hold the connector end and press the other end with 200 kg — analyse the strength.
+```
+
+**What the AI does** — It settles the three inputs. Material was set in step 3; «the connector end» is the connector bottom face (z = −12, Ø16 ring, 172.8 mm²); «the other end» is the tube top (z = 246, ring of 1,708 mm²); 200 kg becomes 1,962 N in −Z. It imprints the four parts with generalFuse so touching faces share mesh nodes (fully bonded), assigns per-part materials through Gmsh solid groups, meshes with 4 mm second-order elements and runs CalculiX.
+
+:::note[What the AI says back]
+Created analysis OTBAP_200kg.
+- Materials: base, core, tube POM (yield 65); connector BRASS (yield 200)
+- Fixed: connector bottom Face59, 172.8 mm²
+- Load: tube top Face54, 1,708 mm², 1,962 N in (0, 0, −1)
+- Mesh: second order, 139,092 nodes, 82,691 elements, 6.0 s. 1,028 shared interface nodes; material groups 51,178 + 15,389 + 14,934 + 1,190 = all elements
+Solved in 60.6 s. Maximum von Mises 55.5 MPa at the connector flange corner (z = −2, brass). Maximum displacement 0.468 mm (tube top). Safety factor against the weakest material POM (65 MPa): 1.17 → marginal.
+Warning: the maximum is five times the 99th-percentile value (10.3 MPa), so it may be a stress singularity at an interface corner. The p99 safety factor is 6.3.
+:::
+
+**Check** — A fixed area of 172.8 (the Ø16 connector ring) and a load area of 1,708 (the Ø56/Ø31 tube ring) mean the intended faces. Zero shared interface nodes would mean the parts are floating apart — look at the geometry again. Most of the 0.47 mm is the rod and base compressing, so the tube sinks as a whole and shows as one colour in the displacement map.
+
+:::caution[Do not take «marginal» at face value]
+1.17 is «overall maximum stress ÷ yield of the weakest material». But the 55.5 MPa maximum sits in the **brass** connector, and against brass (200 MPa) that is 3.6. With several materials always ask «which part is that number from». The reinforcement step below works that out node by node.
+:::
+
+### 5. Find the real weak spot through the reinforcement candidates
+
+```text title="Say this"
+Reinforcement candidates for a safety factor of 2, numbered — judged per material.
+```
+
+**What the AI does** — It re-rates every node as «stress ÷ that part's yield strength», drops spikes right next to the fixed face as singularities, and picks the hotspot. In this model that is the edge of the Ø16 bore in the base bottom (where the connector flange meets it, z = 0) at 46.9 MPa in POM.
+
+:::note[What the AI says back]
+Rated per material, the reference hotspot is the edge of the Ø16 bore in the base bottom (z = 0): 46.9 MPa, POM yield 65 → safety factor 1.39 (the overall maximum 55.5 is in the brass connector and is excluded). Target 2.0 means 31 % less stress.
+1. Thickness: 12 mm there → 14.4 for bending, 17.3 for compression (confidence medium)
+2. Rib: deflection is along the face normal — rib 12 × 36 (confidence low)
+3. Material: ALUMINUM, STEEL, STAINLESS or BRASS meet the target (confidence high)
+4. Load: 69 % of the load gives an allowable 32.5 MPa (confidence high)
+5. Mesh: the maximum is over three times p99 — possible singularity; p99 safety factor 6.3. Solve again at half the mesh size; if the value keeps rising it is a singularity, so add a fillet or judge by p99
+Pick a number.
+:::
+
+**Check** — The real load path is tube → plug → rod (Ø22/Ø10, section 302 mm²) → neck → base → connector. The nominal compressive stress in the rod is 1,962 ÷ 302 ≈ 6.5 MPa, a tenth of the 65 MPa yield, consistent with p99 = 10.3 MPa. Both 46.9 and 55.5 are numerical concentrations at **sharp interface corners** — the singularity candidate 5 is describing. The conclusion is "200 kg does not yield the part; the places to watch are the connector flange and the base bore edge, which get a radius on the real part". If you want proof, say "5, mesh 3 mm" — about 300,000 nodes and three to five minutes.
+
+## Checking the result
+
+| Item | Success criteria |
+|---|---|
+| Reading the drawing | Scale 1.9036 pt/mm; 11 read values and 6 «assumed» rows, clearly separated |
+| Model | Four bodies, bbox 65 × 65 × 258, no interference, volume 412,909 mm³ ±1 % |
+| Material cards | POM-Homopolymer-Generic × 3, Brass × 1 |
+| Analysis setup | Fixed 172.8 mm², load 1,708 mm², shared interface nodes > 0, material groups add up to all elements |
+| Analysis | Maximum von Mises 55 MPa ±10 % (connector flange), displacement 0.47 mm ±10 %, singularity warning with p99 safety factor above 6 |
+| Reinforcement | Hotspot chosen «per material» (base bore, 1.39 against POM), mesh candidate explains the singularity |
+
+## When it does not work
+
+- **The AI says it cannot read the dimensions** — in this PDF the text is lines too. Give it the order: "look at the page as an image and read the written dimensions, then fix the scale from line coordinates and measure the rest".
+- **The scale does not fit** — if the scale from one dimension (Ø56) disagrees with others (157, 258), the PDF is a scaled print. Get the original.
+- **An error says the parts overlap** — «does not correspond to any part» during setup means two parts cut into each other. Ask for an interference check to see where and fix the dimensions.
+- **Zero shared interface nodes** — faces you thought were touching are apart (for example the neck height does not meet the base). Match the z ranges in the bboxes.
+- **More than 300,000 nodes** — ask for a 5–6 mm mesh. This model has 139,000 nodes at 4 mm.
+- **It is marginal but you cannot tell where** — add "judged per material" as in step 5. When the overall maximum is in a metal part, it re-picks the hotspot for the plastic parts.
+
+## Going further
+
+- Apply 200 N in +X on the side instead of the top to see bending. On a curved face (the tube side) the AI tells you it switches to a curved-surface mesh.
+- Add "R1 fillets on the base bore edge and the connector flange corner" and solve again to see how far the maximum drops.
+- Rebuild with "baffles at Ø45 as drawn" so they touch the tube — more bonded faces — and compare the results.
+- "Export the tube, core and base as STEP" to make files for the machine shop.
+
+## What runs behind the scenes
+
+| Step | Tool |
+|---|---|
+| Reading the drawing | PDF render → image reading, vector line extraction (scale, interior dimensions) |
+| Building the four parts | `build_features` (revolution, groove, pocket, `params`) |
+| Interference, mass | `check_interference`, `get_mass_properties` (`names`, `densities`) |
+| Background, transparency, material cards | `execute_code` (View preferences, ViewObject.Transparency, Materials.MaterialManager → ShapeMaterial) |
+| Analysis setup | `setup_analysis` (`names`, per-part `material`, `fixed=["bottom"]`, `loads=[force on top, 1962 N]`) |
+| Solve, summary, colour map | `run_analysis` → `get_screenshot` |
+| Displacement view | `inspect_results` (`field="displacement"`, `show`) |
+| Reinforcement candidates | `suggest_reinforcement` (`hotspot_selection` explains per-material and singularity exclusion) |
+| Save, STEP | `save_document`, `execute_code` (exportStep) |
+
+Source of the procedure: [CLAUDE.md "Structural analysis (FEM) workflow"](https://github.com/WaveSimm/cadxray/blob/master/CLAUDE.md)
