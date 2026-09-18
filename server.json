@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://wavesimm.github.io/cadxray/en/",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "cadxray",
-      "version": "0.12.0",
+      "version": "0.12.1",
       "transport": {
         "type": "stdio"
       }
