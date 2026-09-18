@@ -422,7 +422,25 @@ def T16_multi():
     return doc
 
 
+def T17_fem_curved():
+    """FEM 버그 재현 (fem.py 수정 검증):
+    A 원통 R20 h10(Solid) + B 원통 R10 h30에 R4 구멍(cut 결과라 Part.Compound — CenterOfMass 없음). B 바닥이 A 윗면 안에 놓여
+    단순 Compound로는 절점을 공유하지 않는다. Cyl R10 h40은 옆 곡면 하중용. FootBeam은 발 바닥만 고정한 외팔보."""
+    doc = _fresh("T17_fem_curved")
+    a = doc.addObject("Part::Feature", "A")
+    a.Shape = Part.makeCylinder(20, 10)
+    b = doc.addObject("Part::Feature", "B")
+    b.Shape = Part.makeCylinder(10, 30, Vec(0, 0, 10)).cut(Part.makeCylinder(4, 30, Vec(0, 0, 10)))
+    c = doc.addObject("Part::Feature", "Cyl")
+    c.Shape = Part.makeCylinder(10, 40)
+    fb = doc.addObject("Part::Feature", "FootBeam")
+    fb.Shape = Part.makeBox(100, 10, 5).fuse(Part.makeBox(10, 10, 2, Vec(0, 0, -2))).removeSplitter()
+    doc.recompute()
+    return doc
+
+
 BUILDERS = {
+    "T17_fem_curved": T17_fem_curved,
     "T16_multi": T16_multi,
     "T14_links": T14_links,
     "T13_fem": T13_fem,

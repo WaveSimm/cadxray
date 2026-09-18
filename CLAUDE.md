@@ -76,7 +76,7 @@
 3. `run_analysis` → `summary.safety_factor`·`verdict`·핫스팟 `face`/`at`를 한 문장으로. 곧바로 `get_screenshot(view="iso")`로 컬러맵을 보여 준다. warnings에 특이점 경고가 있으면 `safety_factor_p99`를 같이 말한다
 4. 안전율이 목표(기본 2) 미만이면 `suggest_reinforcement` → 후보를 **번호 목록**으로(종류·기대 안전율·확신도). 사용자가 고르면 `build_features`/`execute_code`로 반영하고 3번을 다시 한다
 5. 변위를 보고 싶으면 `inspect_results(field="displacement", show="displacement")`. 해석 객체는 문서에 남는다(같은 이름으로 setup하면 지우고 다시 만든다)
-6. 여러 부품이면 `setup_analysis(names=[...], material={"A": "STEEL", "B": "PETG"})` — 맞닿은 면은 완전 접합으로 푼다(볼트·접촉·마찰 없음). 공진이 걱정이면 `analysis_type="frequency"`(하중 불필요) → `summary.modes`의 1차 고유진동수와 가진 주파수(모터 rpm/60)를 비교. 좌굴은 지원하지 않는다
+6. 여러 부품이면 `setup_analysis(names=[...], material={"A": "STEEL", "B": "PETG"})` — 맞닿은 면은 완전 접합으로 푼다(볼트·접촉·마찰 없음). 부품은 generalFuse로 접합면을 새겨 묶으므로 `mesh.interface_shared_nodes`가 0이면 실제로 맞닿지 않은 것이다. 부품이 겹치면 "어느 부품에도 대응하지 않습니다" 오류 → `check_interference`로 확인. 공진이 걱정이면 `analysis_type="frequency"`(하중 불필요) → `summary.modes`의 1차 고유진동수와 가진 주파수(모터 rpm/60)를 비교. 좌굴은 지원하지 않는다
 7. 어셈블리 무게·무게중심은 `get_mass_properties(names=[...], densities={...})`
 8. 한계를 항상 붙인다: 선형 정적·등방성, FDM 출력물은 층 방향으로 더 약함, 재질 표는 경험값
 
@@ -100,7 +100,9 @@
 - `analyze_mesh`의 `thread.center`·`center`는 단면 좌표(축이 Z면 X,Y)다. `levels[].facets`는 개수뿐이다
 - `open_document`로 다시 연 문서의 이름은 파일명이다(원래 문서 이름은 남지 않는다)
 - `make_drawing`의 치수는 Projected 모드라 DistanceX/Y가 뷰 축을 따른다. 상세 뷰(`view`에 `ref` 글자)에서도 같은 방식으로 잰다
-- `run_analysis`가 "nonpositive jacobian"으로 실패하면 메시가 찌그러진 것 — `setup_analysis(mesh_size=더 작게)`. 결과 절점 좌표는 변형 전 좌표다
+- `run_analysis`가 "nonpositive jacobian"으로 실패하면 메시가 찌그러진 것 — `setup_analysis(mesh_size=더 작게)` 또는 `order="1st"`. 결과 절점 좌표는 변형 전 좌표다
+- 고정·하중 면에 곡면이 있으면 `setup_analysis`가 2차 요소 중간 절점을 곡면에 둔다(`mesh.second_order_linear: false`, 경고로 알림). 그렇지 않으면 그 면에 하중이 실리지 않는다. `run_analysis`의 `inp_check`에서 `uncovered`(재질 없는 요소)와 `cload_lines`/`dload_lines`(하중 줄)를 본다 — 0이면 툴이 error로 막는다
+- `suggest_reinforcement`의 `hotspot`은 고정면에서 요소 크기 2배 안의 급증(바깥 최대의 2배 초과)을 특이점으로 제외한 것이다. 재질이 여럿이면 절점마다 그 부품의 항복강도를 쓴다. 제외·선택 사유는 `hotspot_selection`, 전체 최대는 `hotspot.global_max`. `safety_factor`는 이 핫스팟 기준이라 `run_analysis`의 값(가장 약한 재질 × 전체 최대)과 다를 수 있다
 - `compare_shapes`에서 `boolean_failed`가 true면 `missing/extra`는 무시하고 `volume_diff`·`area_diff`로만 판단한다
 
 ### 수정 코드 작성 시 주의

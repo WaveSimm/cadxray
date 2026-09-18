@@ -728,6 +728,105 @@ def test_fem_m16():
     check("밀도 빠진 부품 → 경고 + 부피 가중", r["ok"] and r["data"]["center_of_mass_basis"] == "volume" and any("밀도가 없는" in w for w in r["warnings"]), str(r.get("warnings")))
 
 
+def test_fem_fixes():
+    section("FEM 수정 검증: Compound 부품·곡면 재질 배정·곡면 하중·고정면 특이점 (T17)")
+    import types
+
+    # 1) Compound 부품(CenterOfMass 없음) → 부품별 재질, 재질 그룹이 요소 전체를 정확히 덮는다
+    load = [{"type": "force", "faces": ["top"], "value": 500, "direction": [1, 0, 0]}]
+    custom = {"name": "custom", "E": 70000, "nu": 0.33, "density": 2.7, "yield": 240}
+    r = measure("setup_analysis", "T17 A(강)+B(Compound, dict)", fem.setup_analysis(names=["A", "B"], doc="T17_fem_curved", material={"A": "STAINLESS", "B": custom}, fixed=["bottom"], loads=load, mesh_size=3))
+    check("Compound 부품 setup ok(버그 1)", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        m = r["data"]["mesh"]
+        check("재질 그룹 요소 합 = 전체 요소, 부품별 솔리드 번호 다름", m.get("material_groups") and sum(m["material_groups"].values()) == m["elements"] and r["data"]["materials"][0]["solids"] != r["data"]["materials"][1]["solids"], str(m))
+        check("접합면 절점 공유(generalFuse) > 0", m.get("interface_shared_nodes", 0) > 0, str(m.get("interface_shared_nodes")))
+    r = measure("run_analysis", "T17 접합(곡면)", fem.run_analysis(analysis="Analysis", doc="T17_fem_curved"))
+    check("run ok — CalculiX 재질 미배정 없음(버그 2)", r["ok"], str(r.get("error")))
+    if r["ok"]:
+        ic = r["data"]["inp_check"]
+        check("inp: 미배정 0, 중복 0, CLOAD > 0", ic["uncovered"] == 0 and ic["duplicated"] == 0 and ic["cload_lines"] > 0, str(ic))
+        check("변위 < 1 mm(부품이 따로 놀지 않음)", r["data"]["summary"]["displacement"]["max"] < 1.0, str(r["data"]["summary"]["displacement"]))
+    r = fem.suggest_reinforcement(analysis="Analysis", doc="T17_fem_curved", target_safety=20)
+    check("다중 재질: 절점별 항복강도 note, hotspot.yield 존재", r["ok"] and any("항복강도" in n for n in r["data"]["hotspot_selection"]) and r["data"]["hotspot"].get("yield"), str(r.get("error") or r["data"].get("hotspot_selection")))
+
+    # 2) 원통 옆면(곡면)에 힘 → 중간 절점을 곡면에 두고 하중이 실린다(버그 3)
+    r = measure("setup_analysis", "T17 원통 옆면 하중", fem.setup_analysis(name="Cyl", doc="T17_fem_curved", analysis="Lat", material="STAINLESS", fixed=["bottom"], loads=[{"type": "force", "faces": ["Face1"], "value": 100, "direction": [1, 0, 0]}], mesh_size=3))
+    check("곡면 하중 setup ok, second_order_linear=False + 곡면 경고", r["ok"] and r["data"]["mesh"]["second_order_linear"] is False and any("곡면" in w for w in r["warnings"]), str(r.get("error") or r["data"]["mesh"]))
+    r = measure("run_analysis", "T17 원통 옆면", fem.run_analysis(analysis="Lat", doc="T17_fem_curved"))
+    check("run ok, CLOAD > 0, 최대 응력 2~4 MPa(굽힘 이론 2.5)", r["ok"] and r["data"]["inp_check"]["cload_lines"] > 0 and 2.0 < r["data"]["summary"]["von_mises"]["max"] < 4.0, str(r.get("error") or (r["data"]["inp_check"], r["data"]["summary"]["von_mises"])))
+    # 평면 하중이면 기존대로 직선 변
+    r = fem.setup_analysis(name="Cyl", doc="T17_fem_curved", analysis="Lat", material="STAINLESS", fixed=["bottom"], loads=[{"type": "force", "faces": ["top"], "value": 100}], mesh_size=3)
+    check("평면 하중은 second_order_linear=True 유지", r["ok"] and r["data"]["mesh"]["second_order_linear"] is True, str(r.get("error") or r["data"]["mesh"]))
+
+    # 3) _check_inp: 빈 *CLOAD, 중첩 집합(Evolumes), 부분 ELSET
+    import tempfile
+    inp_ok = """*ELEMENT, TYPE=C3D10, ELSET=Evolumes
+1, 1,2,3,4,5,6,7,8,9,
+10
+2, 1,2,3,4,5,6,7,8,9,
+10
+*ELSET,ELSET=MaterialSolid
+Evolumes
+*SOLID SECTION, ELSET=MaterialSolid, MATERIAL=M
+*STEP
+*CLOAD
+** node loads
+
+*END STEP
+"""
+    inp_bad = """*ELEMENT, TYPE=C3D4, ELSET=Evolumes
+1, 1,2,3,4
+2, 1,2,3,5
+3, 1,2,3,6
+*ELSET,ELSET=MA
+1,
+*ELSET,ELSET=MB
+1,
+2,
+*SOLID SECTION, ELSET=MA, MATERIAL=A
+*SOLID SECTION, ELSET=MB, MATERIAL=B
+*STEP
+*CLOAD
+5,3,-1.5
+*DLOAD
+Eall,GRAV,9810,0,0,-1
+*END STEP
+"""
+    with tempfile.TemporaryDirectory() as td:
+        pa, pb = os.path.join(td, "a.inp"), os.path.join(td, "b.inp")
+        open(pa, "w").write(inp_ok)
+        open(pb, "w").write(inp_bad)
+        ca, cb = fem._check_inp(pa), fem._check_inp(pb)
+    check("_check_inp: 중첩 Evolumes → 요소 2 모두 배정, CLOAD 0줄", ca["elements"] == 2 and ca["uncovered"] == 0 and ca["cload_lines"] == 0, str(ca))
+    check("_check_inp: 미배정 1(요소 3)·중복 1(요소 1), CLOAD 1·DLOAD 1", cb["uncovered"] == 1 and cb["duplicated"] == 1 and cb["cload_lines"] == 1 and cb["dload_lines"] == 1, str(cb))
+
+    # 4) 고정면 특이점 제외(개선 4): 발 바닥만 고정한 외팔보
+    r = fem.setup_analysis(name="FootBeam", doc="T17_fem_curved", analysis="Foot", material="PETG", fixed=["bottom"], loads=[{"type": "force", "faces": ["xmax"], "value": 20, "direction": [0, 0, -1]}], mesh_size=3)
+    check("FootBeam setup ok(고정 면적 100 = 발 바닥만)", r["ok"] and r["data"]["fixed"][0]["area"] == 100.0, str(r.get("error") or r["data"].get("fixed")))
+    r = fem.run_analysis(analysis="Foot", doc="T17_fem_curved")
+    check("FootBeam run ok", r["ok"], str(r.get("error")))
+    r = fem.suggest_reinforcement(analysis="Foot", doc="T17_fem_curved")
+    check("완만한 뿌리 응력은 특이점으로 보지 않음(외팔보 뿌리 유지)", r["ok"] and any("특이점으로 보지 않았습니다" in n for n in r["data"]["hotspot_selection"]) and r["data"]["hotspot"]["max"] == r["data"]["hotspot"]["global_max"], str(r.get("error") or r["data"].get("hotspot_selection")))
+    # 가짜 결과로 급증 케이스: 고정면 위 절점 10 MPa, 멀리 3 MPa, 나머지 1
+    d = FreeCAD.getDocument("T17_fem_curved")
+    an = d.getObject("Foot")
+    mesh_obj, _, _, results, _ = fem._members(an)
+    res = results[0]
+    ids = list(res.NodeNumbers)
+    nodes = res.Mesh.FemMesh.Nodes
+    near = next(i for i, n in enumerate(ids) if abs(nodes[n].z + 2.0) < 1e-6)
+    far = next(i for i, n in enumerate(ids) if nodes[n].x > 50.0)
+    vm = [1.0] * len(ids)
+    vm[near], vm[far] = 10.0, 3.0
+    fake = types.SimpleNamespace(vonMises=vm, NodeNumbers=ids, Mesh=res.Mesh)
+    hot, notes = fem._pick_hotspot(fake, d.getObject("FootBeam").Shape, an, mesh_obj, {"yield": 45.0})
+    check("급증(10 vs 3)은 고정면 특이점으로 제외 → 다음 핫스팟(3 MPa) 선택 + note", hot["node"] == ids[far] and hot["max"] == 3.0 and hot["global_max"] == 10.0 and any("특이점으로 보고 제외" in n for n in notes), str((hot, notes)))
+    vm[near] = 4.0
+    hot, notes = fem._pick_hotspot(fake, d.getObject("FootBeam").Shape, an, mesh_obj, {"yield": 45.0})
+    check("완만(4 vs 3)은 고정면 근처라도 유지", hot["node"] == ids[near] and hot["max"] == 4.0, str((hot, notes)))
+
+
 def test_link_tools():
     section("M14: trace_links")
     r = measure("trace_links", "T14 asm", links.trace_links(doc="T14_asm"))
@@ -980,6 +1079,7 @@ def main():
         ("print_fixes_m15", test_print_fixes_m15),
         ("fem_tools", test_fem_tools),
         ("fem_m16", test_fem_m16),
+        ("fem_fixes", test_fem_fixes),
         ("link_tools", test_link_tools),
         ("registry_and_cap", test_registry_and_cap),
     ):

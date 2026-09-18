@@ -10,6 +10,7 @@ FreeCAD 1.1.3 라이브 확인 사항은 docs/api-notes.md §18. 선형 정적·
 
 import math
 import os
+import re
 import tempfile
 import time
 
@@ -192,6 +193,201 @@ def _face_center(f):
         return f.BoundBox.Center
 
 
+def _center_of(shape):
+    """형상의 (부피 가중) 무게중심. Part.Compound(PartDesign::Body·MultiFuse·cut 결과)는 CenterOfMass가 없다 [라이브 1.1.3]."""
+    sols = shape.Solids
+    if not sols:
+        return shape.BoundBox.Center
+    if shape.ShapeType == "Solid" or len(sols) == 1:
+        return sols[0].CenterOfMass
+    tot = Vec(0, 0, 0)
+    vol = 0.0
+    for so in sols:
+        tot += so.CenterOfMass * so.Volume
+        vol += so.Volume
+    return tot * (1.0 / vol) if vol > 1e-12 else shape.BoundBox.Center
+
+
+def _solids_of_parts(parts, comp_shape):
+    """부품 → Compound 안 솔리드 번호 목록(1-based). 각 솔리드는 무게중심·부피가 같은 부품 솔리드에 대응시킨다."""
+    keys = []
+    for o in parts:
+        for so in o.Shape.Solids:
+            keys.append((o.Name, so.CenterOfMass, so.Volume))
+    if not keys:
+        raise _FemError("부품에 솔리드가 없습니다.")
+    out = {o.Name: [] for o in parts}
+    diag = max(1.0, comp_shape.BoundBox.DiagonalLength)
+    for i, so in enumerate(comp_shape.Solids, 1):
+        c, v = so.CenterOfMass, so.Volume
+        best = min(keys, key=lambda k: (k[1] - c).Length + abs(k[2] - v) / max(v, 1e-9))
+        if (best[1] - c).Length > 1e-3 * diag or abs(best[2] - v) > 1e-4 * max(v, 1e-9):
+            raise _FemError(f"Compound의 Solid{i}(중심 {util.round_vec(c, 2)})가 어느 부품에도 대응하지 않습니다. 부품이 겹치거나(interference) 형상이 바뀐 것입니다.")
+        out[best[0]].append(i)
+    empty = [k for k, v in out.items() if not v]
+    if empty:
+        raise _FemError(f"부품 {', '.join(empty)}의 솔리드가 Compound에 없습니다.")
+    return out
+
+
+def _imprint_parts(parts):
+    """부품 형상들을 generalFuse로 조각내 맞닿은 면을 새긴 Compound. 겹치는 부품은 조각이 늘어나 _solids_of_parts가 잡아낸다."""
+    shapes = []
+    for o in parts:
+        shapes.extend(o.Shape.Solids)
+    if len(shapes) == 1:
+        return Part.makeCompound(shapes)
+    try:
+        res, _ = shapes[0].generalFuse(shapes[1:], 1e-6)
+    except Exception as e:  # noqa: BLE001
+        raise _FemError(f"부품을 접합면 기준으로 조각내지 못했습니다(generalFuse): {e}")
+    if not res.Solids:
+        raise _FemError("generalFuse 결과에 솔리드가 없습니다.")
+    return res
+
+
+def _is_planar(face):
+    try:
+        return isinstance(face.Surface, Part.Plane)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _bind_material_groups(mesh_obj, an):
+    """부품별 재질 → Gmsh가 만든 SolidN Volume 그룹을 재질 객체 이름의 그룹으로 복사한다.
+
+    FreeCAD 작성기는 재질 References(SolidN)를 getNodesBySolid로 요소에 대응시키는데, 곡면 위 절점을 밖으로
+    분류해 요소 일부가 어느 재질에도 안 들어간다(CalculiX "no material was assigned"). 메시에 '<재질이름>_...'
+    Volume 그룹이 있으면 작성기가 그 요소 목록을 그대로 쓴다(meshtools.get_femelement_sets_from_group_data)
+    [라이브 1.1.3 확인]. 반환: {재질이름: 요소 수} 또는 그룹이 없으면 None."""
+    fm = mesh_obj.FemMesh
+    if fm.GroupCount == 0:
+        return None
+    by_name = {}
+    for g in fm.Groups:
+        if fm.getGroupElementType(g) == "Volume":
+            by_name[fm.getGroupName(g)] = g
+    mats = [m for m in _materials(an) if m.References]
+    if not mats:
+        return None
+    out = {}
+    for mo in mats:
+        prefix = mo.Name + "_"
+        for g in list(fm.Groups):
+            if fm.getGroupName(g).startswith(prefix):
+                fm.removeGroup(g)
+        elems = set()
+        for _obj, subs in mo.References:
+            for sub in (subs if isinstance(subs, (list, tuple)) else [subs]):
+                gid = by_name.get(sub)
+                if gid is None:
+                    return None
+                elems.update(fm.getGroupElements(gid))
+        gid = fm.addGroup(prefix + "elements", "Volume")
+        fm.addGroupElements(gid, sorted(elems))
+        out[mo.Name] = len(elems)
+    mesh_obj.FemMesh = fm
+    return out
+
+
+def _shared_interface_nodes(mesh_obj, shape):
+    """Gmsh SolidN_Nodes 그룹으로 솔리드 쌍이 공유하는 절점 수(합). 그룹이 없으면 None."""
+    fm = mesh_obj.FemMesh
+    if fm.GroupCount == 0:
+        return None
+    sets = []
+    names = {fm.getGroupName(g): g for g in fm.Groups}
+    for i in range(1, len(shape.Solids) + 1):
+        g = names.get(f"Solid{i}_Nodes")
+        if g is None:
+            return None
+        sets.append(set(fm.getGroupElements(g)))
+    total = 0
+    for i in range(len(sets)):
+        for j in range(i + 1, len(sets)):
+            total += len(sets[i] & sets[j])
+    return total
+
+
+def _check_inp(path):
+    """CalculiX .inp 검증: 모든 요소가 재질 ELSET에 정확히 한 번 들어가는지, *CLOAD/*DLOAD에 하중 줄이 있는지."""
+    elements = set()
+    elsets = {}
+    nested = {}
+    section_sets = []
+    cload = dload = 0
+    block = None
+    cur = None
+    cont = False
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("**"):
+                continue
+            if line.startswith("*"):
+                up = line.upper()
+                cont = False
+                if up.startswith("*ELEMENT"):
+                    block = "element"
+                elif up.startswith("*ELSET"):
+                    m = re.search(r"ELSET\s*=\s*([^,\s]+)", up)
+                    cur = m.group(1) if m else None
+                    if cur is not None:
+                        elsets.setdefault(cur, set())
+                    block = "elset"
+                elif up.startswith("*SOLID SECTION") or up.startswith("*SHELL SECTION") or up.startswith("*BEAM SECTION"):
+                    m = re.search(r"ELSET\s*=\s*([^,\s]+)", up)
+                    if m:
+                        section_sets.append(m.group(1))
+                    block = None
+                elif up.startswith("*CLOAD"):
+                    block = "cload"
+                elif up.startswith("*DLOAD"):
+                    block = "dload"
+                else:
+                    block = None
+                continue
+            if block == "element":
+                if not cont:
+                    try:
+                        elements.add(int(line.split(",")[0]))
+                    except ValueError:
+                        pass
+                cont = line.endswith(",")
+            elif block == "elset" and cur is not None:
+                for tok in line.split(","):
+                    tok = tok.strip()
+                    if tok.isdigit():
+                        elsets[cur].add(int(tok))
+                    elif tok:
+                        nested.setdefault(cur, []).append(tok.upper())     # 다른 집합 이름(FreeCAD 단일 재질: Evolumes)
+            elif block == "cload":
+                cload += 1
+            elif block == "dload":
+                dload += 1
+    out = {"elements": len(elements), "material_sets": {}, "uncovered": None, "duplicated": None, "cload_lines": cload, "dload_lines": dload}
+    def resolve(name, depth=0):
+        name = name.upper()
+        if name in ("EVOLUMES", "EALL"):
+            return set(elements)
+        ids = set(elsets.get(name, ()))
+        if depth < 5:
+            for sub in nested.get(name, []):
+                ids |= resolve(sub, depth + 1)
+        return ids
+
+    if section_sets and elements:
+        counts = {}
+        for name in section_sets:
+            ids = resolve(name)
+            out["material_sets"][name] = len(ids)
+            for e in ids:
+                counts[e] = counts.get(e, 0) + 1
+        out["uncovered"] = len([e for e in elements if e not in counts])
+        out["duplicated"] = len([e for e, n in counts.items() if n > 1])
+    return out
+
+
 def _ccx_binary():
     pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Fem/Ccx").GetString("ccxBinaryPath", "")
     import shutil
@@ -328,31 +524,29 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
 
         mats_out = []
         if parts:
-            # 여러 부품 → Compound. Gmsh가 맞닿은 면의 절점을 공유시켜 접합(bonded)으로 푼다 [api-notes §18]
-            comp = d.addObject("Part::Compound", analysis + "_Parts")
-            comp.Links = parts
+            # 여러 부품 → generalFuse로 맞닿은 면을 서로 새긴(imprint) Compound. 그래야 Gmsh가 접합면 절점을 공유시켜
+            # 접합(bonded)으로 풀린다 — 단순 Part::Compound는 한 면이 다른 면 안에 부분적으로 놓이면(원판 위 작은 원통 등)
+            # 절점을 공유하지 않아 부품이 따로 놀고 변위가 발산한다 [라이브 1.1.3, api-notes §18]
+            comp = d.addObject("Part::Feature", analysis + "_Parts")
+            comp.Shape = _imprint_parts(parts)
             comp.Label = f"{analysis} 부품 묶음"
             d.recompute()
             if comp.ViewObject:
                 comp.ViewObject.Visibility = False
             obj, shape = comp, comp.Shape
             created.append(comp.Name)
-            # 부품 → Compound 솔리드 번호 (무게중심으로 대응)
-            solid_of = {}
-            for o in parts:
-                c = o.Shape.CenterOfMass
-                idx = min(range(len(shape.Solids)), key=lambda i: (shape.Solids[i].CenterOfMass - c).Length)
-                solid_of[o.Name] = idx + 1
+            # 부품 → Compound 솔리드 번호 (솔리드별 무게중심·부피로 대응; Body·MultiFuse처럼 Compound인 부품도 된다)
+            solids_of = _solids_of_parts(parts, shape)
             if per_part:
                 for o in parts:
                     spec = material.get(o.Name, material.get(util.label(o), material.get("default", "PLA")))
                     m = resolve_material(spec)
                     mo = ObjectsFem.makeMaterialSolid(d, f"Material_{o.Name}")
                     mo.Material = _fem_material_dict(m)
-                    mo.References = [(comp, f"Solid{solid_of[o.Name]}")]
+                    mo.References = [(comp, f"Solid{i}") for i in solids_of[o.Name]]
                     an.addObject(mo)
                     created.append(mo.Name)
-                    mats_out.append(dict(m, part=o.Name, solid=solid_of[o.Name]))
+                    mats_out.append(dict(m, part=o.Name, solid=solids_of[o.Name][0], solids=solids_of[o.Name]))
                 mat = min(mats_out, key=lambda m: m["yield"])
             touching = 0
             sols = shape.Solids
@@ -373,8 +567,10 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
             mats_out = [mat]
 
         fixed_out = []
+        ref_faces = []                      # 고정·하중이 걸린 면 — 곡면이 있으면 2차 요소 중간 절점을 곡면에 둔다
         for k, sel in enumerate(fixed_sel):
             fl = _resolve_faces(shape, sel)
+            ref_faces.extend(f for _, f in fl)
             c = ObjectsFem.makeConstraintFixed(d, f"Fixed{k + 1}" if len(fixed_sel) > 1 else "Fixed")
             c.References = [(obj, f"Face{i}") for i, _ in fl]
             an.addObject(c)
@@ -391,6 +587,7 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
                 fl = _resolve_faces(shape, ld.get("faces"))
                 if not fl:
                     raise _FemError(f"loads[{k}] force에 faces가 필요합니다.")
+                ref_faces.extend(f for _, f in fl)
                 c = ObjectsFem.makeConstraintForce(d, f"Force{k + 1}")
                 c.References = [(obj, f"Face{i}") for i, _ in fl]
                 c.Force = f"{float(ld.get('value', 0.0))} N"
@@ -418,6 +615,7 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
                 fl = _resolve_faces(shape, ld.get("faces"))
                 if not fl:
                     raise _FemError(f"loads[{k}] pressure에 faces가 필요합니다.")
+                ref_faces.extend(f for _, f in fl)
                 c = ObjectsFem.makeConstraintPressure(d, f"Pressure{k + 1}")
                 c.References = [(obj, f"Face{i}") for i, _ in fl]
                 c.Pressure = f"{float(ld.get('value', 0.0))} MPa"
@@ -447,13 +645,34 @@ def setup_analysis(name=None, doc=None, material="PLA", fixed=None, loads=None, 
             mesh_size = max(0.5, min(10.0, round(diag / 30.0, 2)))
         mesh.CharacteristicLengthMax = f"{float(mesh_size)} mm"
         mesh.ElementOrder = "2nd" if str(order).startswith("2") else "1st"
-        mesh.SecondOrderLinear = True      # 곡면(나사 등)에서 휜 2차 요소는 CalculiX가 "nonpositive jacobian"으로 거부한다 → 직선 변 [라이브 1.1.3]
+        # 2차 요소의 중간 절점: 기본은 직선 변(SecondOrderLinear) — 곡면(나사 등)에서 휜 요소는 CalculiX가 "nonpositive jacobian"으로
+        # 거부한다 [라이브 1.1.3]. 단, 고정·하중 면이 곡면이면 직선 변의 중간 절점이 표면을 벗어나 FreeCAD 작성기가 그 면의 요소를
+        # 못 찾는다(getccxVolumesByFace 0개 → *CLOAD/*DLOAD 비고 응력 0) → 그때는 중간 절점을 곡면에 둔다 [라이브 1.1.3]
+        curved_refs = [f for f in ref_faces if not _is_planar(f)]
+        mesh.SecondOrderLinear = not curved_refs
         if mesh.ElementOrder == "1st":
             warnings.append("1차 요소는 굽힘 강성을 2배 가까이 과대평가합니다(외팔보 검증). 정확도가 필요하면 order='2nd'.")
+        elif curved_refs:
+            warnings.append(f"고정·하중 면 중 {len(curved_refs)}개가 곡면입니다 — 2차 요소 중간 절점을 곡면 위에 둡니다(직선 변이면 그 면에 하중이 실리지 않음). "
+                            "CalculiX가 'nonpositive jacobian'으로 실패하면 mesh_size를 줄이거나 order='1st', 또는 하중 면을 평면으로 나누세요.")
         an.addObject(mesh)
         created.append(mesh.Name)
         mesh_info = _run_gmsh(mesh)
-        mesh_info.update({"size": float(mesh_size), "order": mesh.ElementOrder})
+        mesh_info.update({"size": float(mesh_size), "order": mesh.ElementOrder, "second_order_linear": bool(mesh.SecondOrderLinear)})
+        if parts and len(parts) > 1:
+            shared = _shared_interface_nodes(mesh, shape)
+            if shared is not None:
+                mesh_info["interface_shared_nodes"] = shared
+                if shared == 0 and touching:
+                    warnings.append("맞닿은 부품 사이에 공유 절점이 없습니다 — 부품이 따로 놀아 변위가 발산합니다. 부품 형상을 확인하세요.")
+        if per_part:
+            groups = _bind_material_groups(mesh, an)
+            if groups:
+                mesh_info["material_groups"] = groups
+                if sum(groups.values()) != mesh_info["elements"]:
+                    warnings.append(f"재질 그룹 요소 합({sum(groups.values())})이 전체 요소({mesh_info['elements']})와 다릅니다 — 부품이 겹치는지 확인하세요.")
+            else:
+                warnings.append("Gmsh 솔리드 그룹이 없어 재질을 절점 분류로 대응합니다 — 곡면 부품이면 요소 일부가 재질을 못 받을 수 있습니다(run_analysis가 검증).")
         if mesh_info["nodes"] > 300000:
             warnings.append(f"절점 {mesh_info['nodes']}개 — 해석이 수 분 걸릴 수 있습니다. mesh_size를 키우세요.")
 
@@ -605,6 +824,7 @@ def run_analysis(analysis=None, doc=None, show="von_mises"):
         mesh_info = None
         if mesh.FemMesh.NodeCount == 0:
             mesh_info = _run_gmsh(mesh)
+            _bind_material_groups(mesh, an)
         wd = _working_dir(d, an)
         sol.WorkingDir = wd
         t1 = time.time()
@@ -626,6 +846,20 @@ def run_analysis(analysis=None, doc=None, show="von_mises"):
         if msg:
             raise _FemError(f"해석 준비 오류: {msg.strip()}")
         fea.write_inp_file()
+        inp_check = _check_inp(fea.inp_file_name)
+        if inp_check["uncovered"]:
+            raise _FemError(f"요소 {inp_check['uncovered']}개(전체 {inp_check['elements']})가 어느 재질에도 배정되지 않았습니다(CalculiX 'no material was assigned'). "
+                            f"재질 ELSET: {inp_check['material_sets']}. 부품이 겹치지 않는지 확인하고 setup_analysis를 다시 부르세요.")
+        if inp_check["duplicated"]:
+            warnings.append(f"요소 {inp_check['duplicated']}개가 재질 ELSET 두 개 이상에 들어 있습니다 — 부품이 겹치는 곳입니다. CalculiX는 마지막 재질을 씁니다.")
+        has_force = any(o.isDerivedFrom("Fem::ConstraintForce") for o in an.Group)
+        has_dload = any(o.isDerivedFrom("Fem::ConstraintPressure") or o.isDerivedFrom("Fem::ConstraintSelfWeight") for o in an.Group)
+        if atype == "static":
+            if has_force and inp_check["cload_lines"] == 0:
+                raise _FemError("힘 하중이 요소에 실리지 않았습니다(.inp의 *CLOAD가 비어 있음 → 응력 0이 나옵니다). 하중 면이 곡면이면 setup_analysis를 다시 불러 "
+                                "중간 절점을 곡면에 두게 하거나(자동), 평면으로 나누거나, pressure로 바꾸세요.")
+            if has_dload and inp_check["dload_lines"] == 0:
+                raise _FemError("압력·자중이 요소에 실리지 않았습니다(.inp의 *DLOAD가 비어 있음). 하중 면이 곡면이면 setup_analysis를 다시 부르거나 평면으로 나누세요.")
         ret = fea.ccx_run()
         stdout = getattr(fea, "ccx_stdout", "") or ""
         stderr = getattr(fea, "ccx_stderr", "") or ""
@@ -660,7 +894,7 @@ def run_analysis(analysis=None, doc=None, show="von_mises"):
     except Exception as e:  # noqa: BLE001
         return util.error(f"해석 실행 실패: {e}", e)
     data = {"document": d.Name, "analysis": an.Name, "analysis_type": atype, "object": target.Name, "material": mat, "result": res.Name, "pipeline": pipe.Name,
-            "shown_field": shown, "solve_seconds": solve_s, "working_dir": wd, "summary": summary}
+            "shown_field": shown, "solve_seconds": solve_s, "working_dir": wd, "summary": summary, "inp_check": inp_check}
     if mesh_info:
         data["mesh"] = mesh_info
     warnings.append("선형 정적·등방성 해석입니다. 화면의 컬러맵은 get_screenshot(view='iso')로 잡을 수 있습니다.")
@@ -769,6 +1003,125 @@ def _concave_edge_near(shape, face_idx, p, tol):
     return best
 
 
+def _mesh_size_of(mesh_obj, shape):
+    try:
+        return float(mesh_obj.CharacteristicLengthMax.getValueAs("mm"))
+    except Exception:  # noqa: BLE001
+        return max(0.5, shape.BoundBox.DiagonalLength / 30.0)
+
+
+def _sub_solid(obj, sub):
+    return obj.Shape.Solids[int(sub[5:]) - 1] if sub.startswith("Solid") else None
+
+
+def _node_yields(an, mesh_obj):
+    """재질이 여럿일 때 절점별 항복강도(MPa). 재질 References의 솔리드 절점은 Gmsh 'SolidN_Nodes' 그룹(없으면 getNodesBySolid)으로.
+    두 부품 경계 절점은 낮은 쪽. 재질이 하나면 None."""
+    mats = _materials(an)
+    if len(mats) < 2:
+        return None
+    fm = mesh_obj.FemMesh
+    names = {fm.getGroupName(g): g for g in fm.Groups} if fm.GroupCount else {}
+    per = {}
+    for mo in mats:
+        y = _read_material(mo).get("yield")
+        if not y or not mo.References:
+            continue
+        nodes = set()
+        for obj, subs in mo.References:
+            for sub in (subs if isinstance(subs, (list, tuple)) else [subs]):
+                g = names.get(sub + "_Nodes")
+                if g is not None:
+                    nodes.update(fm.getGroupElements(g))
+                else:
+                    so = _sub_solid(obj, sub)
+                    if so is not None:
+                        nodes.update(fm.getNodesBySolid(so))
+        for n in nodes:
+            per[n] = min(per.get(n, y), y)
+    return per
+
+
+def _fixed_faces(an):
+    out = []
+    for c in an.Group:
+        if not c.isDerivedFrom("Fem::ConstraintFixed"):
+            continue
+        for obj, subs in c.References:
+            for sub in (subs if isinstance(subs, (list, tuple)) else [subs]):
+                if sub.startswith("Face"):
+                    try:
+                        out.append(obj.Shape.Faces[int(sub[4:]) - 1])
+                    except Exception:  # noqa: BLE001
+                        pass
+    return out
+
+
+def _pick_hotspot(res, shape, an, mesh_obj, weakest):
+    """보강 기준 핫스팟. 절점마다 (응력 / 그 부품의 항복강도)가 가장 큰 곳을 고르되, 고정면에서 요소 크기 2배 안의
+    급증(바깥 최대의 2배 초과)은 응력 특이점으로 보고 제외한다. 외팔보 뿌리처럼 고정면 근처가 진짜 최대인 경우(완만)는 그대로 둔다."""
+    vm = list(res.vonMises)
+    ids = list(res.NodeNumbers)
+    nodes = _node_positions(res)
+    per = _node_yields(an, mesh_obj) or {}
+    y0 = weakest["yield"]
+
+    def yld(n):
+        return per.get(n, y0)
+
+    order = sorted(range(len(ids)), key=lambda k: -(vm[k] / yld(ids[k])))
+    radius = 2.0 * _mesh_size_of(mesh_obj, shape)
+    faces = _fixed_faces(an)
+    boxes = []
+    for f in faces:
+        bb = f.BoundBox
+        bb.enlarge(radius)
+        boxes.append(bb)
+
+    def near_fixed(p):
+        v = Part.Vertex(p)
+        for f, bb in zip(faces, boxes):
+            if not bb.isInside(p):
+                continue
+            try:
+                if f.distToShape(v)[0] < radius:
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+        return False
+
+    spike, chosen, skipped = None, None, 0
+    for k in order[:3000]:
+        if faces and near_fixed(nodes[ids[k]]):
+            if spike is None:
+                spike = k
+            skipped += 1
+            continue
+        chosen = k
+        break
+    notes = []
+    if chosen is None:
+        chosen = order[0]
+    if spike is not None and chosen != spike:
+        s_spike = vm[spike] / yld(ids[spike])
+        s_ch = vm[chosen] / yld(ids[chosen])
+        if s_spike > 2.0 * s_ch:
+            notes.append(f"최대 응력 절점 {ids[spike]}({round(vm[spike], 1)} MPa, {util.round_vec(nodes[ids[spike]], 1)})은 고정면에서 {round(radius, 1)} mm 안이고 "
+                         f"바깥 최대의 {round(s_spike / s_ch, 1)}배라 응력 특이점으로 보고 제외했습니다(고정면 근처 절점 {skipped}개). 보강 기준은 그 다음 핫스팟입니다.")
+        else:
+            chosen = spike
+            notes.append("최대 응력이 고정면 근처지만 바깥 최대의 2배 이내라(완만한 굽힘 응력) 특이점으로 보지 않았습니다.")
+    if per:
+        notes.append("재질이 여럿이라 절점마다 그 부품의 항복강도로 안전율을 계산했습니다(부품 경계 절점은 낮은 쪽).")
+    k = chosen
+    p = nodes[ids[k]]
+    nf = _nearest_face(shape, p)
+    y = yld(ids[k])
+    hot = {"max": round(vm[k], 3), "node": ids[k], "at": util.round_vec(p, 2), "face": f"Face{nf[0]}" if nf else None,
+           "yield": y, "safety_factor": round(y / max(vm[k], 1e-9), 2), "global_max": round(max(vm), 3) if vm else None}
+    return hot, notes
+
+
 def suggest_reinforcement(analysis=None, doc=None, target_safety=2.0, max_items=10):
     """안전율 미달 시 보강 후보 번호 목록 (명세 7.39). 자동 적용 없음."""
     t0 = time.time()
@@ -796,14 +1149,19 @@ def suggest_reinforcement(analysis=None, doc=None, target_safety=2.0, max_items=
         vm = summary.get("von_mises")
         if not vm:
             raise _FemError("응력 결과가 없습니다.")
-        sf = summary["safety_factor"]
+        hot, hot_notes = _pick_hotspot(res, shape, an, mesh, mat)
+        vm = dict(vm)
+        vm.update(hot)                                     # p99는 전체 기준, max·위치·항복강도는 고른 핫스팟 기준
+        sf = hot["safety_factor"]
+        summary["safety_factor_hotspot"] = sf
         target_safety = float(target_safety)
         need = target_safety / max(sf, 1e-9)              # 응력을 이만큼 줄여야 한다
         p = Vec(*vm["at"])
         fidx = int(vm["face"][4:]) if vm.get("face") else None
         cands = []
         if sf >= target_safety:
-            data = {"document": d.Name, "analysis": an.Name, "safety_factor": sf, "target": target_safety, "summary": summary, "candidates": [],
+            data = {"document": d.Name, "analysis": an.Name, "safety_factor": sf, "target": target_safety, "summary": summary, "hotspot": vm, "hotspot_selection": hot_notes,
+                    "candidates": [],
                     "note": f"안전율 {sf} ≥ 목표 {target_safety}. 보강이 필요 없습니다. 무게를 줄이고 싶으면 두께를 지금의 {round(100.0 / math.sqrt(sf / target_safety))} %까지 줄여도 목표를 지킵니다(굽힘 기준, 좌굴·변위는 따로 확인)."}
             return util.envelope(data, warnings=warnings, t0=t0)
 
@@ -842,13 +1200,13 @@ def suggest_reinforcement(analysis=None, doc=None, target_safety=2.0, max_items=
                               "expected_safety": round(sf * 2.0, 2), "confidence": "low",
                               "how": "build_features pad(리브 단면 폴리곤)"})
         # 4) 재질
-        better = [k for k, m in FEM_MATERIALS.items() if m["yield"] / vm["max"] >= target_safety and k != mat.get("name")]
+        better = [k for k, m in FEM_MATERIALS.items() if m["yield"] / vm["max"] >= target_safety and m["yield"] > vm["yield"]]
         if better:
             cands.append({"kind": "material", "detail": f"재질 변경으로 목표 달성: {', '.join(better[:6])} (항복강도/최대응력 ≥ {target_safety})",
                           "expected_safety": round(FEM_MATERIALS[better[0]]["yield"] / vm["max"], 2), "confidence": "high",
                           "how": "setup_analysis(material=...) 다시"})
         # 5) 하중 줄이기
-        allow = mat["yield"] / target_safety
+        allow = vm["yield"] / target_safety
         cands.append({"kind": "load", "detail": f"허용 응력 {round(allow, 1)} MPa가 되려면 하중을 {round(allow / vm['max'] * 100.0, 0)} %로 (선형이라 비례)",
                       "expected_safety": target_safety, "confidence": "high", "how": "설계 조건 변경"})
         # 6) 특이점
@@ -862,7 +1220,7 @@ def suggest_reinforcement(analysis=None, doc=None, target_safety=2.0, max_items=
     except Exception as e:  # noqa: BLE001
         return util.error(f"보강 제안 실패: {e}", e)
     data = {"document": d.Name, "analysis": an.Name, "safety_factor": sf, "target": target_safety, "stress_reduction_needed": round((1.0 - 1.0 / need) * 100.0, 1),
-            "hotspot": vm, "candidates": cands[: int(max_items)], "candidates_total": len(cands)}
+            "hotspot": vm, "hotspot_selection": hot_notes, "candidates": cands[: int(max_items)], "candidates_total": len(cands)}
     warnings.append("후보는 자동 적용하지 않습니다. 고른 것을 build_features/execute_code로 반영한 뒤 run_analysis로 다시 확인하세요.")
     return util.envelope(data, warnings=warnings, truncated=len(cands) > int(max_items), t0=t0)
 
