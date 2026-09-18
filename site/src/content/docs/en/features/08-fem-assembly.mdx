@@ -61,7 +61,9 @@ In an assembly that pulls Bodies from other files in as Links, moving a file tur
 
 ## Things to know
 
-- **Linear static and isotropic only.** No plasticity, large deformation, contact or friction. Multiple parts are solved with touching faces fully bonded — this does not model a bolted joint.
+- **Linear static and isotropic only.** No plasticity, large deformation, contact or friction. Multiple parts are solved with touching faces fully bonded — this does not model a bolted joint. Overlapping parts are an error; parts that do not actually touch get a warning.
+- **Forces and pressures on curved faces (cylinders) work.** The AI switches to a curved-surface mesh automatically. An analysis whose load did not reach the mesh is refused with an error instead of reporting zero stress.
+- **The reinforcement hotspot** skips stress singularities right next to a fixed face. With several parts it uses each part's own yield strength, and the reason is given in the answer.
 - **Buckling is not supported.** CalculiX was observed to stall and die with memory climbing to 8 GB, so it is refused.
 - **The material table holds empirical values** (PLA, PETG, ABS, ASA, TPU, NYLON, PMMA, POM, ALUMINUM, STEEL, STAINLESS, BRASS). If you know the real E and yield strength, give the numbers.
 - **When you get a singularity warning**, look at the p99 safety factor instead of the maximum. Stress diverging at a sharp corner is a property of the analysis, not of the real part.

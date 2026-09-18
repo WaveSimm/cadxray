@@ -126,7 +126,7 @@ Every response is an envelope `{"ok", "data", "warnings", "truncated", "elapsed_
 
 ## What it has been tested on
 
-- 287 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (4 s)
+- 304 handler tests run headless: `freecadcmd tests/in_freecad/test_handlers.py` (12 s)
 - A real PartDesign part (sketch with 1 DoF left, missing coincidences — found and fixed)
 - Vendor STEP parts and an 80-part vendor assembly (3,149 faces): holes with counterbores and chamfers, thread hints, zero interference, 8.5 kg at steel density
 - STEP → parametric rebuild: a bracket reproduced to **0.0 mm³ difference**; a 44-face clamp jaw (BSpline transitions, dovetail groove, chamfered lips) to 0.0004 % — first by hand (`examples/rebuild_bracket_from_step.py`), then again with the four M7 tools only: 12 features, every sketch fully constrained, `compare_shapes` verdict *identical* (`examples/rebuild_2b2_with_tools.py`). The 8 BSpline transition faces were identified as cones (axis, apex, 59.63° half-angle) with 6.6e-5 residual.

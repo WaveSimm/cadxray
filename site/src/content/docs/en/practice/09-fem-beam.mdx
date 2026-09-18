@@ -159,7 +159,7 @@ Same cantilever at thickness 5 in STEEL, natural frequency analysis. First mode 
 - **Over 300,000 nodes** — the solve takes a long time. Ask for a larger mesh size.
 - **The wrong face got fixed** — you can tell from the fixed face area in the answer. Specify it again by coordinate: "fix the face near (0, 5, 2.5)".
 - **You asked about buckling and it refused** — buckling analysis is not supported (CalculiX was observed to stall, so it is excluded).
-- **You want to solve several parts together** — give per-part materials: "A in STEEL and B in PETG, bonded, analyse them together". Touching faces are solved fully bonded, with no bolts, contact or friction.
+- **You want to solve several parts together** — give per-part materials: "A in STEEL and B in PETG, bonded, analyse them together". Touching faces are solved fully bonded, with no bolts, contact or friction. Overlapping parts give an error and parts that do not actually touch give a warning, so check the geometry first.
 - **Analysis objects pile up in the tree** — that is expected. Setting up again under the same name deletes and recreates them.
 
 ## Going further
